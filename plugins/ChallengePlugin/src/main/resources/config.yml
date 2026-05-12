@@ -1,3 +1,4 @@
 challenge:
-  report_interval_ticks: 200
+  refresh_interval_ticks: 1200
+  sync_interval_ticks: 600
   enabled: true
