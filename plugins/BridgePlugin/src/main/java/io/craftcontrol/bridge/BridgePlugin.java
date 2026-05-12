@@ -1,12 +1,16 @@
 package io.craftcontrol.bridge;
 
+import fi.iki.elonen.NanoHTTPD;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.IOException;
 
 public class BridgePlugin extends JavaPlugin {
 
     private static BridgePlugin instance;
     private ApiClient apiClient;
+    private BridgeServer bridgeServer;
 
     @Override
     public void onEnable() {
@@ -14,6 +18,7 @@ public class BridgePlugin extends JavaPlugin {
         saveDefaultConfig();
 
         FileConfiguration cfg = getConfig();
+
         apiClient = new ApiClient(
                 cfg.getString("api.base_url", "http://10.10.10.20:3000/api"),
                 cfg.getString("api.service_token", ""),
@@ -22,11 +27,26 @@ public class BridgePlugin extends JavaPlugin {
                 cfg.getLong("api.retry_backoff_ms", 500L)
         );
 
+        String bind = cfg.getString("bridge.bind", "0.0.0.0");
+        int port = cfg.getInt("bridge.port", 25580);
+        String secret = cfg.getString("bridge.secret", "");
+
+        bridgeServer = new BridgeServer(bind, port, secret, this);
+        try {
+            bridgeServer.start(NanoHTTPD.SOCKET_READ_TIMEOUT, false);
+            getLogger().info("Bridge inbound server listening on " + bind + ":" + port);
+        } catch (IOException e) {
+            getLogger().severe("Failed to start bridge server: " + e.getMessage());
+        }
+
         getLogger().info("BridgePlugin enabled.");
     }
 
     @Override
     public void onDisable() {
+        if (bridgeServer != null && bridgeServer.isAlive()) {
+            bridgeServer.stop();
+        }
         if (apiClient != null) {
             apiClient.shutdown();
         }
