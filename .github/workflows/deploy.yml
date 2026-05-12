@@ -1,0 +1,111 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-plugin:
+    name: Deploy Minecraft plugins
+    runs-on: ubuntu-latest
+    if: contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'plugins/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Build plugin JARs
+        run: mvn clean package -DskipTests --batch-mode --no-transfer-progress
+        working-directory: plugins
+
+      - name: Upload JARs to game-vm via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.GAME_VM_HOST }}
+          username: ${{ secrets.DISCOPANEL_SFTP_USER }}
+          password: ${{ secrets.DISCOPANEL_SFTP_PASS }}
+          port: ${{ secrets.DISCOPANEL_SFTP_PORT }}
+          source: "plugins/*/target/*-*.jar"
+          target: "/plugins/"
+          strip_components: 3
+
+      - name: Restart Minecraft via DiscoPanel API
+        run: |
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${{ secrets.DISCOPANEL_API_TOKEN }}" \
+            "https://${{ secrets.GAME_VM_HOST }}/api/client/servers/craftcontrol/power" \
+            -d '{"signal":"restart"}'
+
+  deploy-api:
+    name: Deploy API to mgmt-vm
+    runs-on: ubuntu-latest
+    if: contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'server/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install and build
+        run: npm ci && npm run build
+        working-directory: server
+
+      - name: Run database migrations
+        run: npx prisma migrate deploy
+        working-directory: server
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Deploy to mgmt-vm via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.MGMT_VM_HOST }}
+          username: www-data
+          key: ${{ secrets.MGMT_VM_SSH_KEY }}
+          script: |
+            cd /var/www/craftcontrol/api
+            git pull origin main
+            npm ci --omit=dev
+            npx prisma migrate deploy
+            pm2 reload craftcontrol-api --update-env
+
+  deploy-spa:
+    name: Deploy frontend SPA to mgmt-vm
+    runs-on: ubuntu-latest
+    if: contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'client/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install and build
+        run: npm ci && npm run build
+        working-directory: client
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+
+      - name: Copy dist to mgmt-vm
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.MGMT_VM_HOST }}
+          username: www-data
+          key: ${{ secrets.MGMT_VM_SSH_KEY }}
+          source: "client/dist/"
+          target: "/var/www/craftcontrol/public/"
+          strip_components: 2
+          rm: true
