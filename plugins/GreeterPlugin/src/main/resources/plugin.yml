@@ -5,3 +5,8 @@ api-version: '1.21'
 description: Sends personalised welcome messages and initial rewards to joining players
 authors: [CraftControl]
 depend: [BridgePlugin]
+commands:
+  greeter:
+    description: GreeterPlugin admin commands
+    usage: /greeter <reload>
+    permission: craftcontrol.greeter.admin

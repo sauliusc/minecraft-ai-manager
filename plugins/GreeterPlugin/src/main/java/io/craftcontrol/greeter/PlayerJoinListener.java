@@ -1,0 +1,154 @@
+package io.craftcontrol.greeter;
+
+import io.craftcontrol.bridge.ApiClient;
+import io.craftcontrol.bridge.BridgePlugin;
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.Response;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.inventory.ItemStack;
+
+import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+
+public class PlayerJoinListener implements Listener {
+
+    private final GreeterPlugin plugin;
+
+    public PlayerJoinListener(GreeterPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        FileConfiguration cfg = plugin.getConfig();
+
+        if (!player.hasPlayedBefore()) {
+            handleFirstJoin(player, cfg);
+        } else {
+            handleReturn(player, cfg);
+        }
+    }
+
+    private void handleFirstJoin(Player player, FileConfiguration cfg) {
+        String message = cfg.getString("greeting.first_join_message", "Welcome, {player}!")
+                .replace("{player}", player.getName());
+        player.sendMessage(message);
+
+        player.sendTitle(
+                "§6" + player.getName(),
+                "§eWelcome to the server!",
+                10, 70, 20
+        );
+
+        try {
+            player.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0f, 1.0f);
+        } catch (Exception ignored) {
+        }
+
+        teleportToWelcomeZone(player, cfg);
+        giveStarterKit(player, cfg);
+
+        if (cfg.getBoolean("greeting.broadcast_first_join", true)) {
+            String broadcast = cfg.getString("greeting.broadcast_message", "{player} joined for the first time!")
+                    .replace("{player}", player.getName());
+            plugin.getServer().broadcastMessage("§a" + broadcast);
+        }
+
+        postPlayerRecord(player);
+    }
+
+    private void handleReturn(Player player, FileConfiguration cfg) {
+        Instant lastLogin = player.getLastLogin() > 0
+                ? Instant.ofEpochMilli(player.getLastLogin())
+                : Instant.now();
+        long daysSince = ChronoUnit.DAYS.between(lastLogin, Instant.now());
+
+        String message = cfg.getString("greeting.return_message", "Welcome back, {player}!")
+                .replace("{player}", player.getName())
+                .replace("{lastSeen}", daysSince + " days ago");
+        player.sendMessage(message);
+
+        int giftDays = cfg.getInt("greeting.return_gift_after_days", 7);
+        if (daysSince >= giftDays) {
+            player.sendTitle("§bWelcome Back!", "§fHere's a gift for returning!", 10, 60, 20);
+            player.getInventory().addItem(new ItemStack(Material.DIAMOND, 1));
+        }
+
+        updatePlayerRecord(player);
+    }
+
+    private void teleportToWelcomeZone(Player player, FileConfiguration cfg) {
+        String worldName = cfg.getString("welcome_zone.world", "world");
+        World world = plugin.getServer().getWorld(worldName);
+        if (world == null) return;
+        double x = cfg.getDouble("welcome_zone.x", 0.5);
+        double y = cfg.getDouble("welcome_zone.y", 64.0);
+        double z = cfg.getDouble("welcome_zone.z", 0.5);
+        player.teleport(new Location(world, x, y, z));
+    }
+
+    private void giveStarterKit(Player player, FileConfiguration cfg) {
+        if (!cfg.getBoolean("starter_kit.enabled", true)) return;
+        List<ItemStack> items = new ArrayList<>();
+        for (var section : cfg.getMapList("starter_kit.items")) {
+            try {
+                Material mat = Material.valueOf(section.get("material").toString());
+                int amount = Integer.parseInt(section.getOrDefault("amount", 1).toString());
+                items.add(new ItemStack(mat, amount));
+            } catch (Exception ignored) {
+            }
+        }
+        for (ItemStack item : items) {
+            player.getInventory().addItem(item);
+        }
+    }
+
+    private void postPlayerRecord(Player player) {
+        ApiClient api = BridgePlugin.getInstance().getApiClient();
+        if (api == null) return;
+        String json = "{\"id\":\"" + player.getUniqueId() + "\",\"username\":\"" + player.getName() + "\"}";
+        api.post("/players", json, new Callback() {
+            @Override
+            public void onResponse(Call call, Response response) {
+                response.close();
+                if (!response.isSuccessful()) {
+                    plugin.getLogger().warning("Failed to register player " + player.getName() + ": HTTP " + response.code());
+                }
+            }
+            @Override
+            public void onFailure(Call call, IOException e) {
+                plugin.getLogger().warning("Failed to register player " + player.getName() + ": " + e.getMessage());
+            }
+        });
+    }
+
+    private void updatePlayerRecord(Player player) {
+        ApiClient api = BridgePlugin.getInstance().getApiClient();
+        if (api == null) return;
+        String uuid = player.getUniqueId().toString();
+        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\"}";
+        api.post("/players/" + uuid + "/join", json, new Callback() {
+            @Override
+            public void onResponse(Call call, Response response) {
+                response.close();
+            }
+            @Override
+            public void onFailure(Call call, IOException e) {
+                plugin.getLogger().warning("Failed to update player " + player.getName() + ": " + e.getMessage());
+            }
+        });
+    }
+}
