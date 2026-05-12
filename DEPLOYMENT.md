@@ -6,12 +6,29 @@
 
 ---
 
+## Quick Start
+
+After creating mgmt-vm in Proxmox (see §2), run the one-call setup script:
+
+```bash
+sudo bash scripts/setup-mgmt-vm.sh \
+  --domain panel.yourdomain.com \
+  --email  admin@yourdomain.com \
+  --game-vm 10.10.10.10
+```
+
+This single command installs and configures Node.js 22, PostgreSQL 16, Redis 7, Nginx, Let's Encrypt SSL, UFW, fail2ban, PM2, all app directories, and a ready-to-use `.env` with generated secrets. See [§4 mgmt-vm (Web Stack)](#4-vm-2--mgmt-vm-web-stack) for the complete reference, or jump to [§4.1](#41-automated-setup-script) for script options.
+
+---
+
 ## Table of Contents
 
 1. [Architecture Overview](#1-architecture-overview)
 2. [Proxmox Host Setup](#2-proxmox-host-setup)
 3. [VM 1 — game-vm (Minecraft + DiscoPanel)](#3-vm-1--game-vm-minecraft--discopanel)
 4. [VM 2 — mgmt-vm (Web Stack)](#4-vm-2--mgmt-vm-web-stack)
+   - 4.1 [Automated Setup Script](#41-automated-setup-script)
+   - 4.2 [Manual Steps Reference](#42-manual-steps-reference)
 5. [Networking & Firewall](#5-networking--firewall)
 6. [SSL/TLS Configuration](#6-ssltls-configuration)
 7. [DiscoPanel Configuration](#7-discopanel-configuration)
@@ -216,7 +233,64 @@ Configure in DiscoPanel → Schedules:
 
 ## 4. VM 2 — mgmt-vm (Web Stack)
 
-### 4.1 Base OS Setup
+### 4.1 Automated Setup Script
+
+**Script location:** `scripts/setup-mgmt-vm.sh`
+
+Run once on a fresh Ubuntu 24.04 VM:
+
+```bash
+# Full setup with SSL
+sudo bash scripts/setup-mgmt-vm.sh \
+  --domain  panel.yourdomain.com \
+  --email   admin@yourdomain.com \
+  --game-vm 10.10.10.10
+
+# Skip SSL (for internal/staging environments)
+sudo bash scripts/setup-mgmt-vm.sh \
+  --domain  panel.yourdomain.com \
+  --skip-ssl \
+  --game-vm 10.10.10.10
+
+# Supply your own DB password (otherwise auto-generated)
+sudo bash scripts/setup-mgmt-vm.sh \
+  --domain  panel.yourdomain.com \
+  --email   admin@yourdomain.com \
+  --db-pass mySecurePassword123
+```
+
+**Options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--domain <host>` | required | Public hostname for the web panel |
+| `--email <email>` | required unless `--skip-ssl` | Let's Encrypt notification email |
+| `--db-pass <pass>` | auto-generated | PostgreSQL password for `craftcontrol` user |
+| `--skip-ssl` | false | Skip certbot; configure Nginx for HTTP only |
+| `--game-vm <ip>` | `10.10.10.10` | Internal IP of game-vm (written into `.env`) |
+
+**What the script configures (12 steps):**
+
+1. System package update
+2. Install Node.js 22 LTS, PostgreSQL 16, Redis 7, Nginx, Certbot, fail2ban, PM2
+3. PostgreSQL: create `craftcontrol` user + database, apply performance tuning (`shared_buffers`, `work_mem`, slow query log)
+4. Redis: set `maxmemory 512mb`, `allkeys-lru` eviction
+5. App directories: `/var/www/craftcontrol/{api,public}`, `/var/backups/craftcontrol`
+6. PM2 systemd startup for `www-data` user
+7. Nginx: reverse proxy config with rate limiting (`30r/m`, burst 50), SPA fallback routing, security headers
+8. Let's Encrypt certificate + HSTS + auto-renewal timer
+9. UFW: deny all inbound except ports 22, 80, 443
+10. `.env` file at `/var/www/craftcontrol/api/.env` with all generated secrets (permissions `640`, owner `www-data`)
+11. fail2ban enabled
+12. Service health check + printed summary of all credentials and next steps
+
+**Output:** The script prints a summary table with all generated secrets. **Copy these immediately** — the `BRIDGE_SECRET` must be entered into DiscoPanel's environment variables on game-vm.
+
+### 4.2 Manual Steps Reference
+
+The sections below document each step individually for reference, troubleshooting, or partial re-runs. For a fresh VM, prefer the automated script above.
+
+### Base OS Setup
 
 ```bash
 apt update && apt upgrade -y
