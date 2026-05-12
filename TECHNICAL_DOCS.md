@@ -4,7 +4,7 @@
 **Version:** 1.0.0
 **Status:** Pre-development
 **Owner:** sauliusc
-**Last Updated:** 2026-05-10
+**Last Updated:** 2026-05-12
 
 ---
 
@@ -446,55 +446,110 @@ enum Role          { SUPER_ADMIN MODERATOR }
 
 ## 6. Infrastructure & Deployment
 
-### 6.1 Recommended Server Setup (Single Host, v1.0)
+### 6.1 Hosting Platform: Proxmox VE + DiscoPanel
+
+The production environment runs on a **Proxmox VE** hypervisor. The Minecraft server is managed through **DiscoPanel**, a self-hosted game-server management panel. The CraftControl web stack runs on a dedicated second VM to keep game-server resources fully isolated from database and API workloads.
+
+> Full step-by-step deployment instructions, resource sizing, network configuration, backup strategy, and CI/CD pipeline details are documented in **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+
+### 6.2 Two-VM Architecture
 
 ```
-VPS (min 4 vCPU, 8 GB RAM, Ubuntu 24.04)
-├── Minecraft Server  (port 25565, managed by systemd)
-├── Node.js API       (port 3000, managed by PM2)
-├── React SPA         (served by Nginx → /var/www/craftcontrol)
-├── PostgreSQL        (port 5432, local socket)
-├── Redis             (port 6379, local socket)
-└── Nginx             (443 → API proxy + SPA, 25565 passthrough)
+┌─────────────────────────────────────────────────────────────────┐
+│                     PROXMOX VE HOST                             │
+│                                                                 │
+│  ┌──────────────────────────────┐  ┌────────────────────────┐  │
+│  │  VM 1 — game-vm              │  │  VM 2 — mgmt-vm        │  │
+│  │  Ubuntu 24.04 LTS            │  │  Ubuntu 24.04 LTS      │  │
+│  │                              │  │                        │  │
+│  │  ├─ DiscoPanel               │  │  ├─ Nginx (443)        │  │
+│  │  │   (port 3001, mgmt UI)    │  │  ├─ Node.js API (3000) │  │
+│  │  └─ Minecraft (Paper 1.21.x) │  │  ├─ React SPA          │  │
+│  │      port 25565              │  │  ├─ PostgreSQL 16       │  │
+│  │      BridgePlugin: 25580     │  │  └─ Redis 7            │  │
+│  │      (localhost only)        │  │                        │  │
+│  └──────────┬───────────────────┘  └─────────┬──────────────┘  │
+│             │    Proxmox Internal Network     │                 │
+│             │    (10.10.10.0/24 VLAN)         │                 │
+│             └─────────────────────────────────┘                 │
+└─────────────────────────────────────────────────────────────────┘
+                          │
+                     Public Internet
+               Minecraft: 25565  |  HTTPS: 443
 ```
 
-### 6.2 Environment Variables (Web Backend)
+**Why two VMs instead of one?**
+
+| Concern | Explanation |
+|---|---|
+| JVM GC isolation | Minecraft's garbage-collection pauses must not starve PostgreSQL I/O or API response times |
+| Independent scaling | game-vm RAM can be tuned for JVM heap; mgmt-vm RAM for PostgreSQL shared_buffers |
+| Failure domains | A crashing Minecraft process cannot take down the web panel or the database |
+| Maintenance windows | Minecraft can be restarted for updates without touching the web stack, and vice versa |
+| Security | Database is not reachable from the public internet; only mgmt-vm's internal IP is in BridgePlugin config |
+
+### 6.3 Cross-VM Communication
+
+The BridgePlugin (running on game-vm) calls the web API on mgmt-vm over the Proxmox internal network. The web API calls the BridgePlugin over the same network. Neither port is exposed to the public internet.
+
+```
+game-vm (10.10.10.10)          mgmt-vm (10.10.10.20)
+───────────────────            ────────────────────
+BridgePlugin outbound  ──────► Node.js API :3000
+                                      │
+Node.js API (bridge     ◄──────  POST /bridge/...
+route)                         to 10.10.10.10:25580
+```
+
+### 6.4 Environment Variables (Web Backend — mgmt-vm)
 
 ```env
-DATABASE_URL=postgresql://user:pass@localhost:5432/craftcontrol
+DATABASE_URL=postgresql://craftcontrol:pass@localhost:5432/craftcontrol
 REDIS_URL=redis://localhost:6379
 JWT_SECRET=<256-bit random>
 JWT_REFRESH_SECRET=<256-bit random>
-MINECRAFT_BRIDGE_URL=http://localhost:25580
+MINECRAFT_BRIDGE_URL=http://10.10.10.10:25580
 MINECRAFT_BRIDGE_SECRET=<256-bit random>
 NODE_ENV=production
 PORT=3000
 ```
 
-### 6.3 Minecraft Server Environment (`plugins/BridgePlugin/config.yml`)
+### 6.5 Minecraft Server Environment (`plugins/BridgePlugin/config.yml` — game-vm)
 
 ```yaml
 bridge:
   port: 25580
-  secret: "<256-bit random — must match web backend>"
+  bind: "0.0.0.0"          # listens on all interfaces but firewall restricts to mgmt-vm IP
+  secret: "<256-bit random — must match MINECRAFT_BRIDGE_SECRET>"
 api:
-  base_url: "http://localhost:3000/api"
-  secret: "<same JWT or separate service token>"
+  base_url: "http://10.10.10.20:3000/api"
+  service_token: "<separate service token for plugin→API calls>"
 ```
 
-### 6.4 CI/CD (GitHub Actions)
+### 6.6 CI/CD (GitHub Actions)
 
 ```
 .github/workflows/
 ├── minecraft-plugin.yml    # Maven build + test on PR
 ├── api.yml                 # Node.js test + lint on PR
-└── deploy.yml              # SSH deploy to VPS on merge to main
+└── deploy.yml              # SSH deploy to both VMs on merge to main
 ```
 
 **Deploy steps:**
-1. Build JAR → SCP to server → restart Minecraft via `systemctl`.
-2. Build Node app → PM2 reload.
-3. Build React SPA → rsync to `/var/www/craftcontrol`.
+1. **game-vm:** Build JAR → SCP to game-vm → DiscoPanel API restarts the Minecraft server instance.
+2. **mgmt-vm:** Build Node.js app → PM2 reload on mgmt-vm.
+3. **mgmt-vm:** Build React SPA → rsync to `/var/www/craftcontrol` on mgmt-vm.
+
+### 6.7 DiscoPanel Integration
+
+DiscoPanel manages the Minecraft server process on game-vm. It provides:
+- Web UI for starting, stopping, and restarting the Paper server (accessible to admins at `https://panel.<domain>/`).
+- File manager for editing `server.properties`, plugin configs, and world files.
+- Console log viewer and RCON console access.
+- Scheduled task runner (used for automated restarts and backups).
+- Resource monitoring (CPU, RAM, disk) per server instance.
+
+The CraftControl web dashboard and DiscoPanel are **separate applications** — DiscoPanel handles server process lifecycle, while CraftControl handles player data, challenges, rewards, and engagement features.
 
 ---
 
@@ -719,6 +774,10 @@ mvn clean package -DskipTests
 | **NanoHTTPD** | Lightweight embedded Java HTTP server used by BridgePlugin |
 | **Prisma** | TypeScript ORM used by the Node.js backend |
 | **JWT** | JSON Web Token — used for stateless authentication |
+| **Proxmox VE** | Open-source bare-metal hypervisor used to host the project VMs |
+| **DiscoPanel** | Self-hosted game-server management panel that runs and monitors the Minecraft server process on game-vm |
+| **game-vm** | VM 1 on Proxmox; hosts DiscoPanel and the Minecraft Paper server |
+| **mgmt-vm** | VM 2 on Proxmox; hosts the CraftControl web stack (Node.js API, React SPA, PostgreSQL, Redis, Nginx) |
 
 ---
 
