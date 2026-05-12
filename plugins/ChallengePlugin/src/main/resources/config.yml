@@ -1,0 +1,3 @@
+challenge:
+  report_interval_ticks: 200
+  enabled: true

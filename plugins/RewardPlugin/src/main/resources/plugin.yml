@@ -1,0 +1,7 @@
+name: RewardPlugin
+version: '${project.version}'
+main: io.craftcontrol.reward.RewardPlugin
+api-version: '1.21'
+description: Listens for reward commands from the web API and executes them in-game
+authors: [CraftControl]
+depend: [BridgePlugin]

@@ -1,0 +1,7 @@
+name: ChallengePlugin
+version: '${project.version}'
+main: io.craftcontrol.challenge.ChallengePlugin
+api-version: '1.21'
+description: Tracks in-game challenges and reports completions to the web API
+authors: [CraftControl]
+depend: [BridgePlugin]
