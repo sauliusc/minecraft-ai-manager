@@ -130,7 +130,7 @@ challengesRouter.post('/', authMiddleware, validateBody(createSchema), async (re
         title: data.title,
         description: data.description,
         type: data.type as any,
-        config: data.config,
+        config: data.config as any,
         rewardId: data.rewardId,
         activeFrom: new Date(data.activeFrom),
         activeUntil: new Date(data.activeUntil),
@@ -147,7 +147,7 @@ challengesRouter.post('/', authMiddleware, validateBody(createSchema), async (re
 // GET /api/challenges/:id — authMiddleware
 challengesRouter.get('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const challenge = await prisma.challenge.findUnique({
       where: { id },
       include: {
@@ -183,7 +183,7 @@ challengesRouter.get('/:id', authMiddleware, async (req: Request, res: Response,
 challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const data = req.body as z.infer<typeof updateSchema>;
 
     const update: Record<string, unknown> = {};
@@ -215,7 +215,7 @@ challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async
 challengesRouter.delete('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     await prisma.$transaction([
       prisma.challengeProgress.deleteMany({ where: { challengeId: id } }),
       prisma.challenge.delete({ where: { id } }),
@@ -234,7 +234,7 @@ challengesRouter.delete('/:id', authMiddleware, async (req: Request, res: Respon
 // POST /api/challenges/:id/progress — serviceTokenMiddleware
 challengesRouter.post('/:id/progress', serviceTokenMiddleware, validateBody(progressSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { playerId, amount } = req.body as z.infer<typeof progressSchema>;
 
     const challenge = await prisma.challenge.findUnique({ where: { id } });
@@ -279,7 +279,7 @@ challengesRouter.post('/:id/progress', serviceTokenMiddleware, validateBody(prog
 // POST /api/challenges/:id/complete — serviceTokenMiddleware
 challengesRouter.post('/:id/complete', serviceTokenMiddleware, validateBody(completeSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const { playerId } = req.body as z.infer<typeof completeSchema>;
 
     const challenge = await prisma.challenge.findUnique({ where: { id } });

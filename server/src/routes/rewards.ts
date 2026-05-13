@@ -92,7 +92,7 @@ rewardsRouter.post('/', authMiddleware, validateBody(createRewardSchema), async 
       data: {
         name: data.name,
         type: data.type as any,
-        config: data.config,
+        config: data.config as any,
         ...(data.rarity !== undefined ? { rarity: data.rarity } : {}),
       },
     });
@@ -105,7 +105,7 @@ rewardsRouter.post('/', authMiddleware, validateBody(createRewardSchema), async 
 // GET /api/rewards/pending/:playerId — serviceTokenMiddleware
 rewardsRouter.get('/pending/:playerId', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { playerId } = req.params;
+    const playerId = req.params.playerId as string;
     const records = await prisma.playerReward.findMany({
       where: { playerId },
       orderBy: { grantedAt: 'desc' },
@@ -142,7 +142,7 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
 
     // Redis lock: NX EX 5
     const lockKey = `bridge:lock:grant:${playerId}:${rewardId}`;
-    const lockResult = await redis.set(lockKey, '1', 'NX', 'EX', 5);
+    const lockResult = await redis.set(lockKey, '1', 'EX', 5, 'NX');
     if (lockResult === null) {
       res.status(409).json({ error: 'CONFLICT', message: 'Duplicate grant in progress' });
       return;
@@ -178,7 +178,7 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
 // GET /api/rewards/:id — authMiddleware
 rewardsRouter.get('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const reward = await prisma.reward.findUnique({
       where: { id },
       include: {
@@ -204,7 +204,7 @@ rewardsRouter.get('/:id', authMiddleware, async (req: Request, res: Response, ne
 rewardsRouter.patch('/:id', authMiddleware, validateBody(updateRewardSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const data = req.body as z.infer<typeof updateRewardSchema>;
 
     const update: Record<string, unknown> = {};
@@ -232,7 +232,7 @@ rewardsRouter.patch('/:id', authMiddleware, validateBody(updateRewardSchema), as
 rewardsRouter.delete('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
 
     // Check if linked to any active challenge
     const now = new Date();

@@ -92,7 +92,7 @@ broadcastRouter.delete('/scheduled/:id', authMiddleware, async (req, res, next) 
   try {
     if (!requireAdmin(req, res)) return;
     await prisma.broadcastMessage.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { status: 'CANCELLED' },
     });
     res.status(204).end();
@@ -110,7 +110,7 @@ broadcastRouter.patch('/scheduled/:id', authMiddleware, validateBody(updateSchem
     if (data.audience) update.audience = data.audience;
     if (data.scheduledAt) update.scheduledAt = new Date(data.scheduledAt);
     if (data.status) update.status = data.status;
-    const msg = await prisma.broadcastMessage.update({ where: { id: req.params.id }, data: update as any });
+    const msg = await prisma.broadcastMessage.update({ where: { id: req.params.id as string }, data: update as any });
     res.json(msg);
   } catch (err) { next(err); }
 });
