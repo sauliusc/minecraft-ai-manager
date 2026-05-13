@@ -1,0 +1,13 @@
+{
+  "name": "craftcontrol-resourcepack",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "pack:build": "node scripts/build.js",
+    "pack:watch": "node scripts/build.js --watch"
+  },
+  "devDependencies": {
+    "archiver": "^7.0.1"
+  }
+}

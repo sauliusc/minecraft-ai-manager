@@ -11,6 +11,13 @@ welcome_zone:
   y: 64.0
   z: 0.5
 
+resource_pack:
+  enabled: false
+  url: ""
+  sha1: ""
+  required: false
+  prompt: "Download the CraftControl resource pack for the best experience!"
+
 starter_kit:
   enabled: true
   items:

@@ -109,3 +109,52 @@ jobs:
           target: "/var/www/craftcontrol/public/"
           strip_components: 2
           rm: true
+
+  deploy-resourcepack:
+    name: Build and release resource pack
+    runs-on: ubuntu-latest
+    if: contains(toJson(github.event.commits.*.modified + github.event.commits.*.added), 'resourcepack/')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: resourcepack
+
+      - name: Build pack
+        run: npm run pack:build
+        working-directory: resourcepack
+
+      - name: Read SHA1
+        id: sha1
+        run: echo "hash=$(cat resourcepack/dist/craftcontrol-pack.zip.sha1)" >> $GITHUB_OUTPUT
+
+      - name: Upload pack to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: resourcepack-${{ github.sha }}
+          name: "Resource Pack ${{ github.sha }}"
+          files: |
+            resourcepack/dist/craftcontrol-pack.zip
+            resourcepack/dist/craftcontrol-pack.zip.sha1
+          body: |
+            SHA1: ${{ steps.sha1.outputs.hash }}
+
+      - name: Update game-vm server.properties via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.GAME_VM_HOST }}
+          username: ${{ secrets.DISCOPANEL_SFTP_USER }}
+          password: ${{ secrets.DISCOPANEL_SFTP_PASS }}
+          port: ${{ secrets.DISCOPANEL_SFTP_PORT }}
+          script: |
+            PACK_URL="https://github.com/${{ github.repository }}/releases/download/resourcepack-${{ github.sha }}/craftcontrol-pack.zip"
+            PACK_HASH="${{ steps.sha1.outputs.hash }}"
+            sed -i "s|^resource-pack=.*|resource-pack=${PACK_URL}|" /server/server.properties
+            sed -i "s|^resource-pack-sha1=.*|resource-pack-sha1=${PACK_HASH}|" /server/server.properties
