@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id          String              @id
+  username    String
+  firstJoinAt DateTime
+  lastSeenAt  DateTime
+  joinCount   Int                 @default(0)
+  rewards     PlayerReward[]
+  progress    ChallengeProgress[]
+}
+
+model Challenge {
+  id          String              @id @default(cuid())
+  title       String
+  description String
+  type        ChallengeType
+  config      Json
+  rewardId    String?
+  reward      Reward?             @relation(fields: [rewardId], references: [id])
+  activeFrom  DateTime
+  activeUntil DateTime
+  assignedTo  String[]
+  progress    ChallengeProgress[]
+}
+
+model ChallengeProgress {
+  id          String    @id @default(cuid())
+  playerId    String
+  challengeId String
+  current     Int       @default(0)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  player      Player    @relation(fields: [playerId], references: [id])
+  challenge   Challenge @relation(fields: [challengeId], references: [id])
+
+  @@unique([playerId, challengeId])
+}
+
+model Reward {
+  id         String         @id @default(cuid())
+  name       String
+  type       RewardType
+  config     Json
+  challenges Challenge[]
+  grants     PlayerReward[]
+}
+
+model PlayerReward {
+  id        String   @id @default(cuid())
+  playerId  String
+  rewardId  String
+  grantedAt DateTime @default(now())
+  grantedBy String
+  player    Player   @relation(fields: [playerId], references: [id])
+  reward    Reward   @relation(fields: [rewardId], references: [id])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(MODERATOR)
+  createdAt    DateTime @default(now())
+}
+
+enum ChallengeType {
+  BLOCK_BREAK
+  KILL_MOB
+  CRAFT_ITEM
+  TRAVEL
+  CUSTOM
+}
+
+enum RewardType {
+  ITEM
+  XP
+  COMMAND
+  CURRENCY
+}
+
+enum Role {
+  SUPER_ADMIN
+  MODERATOR
+}
