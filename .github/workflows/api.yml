@@ -47,11 +47,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: server/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Type check
         run: npm run type-check
@@ -60,6 +58,7 @@ jobs:
         run: npm run lint
 
       - name: Run migrations
+        if: hashFiles('prisma/schema.prisma') != ''
         run: npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://craftcontrol:testpass@localhost:5432/craftcontrol_test
