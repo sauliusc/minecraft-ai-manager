@@ -1,0 +1,16 @@
+name: QuestPlugin
+version: 1.0.0
+main: io.craftcontrol.quest.QuestPlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Quest system for CraftControl
+commands:
+  quests:
+    description: View your active quests
+    usage: /quests
+    permission: craftcontrol.quests
+    permission-message: No permission.
+permissions:
+  craftcontrol.quests:
+    default: true

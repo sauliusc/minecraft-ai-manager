@@ -1,0 +1,4 @@
+quest:
+  daily_refresh_hour: 0
+  daily_quest_count: 3
+  story_quest_refresh_day: MONDAY
