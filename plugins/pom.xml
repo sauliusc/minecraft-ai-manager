@@ -18,6 +18,7 @@
         <module>StreakPlugin</module>
         <module>EconomyPlugin</module>
         <module>ClanPlugin</module>
+        <module>QuestPlugin</module>
     </modules>
 
     <properties>
