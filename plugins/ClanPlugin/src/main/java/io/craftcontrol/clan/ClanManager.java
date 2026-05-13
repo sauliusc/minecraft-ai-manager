@@ -58,6 +58,8 @@ public class ClanManager {
     }
 
     public String getClanId(String playerId) { return playerClanMap.get(playerId); }
+    /** Alias for {@link #getClanId(String)} used by war listeners. */
+    public String getPlayerClan(String playerId) { return playerClanMap.get(playerId); }
     public ClanData getClan(String clanId) { return clanCache.get(clanId); }
     public ClanData getClanByPlayer(String playerId) {
         String id = playerClanMap.get(playerId);
