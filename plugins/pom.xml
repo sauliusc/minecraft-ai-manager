@@ -15,6 +15,7 @@
         <module>GreeterPlugin</module>
         <module>ChallengePlugin</module>
         <module>RewardPlugin</module>
+        <module>StreakPlugin</module>
     </modules>
 
     <properties>
