@@ -1,3 +1,22 @@
-greeter:
-  welcome_message: "Welcome to the server, {player}!"
-  first_join_message: "Welcome for the first time, {player}! Enjoy your stay."
+greeting:
+  first_join_message: "Welcome, {player}!"
+  return_message: "Welcome back, {player}! Last seen {lastSeen}."
+  return_gift_after_days: 7
+  broadcast_first_join: true
+  broadcast_message: "{player} joined for the first time!"
+
+welcome_zone:
+  world: "world"
+  x: 0.5
+  y: 64.0
+  z: 0.5
+
+starter_kit:
+  enabled: true
+  items:
+    - material: STONE_SWORD
+      amount: 1
+    - material: BREAD
+      amount: 16
+    - material: TORCH
+      amount: 32

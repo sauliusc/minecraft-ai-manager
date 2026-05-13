@@ -10,6 +10,9 @@ public class GreeterPlugin extends JavaPlugin {
     public void onEnable() {
         instance = this;
         saveDefaultConfig();
+        getServer().getPluginManager().registerEvents(new PlayerJoinListener(this), this);
+        var cmd = getCommand("greeter");
+        if (cmd != null) cmd.setExecutor(new GreeterCommand(this));
         getLogger().info("GreeterPlugin enabled.");
     }
 
