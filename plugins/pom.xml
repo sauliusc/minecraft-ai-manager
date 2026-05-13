@@ -17,6 +17,7 @@
         <module>RewardPlugin</module>
         <module>StreakPlugin</module>
         <module>EconomyPlugin</module>
+        <module>ClanPlugin</module>
     </modules>
 
     <properties>

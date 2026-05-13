@@ -1,0 +1,16 @@
+name: ClanPlugin
+version: 1.0.0
+main: io.craftcontrol.clan.ClanPlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Clan system for CraftControl
+commands:
+  clan:
+    description: Clan management commands
+    usage: /clan <create|invite|join|leave|home|sethome|chat|info> [args]
+    permission: craftcontrol.clan
+    permission-message: No permission.
+permissions:
+  craftcontrol.clan:
+    default: true

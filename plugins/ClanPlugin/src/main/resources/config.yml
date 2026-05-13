@@ -1,0 +1,16 @@
+clan:
+  creation_cost: 500
+  home_cooldown_seconds: 60
+  max_tag_length: 5
+  chat_prefix: "[CLAN]"
+  xp_per_quest: 100
+  levels:
+    - level: 1
+      xp_required: 0
+      coin_bonus_percent: 1
+    - level: 5
+      xp_required: 5000
+      coin_bonus_percent: 5
+    - level: 10
+      xp_required: 20000
+      coin_bonus_percent: 10
