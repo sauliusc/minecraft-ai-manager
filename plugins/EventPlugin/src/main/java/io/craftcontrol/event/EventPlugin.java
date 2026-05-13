@@ -7,6 +7,7 @@ public class EventPlugin extends JavaPlugin {
     private EventManager eventManager;
     private BossRaidHandler bossRaidHandler;
     private TreasureHuntHandler treasureHuntHandler;
+    private BuildBattleHandler buildBattleHandler;
 
     @Override
     public void onEnable() {
@@ -15,8 +16,9 @@ public class EventPlugin extends JavaPlugin {
         eventManager = new EventManager(this);
         bossRaidHandler = new BossRaidHandler(this);
         treasureHuntHandler = new TreasureHuntHandler(this, eventManager);
-        eventManager.start(bossRaidHandler, treasureHuntHandler);
-        getServer().getPluginManager().registerEvents(new EventListener(bossRaidHandler, treasureHuntHandler), this);
+        buildBattleHandler = new BuildBattleHandler(this, eventManager);
+        eventManager.start(bossRaidHandler, treasureHuntHandler, buildBattleHandler);
+        getServer().getPluginManager().registerEvents(new EventListener(bossRaidHandler, treasureHuntHandler, buildBattleHandler), this);
         getLogger().info("EventPlugin enabled.");
     }
 
@@ -29,4 +31,5 @@ public class EventPlugin extends JavaPlugin {
     public EventManager getEventManager() { return eventManager; }
     public BossRaidHandler getBossRaidHandler() { return bossRaidHandler; }
     public TreasureHuntHandler getTreasureHuntHandler() { return treasureHuntHandler; }
+    public BuildBattleHandler getBuildBattleHandler() { return buildBattleHandler; }
 }

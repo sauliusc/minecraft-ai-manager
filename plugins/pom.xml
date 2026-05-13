@@ -21,6 +21,8 @@
         <module>QuestPlugin</module>
         <module>CosmeticsPlugin</module>
         <module>EventPlugin</module>
+        <module>VotePlugin</module>
+        <module>ModerationPlugin</module>
     </modules>
 
     <properties>

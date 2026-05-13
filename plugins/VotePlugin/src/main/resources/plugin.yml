@@ -1,0 +1,14 @@
+name: VotePlugin
+version: '${project.version}'
+main: io.craftcontrol.vote.VotePlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Server vote links and vote reward claiming for CraftControl
+commands:
+  vote:
+    description: Show voting site URLs
+    usage: /vote
+  voteclaim:
+    description: Claim pending vote rewards after voting
+    usage: /voteclaim

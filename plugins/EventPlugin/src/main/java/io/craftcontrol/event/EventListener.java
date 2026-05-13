@@ -8,15 +8,20 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+
+import java.util.UUID;
 
 public class EventListener implements Listener {
     private final BossRaidHandler bossRaidHandler;
     private final TreasureHuntHandler treasureHuntHandler;
+    private final BuildBattleHandler buildBattleHandler;
 
-    public EventListener(BossRaidHandler bossRaidHandler, TreasureHuntHandler treasureHuntHandler) {
+    public EventListener(BossRaidHandler bossRaidHandler, TreasureHuntHandler treasureHuntHandler, BuildBattleHandler buildBattleHandler) {
         this.bossRaidHandler = bossRaidHandler;
         this.treasureHuntHandler = treasureHuntHandler;
+        this.buildBattleHandler = buildBattleHandler;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -26,7 +31,6 @@ public class EventListener implements Listener {
         if (!(event.getEntity() instanceof org.bukkit.entity.LivingEntity le)) return;
         if (!bossRaidHandler.isActiveBoss(le)) return;
         bossRaidHandler.recordDamage(damager.getUniqueId(), event.getFinalDamage());
-
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
@@ -39,5 +43,32 @@ public class EventListener implements Listener {
         if (treasureHuntHandler.tryClaimChest(event.getPlayer(), loc)) {
             event.setCancelled(true);
         }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
+        if (!buildBattleHandler.isActive()) return;
+        String msg = event.getMessage();
+        if (!msg.toLowerCase().startsWith("/buildvote ")) return;
+        event.setCancelled(true);
+        Player player = event.getPlayer();
+        String[] parts = msg.split(" ");
+        if (parts.length < 2) {
+            player.sendMessage("§cUsage: /buildvote <1-5>");
+            return;
+        }
+        int score;
+        try {
+            score = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            player.sendMessage("§cUsage: /buildvote <1-5>");
+            return;
+        }
+        UUID currentBuilder = buildBattleHandler.getCurrentBuilder();
+        if (currentBuilder == null) {
+            player.sendMessage("§cNo build is currently being voted on.");
+            return;
+        }
+        buildBattleHandler.submitVote(player, currentBuilder, score);
     }
 }

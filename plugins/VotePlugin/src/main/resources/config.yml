@@ -1,0 +1,10 @@
+vote_sites:
+  - name: "Planet Minecraft"
+    url: "https://www.planetminecraft.com/server/your-server/"
+  - name: "Minecraft Server List"
+    url: "https://minecraft-server-list.com/server/your-server/"
+  - name: "TopG"
+    url: "https://topg.org/minecraft-servers/server-your-server/"
+
+rewards:
+  claim_cooldown_minutes: 1440

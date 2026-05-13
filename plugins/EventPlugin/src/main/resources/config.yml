@@ -10,6 +10,50 @@ boss_raid:
     third_place_id: boss_raid_third
     participation_id: boss_raid_participant
 
+build_battle:
+  world: world
+  build_time_minutes: 20
+  plots:
+    - x: 200.0
+      y: 64.0
+      z: 0.0
+      radius: 10
+    - x: 200.0
+      y: 64.0
+      z: 50.0
+      radius: 10
+    - x: 200.0
+      y: 64.0
+      z: 100.0
+      radius: 10
+    - x: 200.0
+      y: 64.0
+      z: 150.0
+      radius: 10
+  kit:
+    - material: OAK_PLANKS
+      amount: 64
+    - material: STONE
+      amount: 64
+    - material: GLASS
+      amount: 32
+    - material: OAK_LOG
+      amount: 32
+    - material: DIRT
+      amount: 64
+    - material: CRAFTING_TABLE
+      amount: 1
+    - material: WOODEN_PICKAXE
+      amount: 1
+    - material: WOODEN_AXE
+      amount: 1
+    - material: WOODEN_SHOVEL
+      amount: 1
+  rewards:
+    first_place_id: build_battle_first
+    second_place_id: build_battle_second
+    third_place_id: build_battle_third
+
 treasure_hunt:
   chests:
     - world: world
