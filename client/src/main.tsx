@@ -10,6 +10,8 @@ import { Login } from './pages/Login.js';
 import { Dashboard } from './pages/Dashboard.js';
 import { Players } from './pages/Players.js';
 import { PlayerDetail } from './pages/PlayerDetail.js';
+import { Challenges } from './pages/Challenges.js';
+import { ChallengeDetail } from './pages/ChallengeDetail.js';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -26,6 +28,8 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/" element={<Dashboard />} />
               <Route path="/players" element={<Players />} />
               <Route path="/players/:id" element={<PlayerDetail />} />
+              <Route path="/challenges" element={<Challenges />} />
+              <Route path="/challenges/:id" element={<ChallengeDetail />} />
             </Route>
           </Route>
         </Routes>
