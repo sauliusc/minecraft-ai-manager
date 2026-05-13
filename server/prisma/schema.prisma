@@ -202,3 +202,39 @@ enum BroadcastStatus {
   SENT
   CANCELLED
 }
+
+model NpcDefinition {
+  id            String              @id @default(cuid())
+  name          String
+  skinUrl       String              @default("")
+  title         String              @default("")
+  locWorld      String              @default("world")
+  locX          Float               @default(0)
+  locY          Float               @default(64)
+  locZ          Float               @default(0)
+  locYaw        Float               @default(0)
+  type          NpcType             @default(GUIDE)
+  dialogueLines String[]
+  questIds      String[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  relationships PlayerNpcRelationship[]
+}
+
+model PlayerNpcRelationship {
+  id                String   @id @default(cuid())
+  playerId          String
+  npcId             String
+  relationshipScore Int      @default(0)
+  completedQuestIds String[]
+  updatedAt         DateTime @updatedAt
+  npc               NpcDefinition @relation(fields: [npcId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, npcId])
+}
+
+enum NpcType {
+  GUIDE
+  QUEST_GIVER
+  MERCHANT
+}

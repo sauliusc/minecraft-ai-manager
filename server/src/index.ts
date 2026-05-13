@@ -9,6 +9,7 @@ import { eventsRouter } from './routes/events.js';
 import { moderationRouter } from './routes/moderation.js';
 import { broadcastRouter } from './routes/broadcast.js';
 import { analyticsRouter } from './routes/analytics.js';
+import { npcsRouter } from './routes/npcs.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -30,6 +31,7 @@ app.use('/api/events', eventsRouter);
 app.use('/api/moderation', moderationRouter);
 app.use('/api/broadcast', broadcastRouter);
 app.use('/api/analytics', analyticsRouter);
+app.use('/api/npcs', npcsRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);

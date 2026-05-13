@@ -23,6 +23,7 @@
         <module>EventPlugin</module>
         <module>VotePlugin</module>
         <module>ModerationPlugin</module>
+        <module>NpcPlugin</module>
     </modules>
 
     <properties>
