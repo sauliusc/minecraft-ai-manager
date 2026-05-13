@@ -868,3 +868,28 @@ pm2 deploy production revert 1
 ---
 
 *This document covers all operational aspects of the CraftControl production environment. For development setup instructions, see [TECHNICAL_DOCS.md](./TECHNICAL_DOCS.md) Section 8.*
+
+## 8.3 GitHub Actions Secrets
+
+Configure these secrets in **GitHub → Settings → Secrets and variables → Actions** before the deploy pipeline can run.
+
+| Secret | Used by | Description |
+|---|---|---|
+| `GAME_VM_HOST` | deploy-plugin | Hostname/IP of game-vm (10.10.10.10) |
+| `DISCOPANEL_SFTP_USER` | deploy-plugin | SFTP username for DiscoPanel file manager |
+| `DISCOPANEL_SFTP_PASS` | deploy-plugin | SFTP password for DiscoPanel file manager |
+| `DISCOPANEL_SFTP_PORT` | deploy-plugin | SFTP port exposed by DiscoPanel (default: 2022) |
+| `DISCOPANEL_API_TOKEN` | deploy-plugin | DiscoPanel API bearer token (Power management) |
+| `MGMT_VM_HOST` | deploy-api, deploy-spa | Hostname/IP of mgmt-vm (10.10.10.20) |
+| `MGMT_VM_SSH_KEY` | deploy-api, deploy-spa | Private SSH key for `www-data` on mgmt-vm |
+| `DATABASE_URL` | deploy-api | PostgreSQL connection string for `prisma migrate deploy` |
+| `VITE_API_BASE_URL` | deploy-spa | Public API URL injected into the built SPA (e.g. `https://panel.yourdomain.com`) |
+
+### Generating the SSH key pair
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/craftcontrol_deploy
+# Add public key to mgmt-vm:
+ssh-copy-id -i ~/.ssh/craftcontrol_deploy.pub www-data@10.10.10.20
+# Paste private key content into MGMT_VM_SSH_KEY secret
+```
