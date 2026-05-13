@@ -15,6 +15,9 @@ import { ChallengeDetail } from './pages/ChallengeDetail.js';
 import { Rewards } from './pages/Rewards.js';
 import { RewardDetail } from './pages/RewardDetail.js';
 import { Events } from './pages/Events.js';
+import { Moderation } from './pages/Moderation.js';
+import { Analytics } from './pages/Analytics.js';
+import { Broadcast } from './pages/Broadcast.js';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -36,6 +39,9 @@ createRoot(document.getElementById('root')!).render(
               <Route path="/rewards" element={<Rewards />} />
               <Route path="/rewards/:id" element={<RewardDetail />} />
               <Route path="/events" element={<Events />} />
+              <Route path="/moderation" element={<Moderation />} />
+              <Route path="/analytics" element={<Analytics />} />
+              <Route path="/broadcast" element={<Broadcast />} />
             </Route>
           </Route>
         </Routes>
