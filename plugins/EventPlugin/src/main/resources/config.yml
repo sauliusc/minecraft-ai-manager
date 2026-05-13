@@ -1,0 +1,29 @@
+boss_raid:
+  arena:
+    world: world
+    x: 0.0
+    y: 64.0
+    z: 0.0
+  rewards:
+    first_place_id: boss_raid_first
+    second_place_id: boss_raid_second
+    third_place_id: boss_raid_third
+    participation_id: boss_raid_participant
+
+treasure_hunt:
+  chests:
+    - world: world
+      x: 100
+      y: 64
+      z: 100
+    - world: world
+      x: -100
+      y: 64
+      z: 200
+    - world: world
+      x: 50
+      y: 64
+      z: -150
+  rewards:
+    finder_id: treasure_finder
+    completion_id: treasure_completion

@@ -1,0 +1,44 @@
+name: CosmeticsPlugin
+version: 1.0.0
+main: io.craftcontrol.cosmetics.CosmeticsPlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Cosmetics system for CraftControl — titles, chat colors, particles, pets, trails
+commands:
+  title:
+    description: Manage player titles
+    usage: /title <list|equip <id>|unequip>
+    permission: craftcontrol.cosmetics.title
+    permission-message: No permission.
+  chatcolor:
+    description: Set your chat color
+    usage: /chatcolor <color>
+    permission: craftcontrol.cosmetics.chatcolor
+    permission-message: No permission.
+  particles:
+    description: Manage particle effects
+    usage: /particles <list|equip <id>|off>
+    permission: craftcontrol.cosmetics.particles
+    permission-message: No permission.
+  pet:
+    description: Manage your cosmetic pet
+    usage: /pet <summon|dismiss>
+    permission: craftcontrol.cosmetics.pet
+    permission-message: No permission.
+  trail:
+    description: Manage your trail effect
+    usage: /trail <equip <id>|off>
+    permission: craftcontrol.cosmetics.trail
+    permission-message: No permission.
+permissions:
+  craftcontrol.cosmetics.title:
+    default: true
+  craftcontrol.cosmetics.chatcolor:
+    default: true
+  craftcontrol.cosmetics.particles:
+    default: true
+  craftcontrol.cosmetics.pet:
+    default: true
+  craftcontrol.cosmetics.trail:
+    default: true
