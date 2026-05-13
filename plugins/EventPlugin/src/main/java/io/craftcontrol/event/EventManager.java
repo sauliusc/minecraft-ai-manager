@@ -27,6 +27,7 @@ public class EventManager {
     private final ConcurrentHashMap<String, ActiveEvent> events = new ConcurrentHashMap<>();
     private BossRaidHandler bossRaidHandler;
     private TreasureHuntHandler treasureHuntHandler;
+    private BuildBattleHandler buildBattleHandler;
     private BukkitTask pollerTask;
 
     public EventManager(EventPlugin plugin) {
@@ -34,9 +35,10 @@ public class EventManager {
         this.log = plugin.getLogger();
     }
 
-    public void start(BossRaidHandler bossRaidHandler, TreasureHuntHandler treasureHuntHandler) {
+    public void start(BossRaidHandler bossRaidHandler, TreasureHuntHandler treasureHuntHandler, BuildBattleHandler buildBattleHandler) {
         this.bossRaidHandler = bossRaidHandler;
         this.treasureHuntHandler = treasureHuntHandler;
+        this.buildBattleHandler = buildBattleHandler;
         pollerTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::pollUpcomingEvents, 0L, 20L * 60L);
     }
 
@@ -109,7 +111,7 @@ public class EventManager {
         switch (event.getType()) {
             case BOSS_RAID -> bossRaidHandler.startRaid(event);
             case TREASURE_HUNT -> treasureHuntHandler.startHunt(event);
-            default -> {}
+            case BUILD_BATTLE -> buildBattleHandler.startBattle(event);
         }
     }
 

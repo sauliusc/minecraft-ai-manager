@@ -4,4 +4,8 @@ main: io.craftcontrol.event.EventPlugin
 api-version: '1.21'
 depend:
   - BridgePlugin
-description: Boss Raid and Treasure Hunt events for CraftControl
+description: Boss Raid, Treasure Hunt, and Build Battle events for CraftControl
+commands:
+  buildvote:
+    description: Vote for the current build in a Build Battle event
+    usage: /buildvote <1-5>
