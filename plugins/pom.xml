@@ -24,6 +24,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <paper.version>1.21.4-R0.1-SNAPSHOT</paper.version>
         <okhttp.version>4.12.0</okhttp.version>
+        <nanohttpd.version>2.3.1</nanohttpd.version>
         <junit.version>5.11.4</junit.version>
         <mockito.version>5.14.2</mockito.version>
     </properties>
@@ -71,6 +72,11 @@
                 <artifactId>mockwebserver</artifactId>
                 <version>${okhttp.version}</version>
                 <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.nanohttpd</groupId>
+                <artifactId>nanohttpd</artifactId>
+                <version>${nanohttpd.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
