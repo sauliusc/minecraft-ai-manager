@@ -1,3 +1,2 @@
-reward:
-  poll_interval_ticks: 100
-  enabled: true
+delivery:
+  theatrics_enabled: true
