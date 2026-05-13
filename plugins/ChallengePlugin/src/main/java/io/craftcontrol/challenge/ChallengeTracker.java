@@ -23,13 +23,15 @@ import java.util.logging.Logger;
 
 public class ChallengeTracker implements Listener {
 
+    private final ChallengePlugin plugin;
     private final ChallengeManager manager;
     private final ChallengeRepository repo;
     private final Logger log;
 
     private final ConcurrentHashMap<String, AtomicInteger> travelAccum = new ConcurrentHashMap<>();
 
-    public ChallengeTracker(ChallengeManager manager, ChallengeRepository repo, Logger log) {
+    public ChallengeTracker(ChallengePlugin plugin, ChallengeManager manager, ChallengeRepository repo, Logger log) {
+        this.plugin = plugin;
         this.manager = manager;
         this.repo = repo;
         this.log = log;
@@ -45,6 +47,7 @@ public class ChallengeTracker implements Listener {
             if (!"BLOCK_BREAK".equals(ch.type())) continue;
             if (!material.equalsIgnoreCase(ch.targetMaterial())) continue;
             bufferAndCheckCompletion(ch, player.getUniqueId().toString());
+            sendActionBar(player, ch);
         }
     }
 
@@ -60,6 +63,7 @@ public class ChallengeTracker implements Listener {
             if (!"KILL_MOB".equals(ch.type())) continue;
             if (!entityType.equalsIgnoreCase(ch.targetEntity())) continue;
             bufferAndCheckCompletion(ch, killer.getUniqueId().toString());
+            sendActionBar(killer, ch);
         }
     }
 
@@ -77,6 +81,7 @@ public class ChallengeTracker implements Listener {
                     : 1;
             repo.bufferProgress(ch.id(), player.getUniqueId().toString(), amount);
             checkCompletion(ch, player.getUniqueId().toString());
+            sendActionBar(player, ch);
         }
     }
 
@@ -102,6 +107,7 @@ public class ChallengeTracker implements Listener {
                 int toFlush = acc.getAndSet(0);
                 repo.bufferProgress(ch.id(), playerId, toFlush);
                 checkCompletion(ch, playerId);
+                sendActionBar(event.getPlayer(), ch);
             }
         }
     }
@@ -123,6 +129,24 @@ public class ChallengeTracker implements Listener {
             public void onResponse(Call call, Response response) {
                 if (response.code() == 200) {
                     log.info("Challenge " + ch.id() + " completed by " + playerId);
+                    plugin.getServer().getScheduler().runTask(plugin, () -> {
+                        Player p = plugin.getServer().getPlayer(java.util.UUID.fromString(playerId));
+                        if (p == null) return;
+                        // Title
+                        p.showTitle(net.kyori.adventure.title.Title.title(
+                            net.kyori.adventure.text.Component.text("CHALLENGE COMPLETE!", net.kyori.adventure.text.format.NamedTextColor.GOLD),
+                            net.kyori.adventure.text.Component.text(ch.title(), net.kyori.adventure.text.format.NamedTextColor.YELLOW)
+                        ));
+                        // Sound
+                        p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+                        // Particles
+                        p.getWorld().spawnParticle(org.bukkit.Particle.TOTEM_OF_UNDYING,
+                            p.getLocation().add(0, 1, 0), 40, 0.5, 0.5, 0.5, 0.1);
+                        // Chat message
+                        p.sendMessage(net.kyori.adventure.text.Component.text(
+                            "✓ Challenge complete: " + ch.title(),
+                            net.kyori.adventure.text.format.NamedTextColor.GREEN));
+                    });
                 }
                 response.close();
             }
@@ -131,5 +155,12 @@ public class ChallengeTracker implements Listener {
                 // Non-critical; server checks completion authoritatively
             }
         });
+    }
+
+    private void sendActionBar(Player player, ActiveChallenge ch) {
+        int current = repo.getProgress(ch.id(), player.getUniqueId().toString());
+        String msg = "⚔ " + ch.title() + ": " + current + "/" + ch.targetCount();
+        player.sendActionBar(net.kyori.adventure.text.Component.text(
+            msg, net.kyori.adventure.text.format.NamedTextColor.YELLOW));
     }
 }
