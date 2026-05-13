@@ -321,7 +321,10 @@ Navigate to **GitHub → your repo → Settings → Secrets and variables → Ac
 | `DISCOPANEL_SFTP_PASS` | SSH password **or** leave blank (use key) | deploy-plugin |
 | `DISCOPANEL_SFTP_PORT` | `22` | deploy-plugin |
 | `DISCOPANEL_API_TOKEN` | Token for Minecraft restart API (if using DiscoPanel) | deploy-plugin |
-| `VITE_API_BASE_URL` | `https://panel.example.com` | deploy-spa |
+| `VITE_API_BASE_URL` | `https://panel.example.com` | deploy-spa, vercel |
+| `VERCEL_TOKEN` | Personal token from vercel.com/account/tokens | vercel |
+| `VERCEL_ORG_ID` | Value from `.vercel/project.json` after `vercel link` | vercel |
+| `VERCEL_PROJECT_ID` | Value from `.vercel/project.json` after `vercel link` | vercel |
 
 > **Note on `DISCOPANEL_API_TOKEN`**: If you're not using DiscoPanel, replace the restart step in `deploy.yml` with a direct `systemctl restart minecraft` SSH command and remove this secret.
 
@@ -421,30 +424,33 @@ git commit --allow-empty -m "chore: trigger full deploy" && git push
 
 ## 8. Branch Preview for the Admin Panel
 
-### Option A — Vercel (recommended, free, automatic PR previews)
+### Option A — Vercel via GitHub Actions (configured, automatic PR previews)
 
-Every pull request automatically gets a unique preview URL like `https://craftcontrol-git-feature-xyz-yourname.vercel.app`.
+Every pull request automatically gets a unique preview URL. The workflow at `.github/workflows/vercel.yml` handles both preview (PR) and production (push to main) deployments. A comment is posted or updated on each PR with the live link.
 
-**Setup:**
+**One-time setup:**
 
-1. Go to [vercel.com](https://vercel.com) → **New Project** → Import `sauliusc/minecraft-ai-manager`
-2. Set **Root Directory** to `client`
-3. Set **Framework Preset** to Vite
-4. Add environment variable:
-
+1. Install Vercel CLI locally: `npm i -g vercel`
+2. In the `client/` directory run: `vercel link` — log in and link to your project
+3. Copy the values from `client/.vercel/project.json`:
+   ```json
+   { "orgId": "team_xxx", "projectId": "prj_xxx" }
+   ```
+4. Add three GitHub secrets (Settings → Secrets → Actions):
+   ```
+   VERCEL_TOKEN      = <personal token from vercel.com/account/tokens>
+   VERCEL_ORG_ID     = team_xxx
+   VERCEL_PROJECT_ID = prj_xxx
+   ```
+5. Add one environment variable in Vercel's project dashboard (Settings → Environment Variables):
    ```
    VITE_API_BASE_URL = https://panel.example.com
    ```
+   Set it for **Preview** and **Production** environments.
 
-5. Click **Deploy**
+From now on, every PR gets a comment with a live preview URL, and every push to `main` deploys to production on Vercel.
 
-From now on, every PR gets a preview comment from the Vercel bot with a live URL. No configuration needed per-branch.
-
-**To use a dev/mock API on previews**, add a second env var in Vercel's Preview environment:
-
-```
-VITE_API_BASE_URL = https://panel.example.com   # or a staging API URL
-```
+> The `client/vercel.json` rewrites `/api/*` to `https://panel.example.com/api/*` and serves `index.html` for all other paths so React Router works correctly.
 
 ### Option B — Cloudflare Pages (free, unlimited bandwidth)
 
