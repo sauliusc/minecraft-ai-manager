@@ -28,6 +28,9 @@ export function Layout() {
           <Link to="/challenges" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
             Challenges
           </Link>
+          <Link to="/rewards" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
+            Rewards
+          </Link>
         </nav>
         <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-400">
           <p className="truncate">{user?.email}</p>
