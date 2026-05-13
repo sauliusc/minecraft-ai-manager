@@ -14,3 +14,9 @@ clan:
     - level: 10
       xp_required: 20000
       coin_bonus_percent: 10
+
+war:
+  duration_ms: 600000
+  resource_target: 100
+  resource_material: DIAMOND_ORE
+  zone_radius: 50.0

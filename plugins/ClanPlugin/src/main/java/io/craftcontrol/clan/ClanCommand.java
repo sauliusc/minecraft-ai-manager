@@ -4,6 +4,9 @@ import com.google.gson.*;
 import io.craftcontrol.bridge.ApiClient;
 import io.craftcontrol.bridge.BridgePlugin;
 import io.craftcontrol.clan.model.ClanData;
+import io.craftcontrol.clan.war.ActiveWar;
+import io.craftcontrol.clan.war.WarManager;
+import io.craftcontrol.clan.war.WarType;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import okhttp3.*;
@@ -28,7 +31,7 @@ public class ClanCommand implements CommandExecutor {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(Component.text("Usage: /clan <create|invite|join|leave|home|sethome|chat|info>", NamedTextColor.YELLOW));
+            player.sendMessage(Component.text("Usage: /clan <create|invite|join|leave|home|sethome|chat|info|war>", NamedTextColor.YELLOW));
             return true;
         }
         switch (args[0].toLowerCase()) {
@@ -40,6 +43,7 @@ public class ClanCommand implements CommandExecutor {
             case "sethome" -> handleSetHome(player);
             case "chat" -> handleChat(player);
             case "info" -> handleInfo(player);
+            case "war" -> handleWar(player, args);
             default -> player.sendMessage(Component.text("Unknown subcommand.", NamedTextColor.RED));
         }
         return true;
@@ -253,5 +257,43 @@ public class ClanCommand implements CommandExecutor {
         player.sendMessage(Component.text("Name: " + clan.name() + " [" + clan.tag() + "]", NamedTextColor.WHITE));
         player.sendMessage(Component.text("Level: " + clan.level() + " | XP: " + clan.xp(), NamedTextColor.AQUA));
         player.sendMessage(Component.text("Members: " + clan.memberIds().size(), NamedTextColor.WHITE));
+    }
+
+    private void handleWar(Player player, String[] args) {
+        if (args.length < 3) {
+            player.sendMessage(Component.text("Usage: /clan war challenge <clan-id> <TERRITORY_CONTROL|RESOURCE_RACE|KILL_COUNT>", NamedTextColor.RED));
+            return;
+        }
+        if ("challenge".equalsIgnoreCase(args[1])) {
+            String uuid = player.getUniqueId().toString();
+            if (!manager.isInClan(uuid)) { player.sendMessage(Component.text("Not in a clan.", NamedTextColor.RED)); return; }
+            String myClanId = manager.getClanId(uuid);
+            String targetClanId = args[2];
+            WarType type;
+            try { type = WarType.valueOf(args.length > 3 ? args[3].toUpperCase() : "KILL_COUNT"); }
+            catch (IllegalArgumentException e) { player.sendMessage(Component.text("Unknown war type.", NamedTextColor.RED)); return; }
+
+            WarManager wm = plugin.getWarManager();
+            if (wm.isInWar(myClanId) || wm.isInWar(targetClanId)) {
+                player.sendMessage(Component.text("A clan is already in a war.", NamedTextColor.RED)); return;
+            }
+            long duration = plugin.getConfig().getLong("war.duration_ms", 600_000L); // 10 min default
+            long target = plugin.getConfig().getLong("war.resource_target", 100L);
+            String mat = plugin.getConfig().getString("war.resource_material", "DIAMOND_ORE");
+            double radius = plugin.getConfig().getDouble("war.zone_radius", 50.0);
+            org.bukkit.Location zone = player.getLocation(); // use challenger's current location as zone center
+            wm.challengeClan(myClanId, targetClanId, type, duration, target, mat, zone, radius);
+            player.sendMessage(Component.text("War challenge sent! War type: " + type.name(), NamedTextColor.GOLD));
+        } else if ("status".equalsIgnoreCase(args[1])) {
+            String clanId = manager.getClanId(player.getUniqueId().toString());
+            if (clanId == null) { player.sendMessage(Component.text("Not in a clan.", NamedTextColor.RED)); return; }
+            WarManager wm = plugin.getWarManager();
+            ActiveWar war = wm.getWarForClan(clanId);
+            if (war == null) { player.sendMessage(Component.text("No active war.", NamedTextColor.YELLOW)); return; }
+            long remaining = Math.max(0, (war.endsAtMs - System.currentTimeMillis()) / 1000);
+            player.sendMessage(Component.text("War: " + war.type.name() + " | Score: " + war.clan1Score.get() + " vs " + war.clan2Score.get() + " | " + remaining + "s left", NamedTextColor.AQUA));
+        } else {
+            player.sendMessage(Component.text("Usage: /clan war <challenge|status> [args]", NamedTextColor.RED));
+        }
     }
 }
