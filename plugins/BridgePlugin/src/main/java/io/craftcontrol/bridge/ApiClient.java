@@ -55,6 +55,14 @@ public class ApiClient {
         return http.newCall(request);
     }
 
+    public String getBaseUrl() {
+        return baseUrl;
+    }
+
+    public String getServiceToken() {
+        return serviceToken;
+    }
+
     public void shutdown() {
         http.dispatcher().executorService().shutdown();
         http.connectionPool().evictAll();

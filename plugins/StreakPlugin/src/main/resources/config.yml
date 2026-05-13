@@ -1,0 +1,28 @@
+streak:
+  grace_hours: 24
+  shields_enabled: true
+
+milestones:
+  - day: 1
+    coins: 50
+    message: "<yellow>Welcome back! Day 1 streak!</yellow>"
+  - day: 3
+    coins: 150
+    message: "<gold>3-day streak! Keep it up!</gold>"
+  - day: 7
+    coins: 500
+    title: "<gold>7-Day Devotee</gold>"
+    message: "<gold>Amazing! 7-day streak!</gold>"
+  - day: 14
+    coins: 1500
+    message: "<aqua>14-day streak! You're incredible!</aqua>"
+  - day: 30
+    coins: 5000
+    title: "<light_purple>Devoted</light_purple>"
+    broadcast: true
+    message: "<light_purple>30-day streak! Legendary commitment!</light_purple>"
+  - day: 60
+    coins: 0
+    title: "<red>Veteran</red>"
+    broadcast: true
+    message: "<red>60-day streak! You are a true Veteran!</red>"
