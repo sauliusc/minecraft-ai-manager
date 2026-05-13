@@ -319,7 +319,7 @@ export function Events() {
   }
 
   const events: GameEvent[] = data?.data ?? [];
-  const { upcoming, active, past } = groupEvents(events);
+  const { upcoming, active } = groupEvents(events);
 
   return (
     <div>

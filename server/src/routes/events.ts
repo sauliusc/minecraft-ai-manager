@@ -77,7 +77,7 @@ eventsRouter.get('/upcoming', serviceTokenMiddleware, async (_req, res, next) =>
 eventsRouter.get('/:id', authMiddleware, async (req, res, next) => {
   try {
     const event = await prisma.gameEvent.findUnique({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       include: { leaderboard: { orderBy: { score: 'desc' }, take: 20 } },
     });
     if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -89,7 +89,7 @@ eventsRouter.get('/:id', authMiddleware, async (req, res, next) => {
 eventsRouter.get('/:id/leaderboard', authMiddleware, async (req, res, next) => {
   try {
     const entries = await prisma.eventLeaderboardEntry.findMany({
-      where: { eventId: req.params.id },
+      where: { eventId: (req.params.id as string) },
       orderBy: { score: 'desc' },
       take: 20,
     });
@@ -141,7 +141,7 @@ eventsRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async (re
     }
 
     const event = await prisma.gameEvent.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data: update as any,
     });
     res.json(event);
@@ -160,7 +160,7 @@ eventsRouter.post('/:id/complete', serviceTokenMiddleware, async (req, res, next
     if (winnerId) (update.config as any) = { winnerId };
 
     const event = await prisma.gameEvent.update({
-      where: { id: req.params.id },
+      where: { id: (req.params.id as string) },
       data: update as any,
     });
 
@@ -168,8 +168,8 @@ eventsRouter.post('/:id/complete', serviceTokenMiddleware, async (req, res, next
       await Promise.all(
         leaderboardEntries.map((e) =>
           prisma.eventLeaderboardEntry.upsert({
-            where: { eventId_playerId: { eventId: req.params.id, playerId: e.playerId } },
-            create: { eventId: req.params.id, playerId: e.playerId, playerName: e.playerName, score: e.score },
+            where: { eventId_playerId: { eventId: (req.params.id as string), playerId: e.playerId } },
+            create: { eventId: (req.params.id as string), playerId: e.playerId, playerName: e.playerName, score: e.score },
             update: { score: e.score, playerName: e.playerName },
           })
         )
@@ -186,11 +186,11 @@ eventsRouter.delete('/:id', authMiddleware, async (req, res, next) => {
     const user = (req as any).user;
     if (user.role !== 'SUPER_ADMIN') return res.status(403).json({ message: 'Forbidden' });
 
-    const event = await prisma.gameEvent.findUnique({ where: { id: req.params.id } });
+    const event = await prisma.gameEvent.findUnique({ where: { id: (req.params.id as string) } });
     if (!event) return res.status(404).json({ message: 'Event not found' });
     if (event.state !== 'UPCOMING') return res.status(409).json({ message: 'Can only delete upcoming events' });
 
-    await prisma.gameEvent.delete({ where: { id: req.params.id } });
+    await prisma.gameEvent.delete({ where: { id: (req.params.id as string) } });
     res.status(204).end();
   } catch (err) { next(err); }
 });

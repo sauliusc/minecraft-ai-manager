@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
 
@@ -52,14 +51,13 @@ const ACTION_BADGE: Record<string, string> = {
 
 export function Moderation() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const [tab, setTab] = useState<'reports' | 'chat' | 'audit'>('reports');
   const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(null);
   const [chatSearch, setChatSearch] = useState('');
-  const [reportPage, setReportPage] = useState(1);
+  const [reportPage] = useState(1);
   const [chatPage, setChatPage] = useState(1);
-  const [auditPage, setAuditPage] = useState(1);
+  const [auditPage] = useState(1);
 
   const { data: reportsData } = useQuery({
     queryKey: ['moderation-reports', reportPage],

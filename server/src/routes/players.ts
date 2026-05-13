@@ -90,7 +90,7 @@ playersRouter.get('/', authMiddleware, async (req: Request, res: Response, next:
 // GET /api/players/:id — JWT auth, with challenge progress + reward history
 playersRouter.get('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const cached = await redis.get(`player:${id}`);
     if (cached) {
       res.json(JSON.parse(cached));
@@ -128,7 +128,7 @@ playersRouter.get('/:id', authMiddleware, async (req: Request, res: Response, ne
 // PATCH /api/players/:id — service token auth
 playersRouter.patch('/:id', serviceTokenMiddleware, validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
+    const id = req.params.id as string;
     const data = req.body as z.infer<typeof updateSchema>;
 
     const update: Record<string, unknown> = {};

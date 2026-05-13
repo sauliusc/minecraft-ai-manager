@@ -91,7 +91,7 @@ moderationRouter.patch('/reports/:id', authMiddleware, validateBody(resolveSchem
     const { status } = req.body as z.infer<typeof resolveSchema>;
     const update: Record<string, unknown> = { status };
     if (status === 'RESOLVED') { update.resolvedAt = new Date(); update.resolvedBy = user.id; }
-    const report = await prisma.moderationReport.update({ where: { id: req.params.id }, data: update as any });
+    const report = await prisma.moderationReport.update({ where: { id: req.params.id as string }, data: update as any });
     res.json(report);
   } catch (err) { next(err); }
 });
@@ -186,7 +186,7 @@ moderationRouter.delete('/block', serviceTokenMiddleware, validateBody(blockSche
 moderationRouter.get('/block/:playerId', serviceTokenMiddleware, async (req, res, next) => {
   try {
     const blocks = await prisma.playerBlock.findMany({
-      where: { blockerId: req.params.playerId },
+      where: { blockerId: req.params.playerId as string },
       select: { blockedId: true },
     });
     res.json(blocks.map((b) => b.blockedId));
