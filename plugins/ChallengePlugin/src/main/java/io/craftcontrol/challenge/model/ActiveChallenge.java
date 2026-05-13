@@ -1,0 +1,9 @@
+package io.craftcontrol.challenge.model;
+
+public record ActiveChallenge(
+        String id,
+        String type,
+        String targetMaterial,
+        String targetEntity,
+        int targetCount
+) {}
