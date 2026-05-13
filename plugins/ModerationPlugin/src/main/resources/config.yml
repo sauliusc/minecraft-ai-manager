@@ -1,0 +1,20 @@
+filter:
+  enabled: true
+  pii_detection: true
+  tiers:
+    warn:
+      action: WARN
+    mute:
+      action: MUTE
+      violations: 3
+      window_minutes: 10
+      duration_minutes: 30
+    tempban:
+      action: TEMPBAN
+      violations: 5
+      window_minutes: 30
+      duration_minutes: 1440
+report:
+  escalation_threshold: 3
+  escalation_window_hours: 24
+  chat_buffer_size: 50
