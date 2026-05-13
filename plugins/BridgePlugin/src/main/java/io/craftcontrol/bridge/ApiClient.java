@@ -51,6 +51,16 @@ public class ApiClient {
         http.newCall(request).enqueue(callback);
     }
 
+    public void patch(String path, String jsonBody, Callback callback) {
+        RequestBody body = RequestBody.create(jsonBody, JSON);
+        Request request = new Request.Builder()
+                .url(baseUrl + path)
+                .header("Authorization", "Bearer " + serviceToken)
+                .patch(body)
+                .build();
+        http.newCall(request).enqueue(callback);
+    }
+
     public Call newCall(Request request) {
         return http.newCall(request);
     }

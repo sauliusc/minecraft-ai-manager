@@ -19,6 +19,8 @@
         <module>EconomyPlugin</module>
         <module>ClanPlugin</module>
         <module>QuestPlugin</module>
+        <module>CosmeticsPlugin</module>
+        <module>EventPlugin</module>
     </modules>
 
     <properties>

@@ -90,3 +90,40 @@ enum Role {
   SUPER_ADMIN
   MODERATOR
 }
+
+model GameEvent {
+  id               String          @id @default(cuid())
+  type             GameEventType
+  title            String
+  state            GameEventState  @default(UPCOMING)
+  scheduledAt      DateTime
+  endedAt          DateTime?
+  config           Json            @default("{}")
+  participantCount Int             @default(0)
+  createdAt        DateTime        @default(now())
+  leaderboard      EventLeaderboardEntry[]
+}
+
+model EventLeaderboardEntry {
+  id         String    @id @default(cuid())
+  eventId    String
+  playerId   String
+  playerName String
+  score      Float     @default(0)
+  event      GameEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, playerId])
+}
+
+enum GameEventType {
+  BOSS_RAID
+  TREASURE_HUNT
+  BUILD_BATTLE
+  CLAN_WAR
+}
+
+enum GameEventState {
+  UPCOMING
+  ACTIVE
+  FINISHED
+}

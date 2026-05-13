@@ -1,0 +1,7 @@
+name: EventPlugin
+version: 1.0.0
+main: io.craftcontrol.event.EventPlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Boss Raid and Treasure Hunt events for CraftControl

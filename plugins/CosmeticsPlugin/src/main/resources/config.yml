@@ -1,0 +1,20 @@
+cosmetics:
+  particle_interval_ticks: 20
+  trail_interval_ticks: 5
+  pet_follow_distance: 3.0
+  default_particle: FLAME
+  default_trail: CRIT
+  available_particles:
+    - FLAME
+    - HEART
+    - ENCHANTMENT_TABLE
+    - VILLAGER_HAPPY
+    - REDSTONE
+  available_trails:
+    - CRIT
+    - MAGIC_CRIT
+    - SPELL
+    - NOTE
+  available_pets:
+    - WOLF
+    - CAT

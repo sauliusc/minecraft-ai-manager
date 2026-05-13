@@ -5,6 +5,7 @@ import { playersRouter } from './routes/players.js';
 import { challengesRouter } from './routes/challenges.js';
 import { rewardsRouter } from './routes/rewards.js';
 import { bridgeRouter } from './routes/bridge.js';
+import { eventsRouter } from './routes/events.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -22,6 +23,7 @@ app.use('/api/players', playersRouter);
 app.use('/api/challenges', challengesRouter);
 app.use('/api/rewards', rewardsRouter);
 app.use('/api/bridge', bridgeRouter);
+app.use('/api/events', eventsRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
