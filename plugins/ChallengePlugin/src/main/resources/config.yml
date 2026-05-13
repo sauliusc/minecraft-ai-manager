@@ -2,3 +2,7 @@ challenge:
   refresh_interval_ticks: 1200
   sync_interval_ticks: 600
   enabled: true
+
+completion:
+  sound: ENTITY_PLAYER_LEVELUP
+  title: "<gold>CHALLENGE COMPLETE!</gold>"

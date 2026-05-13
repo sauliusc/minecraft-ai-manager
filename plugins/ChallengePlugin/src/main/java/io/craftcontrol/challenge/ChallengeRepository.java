@@ -87,6 +87,20 @@ public class ChallengeRepository implements AutoCloseable {
         }
     }
 
+    public synchronized int getProgress(String challengeId, String playerId) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COALESCE(SUM(increment), 0) FROM progress_buffer WHERE challenge_id = ? AND player_id = ?")) {
+            ps.setString(1, challengeId);
+            ps.setString(2, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        } catch (SQLException e) {
+            log.warning("Failed to get progress: " + e.getMessage());
+            return 0;
+        }
+    }
+
     @Override
     public void close() throws SQLException {
         conn.close();

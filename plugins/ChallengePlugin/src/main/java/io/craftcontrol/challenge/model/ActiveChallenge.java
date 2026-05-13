@@ -6,5 +6,7 @@ public record ActiveChallenge(
         String targetMaterial,
         String targetEntity,
         int targetCount,
-        int targetDistance  // metres for TRAVEL challenges
+        int targetDistance,  // metres for TRAVEL challenges
+        String title,
+        String description
 ) {}

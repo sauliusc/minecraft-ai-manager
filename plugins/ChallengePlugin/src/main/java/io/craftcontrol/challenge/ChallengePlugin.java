@@ -29,8 +29,10 @@ public class ChallengePlugin extends JavaPlugin {
         manager = new ChallengeManager(getLogger());
         manager.refresh();
 
-        ChallengeTracker tracker = new ChallengeTracker(manager, repo, getLogger());
+        ChallengeTracker tracker = new ChallengeTracker(this, manager, repo, getLogger());
         getServer().getPluginManager().registerEvents(tracker, this);
+
+        getCommand("challenges").setExecutor(new ChallengesCommand(manager, repo));
 
         long refreshTicks = getConfig().getLong("challenge.refresh_interval_ticks", 1200L);
         long syncTicks = getConfig().getLong("challenge.sync_interval_ticks", 600L);

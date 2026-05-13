@@ -5,3 +5,15 @@ api-version: '1.21'
 description: Tracks in-game challenges and reports completions to the web API
 authors: [CraftControl]
 depend: [BridgePlugin]
+
+commands:
+  challenges:
+    description: View your active challenges and progress
+    usage: /challenges
+    permission: craftcontrol.challenges
+    permission-message: You don't have permission to use this command.
+
+permissions:
+  craftcontrol.challenges:
+    description: Allow viewing active challenges
+    default: true
