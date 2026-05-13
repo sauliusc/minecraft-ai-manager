@@ -1,0 +1,30 @@
+name: EconomyPlugin
+version: 1.0.0
+main: io.craftcontrol.economy.EconomyPlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Dual currency economy for CraftControl
+commands:
+  balance:
+    description: View your or another player's balance
+    usage: /balance [player]
+    permission: craftcontrol.economy.balance
+    permission-message: No permission.
+  pay:
+    description: Transfer Coins to another player
+    usage: /pay <player> <amount>
+    permission: craftcontrol.economy.pay
+    permission-message: No permission.
+  market:
+    description: Player market commands
+    usage: /market <list|browse|buy> [args]
+    permission: craftcontrol.economy.market
+    permission-message: No permission.
+permissions:
+  craftcontrol.economy.balance:
+    default: true
+  craftcontrol.economy.pay:
+    default: true
+  craftcontrol.economy.market:
+    default: true

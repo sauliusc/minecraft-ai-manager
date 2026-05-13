@@ -16,6 +16,7 @@
         <module>ChallengePlugin</module>
         <module>RewardPlugin</module>
         <module>StreakPlugin</module>
+        <module>EconomyPlugin</module>
     </modules>
 
     <properties>

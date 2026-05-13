@@ -1,0 +1,5 @@
+economy:
+  listing_fee_percent: 5
+  listing_expiry_days: 7
+  starting_coins: 0
+  starting_crystals: 0
