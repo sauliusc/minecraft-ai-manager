@@ -12,9 +12,13 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 public class ChallengeTracker implements Listener {
@@ -22,6 +26,8 @@ public class ChallengeTracker implements Listener {
     private final ChallengeManager manager;
     private final ChallengeRepository repo;
     private final Logger log;
+
+    private final ConcurrentHashMap<String, AtomicInteger> travelAccum = new ConcurrentHashMap<>();
 
     public ChallengeTracker(ChallengeManager manager, ChallengeRepository repo, Logger log) {
         this.manager = manager;
@@ -54,6 +60,49 @@ public class ChallengeTracker implements Listener {
             if (!"KILL_MOB".equals(ch.type())) continue;
             if (!entityType.equalsIgnoreCase(ch.targetEntity())) continue;
             bufferAndCheckCompletion(ch, killer.getUniqueId().toString());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onCraftItem(CraftItemEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        String material = event.getRecipe().getResult().getType().name();
+        List<ActiveChallenge> challenges = manager.getActive();
+        for (ActiveChallenge ch : challenges) {
+            if (!"CRAFT_ITEM".equals(ch.type())) continue;
+            if (!material.equalsIgnoreCase(ch.targetMaterial())) continue;
+            // amount crafted depends on shift-click or single craft
+            int amount = event.isShiftClick()
+                    ? event.getRecipe().getResult().getAmount()
+                    : 1;
+            repo.bufferProgress(ch.id(), player.getUniqueId().toString(), amount);
+            checkCompletion(ch, player.getUniqueId().toString());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        // Only count block-level moves to avoid spam on head rotation
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+                && event.getFrom().getBlockY() == event.getTo().getBlockY()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
+
+        double dist = event.getFrom().distance(event.getTo());
+        int metres = (int) dist;  // truncate to whole metres
+        if (metres <= 0) return;
+
+        String playerId = event.getPlayer().getUniqueId().toString();
+        List<ActiveChallenge> challenges = manager.getActive();
+        for (ActiveChallenge ch : challenges) {
+            if (!"TRAVEL".equals(ch.type())) continue;
+            String key = ch.id() + ":" + playerId;
+            AtomicInteger acc = travelAccum.computeIfAbsent(key, k -> new AtomicInteger(0));
+            // Flush every 10m accumulated to reduce DB writes
+            if (acc.addAndGet(metres) >= 10) {
+                int toFlush = acc.getAndSet(0);
+                repo.bufferProgress(ch.id(), playerId, toFlush);
+                checkCompletion(ch, playerId);
+            }
         }
     }
 

@@ -64,7 +64,8 @@ public class ChallengeManager {
                         o.get("type").getAsString(),
                         cfg.has("target_material") ? cfg.get("target_material").getAsString() : "",
                         cfg.has("target_entity") ? cfg.get("target_entity").getAsString() : "",
-                        cfg.has("target_count") ? cfg.get("target_count").getAsInt() : 1
+                        cfg.has("target_count") ? cfg.get("target_count").getAsInt() : 1,
+                        cfg.has("target_distance") ? cfg.get("target_distance").getAsInt() : 0
                 ));
             }
         } catch (Exception e) {
