@@ -1,0 +1,7 @@
+name: GreeterPlugin
+version: '${project.version}'
+main: io.craftcontrol.greeter.GreeterPlugin
+api-version: '1.21'
+description: Sends personalised welcome messages and initial rewards to joining players
+authors: [CraftControl]
+depend: [BridgePlugin]
