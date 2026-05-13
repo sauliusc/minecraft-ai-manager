@@ -127,3 +127,78 @@ enum GameEventState {
   ACTIVE
   FINISHED
 }
+
+model ModerationReport {
+  id           String         @id @default(cuid())
+  reporterId   String
+  reportedId   String
+  reason       String
+  chatSnapshot String[]
+  status       ReportStatus   @default(PENDING)
+  escalated    Boolean        @default(false)
+  resolvedAt   DateTime?
+  resolvedBy   String?
+  createdAt    DateTime       @default(now())
+}
+
+model ModerationAction {
+  id         String         @id @default(cuid())
+  targetId   String
+  adminId    String
+  type       ActionType
+  reason     String
+  expiresAt  DateTime?
+  createdAt  DateTime       @default(now())
+}
+
+model PlayerBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+model ChatLog {
+  id        String   @id @default(cuid())
+  playerId  String
+  username  String
+  message   String
+  flagged   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model BroadcastMessage {
+  id          String          @id @default(cuid())
+  content     String
+  channels    String[]
+  audience    String          @default("ALL")
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  status      BroadcastStatus @default(DRAFT)
+  createdBy   String
+  createdAt   DateTime        @default(now())
+}
+
+enum ReportStatus {
+  PENDING
+  REVIEWED
+  ESCALATED
+  RESOLVED
+}
+
+enum ActionType {
+  MUTE
+  UNMUTE
+  KICK
+  BAN
+  UNBAN
+}
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+  CANCELLED
+}

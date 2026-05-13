@@ -1,0 +1,62 @@
+name: ModerationPlugin
+version: 1.0.0
+main: io.craftcontrol.moderation.ModerationPlugin
+api-version: '1.21'
+depend:
+  - BridgePlugin
+description: Moderation system for CraftControl
+commands:
+  report:
+    description: Report a player
+    usage: /report <player> <reason>
+    permission: craftcontrol.moderation.report
+    permission-message: No permission.
+  block:
+    description: Block a player's chat
+    usage: /block <player>
+    permission: craftcontrol.moderation.block
+    permission-message: No permission.
+  unblock:
+    description: Unblock a player's chat
+    usage: /unblock <player>
+    permission: craftcontrol.moderation.block
+    permission-message: No permission.
+  safechat:
+    description: Toggle safe chat mode
+    usage: /safechat
+    permission: craftcontrol.moderation.safechat
+    permission-message: No permission.
+  mute:
+    description: Mute a player
+    usage: /mute <player> <duration> <reason>
+    permission: craftcontrol.mod
+    permission-message: No permission.
+  unmute:
+    description: Unmute a player
+    usage: /unmute <player>
+    permission: craftcontrol.mod
+    permission-message: No permission.
+  kick:
+    description: Kick a player
+    usage: /kick <player> <reason>
+    permission: craftcontrol.mod
+    permission-message: No permission.
+  ban:
+    description: Ban a player
+    usage: /ban <player> <duration> <reason>
+    permission: craftcontrol.mod
+    permission-message: No permission.
+  unban:
+    description: Unban a player
+    usage: /unban <player>
+    permission: craftcontrol.mod
+    permission-message: No permission.
+permissions:
+  craftcontrol.moderation.report:
+    default: true
+  craftcontrol.moderation.block:
+    default: true
+  craftcontrol.moderation.safechat:
+    default: true
+  craftcontrol.mod:
+    default: op
