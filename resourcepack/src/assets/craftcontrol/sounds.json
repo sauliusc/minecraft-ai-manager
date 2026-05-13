@@ -1,0 +1,20 @@
+{
+  "ui.welcome_chime": {
+    "sounds": [{ "name": "craftcontrol:ui/welcome_chime", "stream": false }]
+  },
+  "ui.reward_fanfare": {
+    "sounds": [{ "name": "craftcontrol:ui/reward_fanfare", "stream": false }]
+  },
+  "ui.reward_legendary": {
+    "sounds": [{ "name": "craftcontrol:ui/reward_legendary", "stream": false }]
+  },
+  "ui.quest_complete": {
+    "sounds": [{ "name": "craftcontrol:ui/quest_complete", "stream": false }]
+  },
+  "ui.mystery_spin": {
+    "sounds": [{ "name": "craftcontrol:ui/mystery_spin", "stream": false }]
+  },
+  "ui.level_up": {
+    "sounds": [{ "name": "craftcontrol:ui/level_up", "stream": false }]
+  }
+}

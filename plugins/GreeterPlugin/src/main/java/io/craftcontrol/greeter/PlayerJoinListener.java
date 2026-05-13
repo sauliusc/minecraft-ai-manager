@@ -16,11 +16,17 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.inventory.ItemStack;
 
+import net.kyori.adventure.resource.ResourcePackInfo;
+import net.kyori.adventure.resource.ResourcePackRequest;
+import net.kyori.adventure.text.Component;
+
 import java.io.IOException;
+import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class PlayerJoinListener implements Listener {
 
@@ -35,10 +41,41 @@ public class PlayerJoinListener implements Listener {
         Player player = event.getPlayer();
         FileConfiguration cfg = plugin.getConfig();
 
+        sendResourcePack(player, cfg);
+
         if (!player.hasPlayedBefore()) {
             handleFirstJoin(player, cfg);
         } else {
             handleReturn(player, cfg);
+        }
+    }
+
+    private void sendResourcePack(Player player, FileConfiguration cfg) {
+        if (!cfg.getBoolean("resource_pack.enabled", false)) return;
+        String url = cfg.getString("resource_pack.url", "");
+        String sha1 = cfg.getString("resource_pack.sha1", "");
+        if (url.isEmpty()) return;
+
+        try {
+            ResourcePackInfo info = ResourcePackInfo.resourcePackInfo()
+                .id(UUID.nameUUIDFromBytes(url.getBytes()))
+                .uri(URI.create(url))
+                .hash(sha1.isEmpty() ? null : sha1)
+                .build();
+
+            String promptText = cfg.getString("resource_pack.prompt",
+                "Download the CraftControl resource pack for the best experience!");
+            boolean required = cfg.getBoolean("resource_pack.required", false);
+
+            ResourcePackRequest request = ResourcePackRequest.resourcePackRequest()
+                .packs(info)
+                .required(required)
+                .prompt(Component.text(promptText))
+                .build();
+
+            player.sendResourcePacks(request);
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send resource pack to " + player.getName() + ": " + e.getMessage());
         }
     }
 

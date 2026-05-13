@@ -1,0 +1,25 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "craftcontrol:font/gui_bg_quests.png",
+      "ascent": 13,
+      "height": 256,
+      "chars": [""]
+    },
+    {
+      "type": "bitmap",
+      "file": "craftcontrol:font/gui_bg_rewards.png",
+      "ascent": 13,
+      "height": 256,
+      "chars": [""]
+    },
+    {
+      "type": "bitmap",
+      "file": "craftcontrol:font/gui_bg_cosmetics.png",
+      "ascent": 13,
+      "height": 256,
+      "chars": [""]
+    }
+  ]
+}
