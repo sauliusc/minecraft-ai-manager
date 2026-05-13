@@ -6,6 +6,9 @@ import { challengesRouter } from './routes/challenges.js';
 import { rewardsRouter } from './routes/rewards.js';
 import { bridgeRouter } from './routes/bridge.js';
 import { eventsRouter } from './routes/events.js';
+import { moderationRouter } from './routes/moderation.js';
+import { broadcastRouter } from './routes/broadcast.js';
+import { analyticsRouter } from './routes/analytics.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -24,6 +27,9 @@ app.use('/api/challenges', challengesRouter);
 app.use('/api/rewards', rewardsRouter);
 app.use('/api/bridge', bridgeRouter);
 app.use('/api/events', eventsRouter);
+app.use('/api/moderation', moderationRouter);
+app.use('/api/broadcast', broadcastRouter);
+app.use('/api/analytics', analyticsRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
