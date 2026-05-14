@@ -35,6 +35,61 @@ interface ChurnPlayer {
   joinCount: number;
 }
 
+interface HeatmapData {
+  cells: { day: number; hour: number; count: number }[];
+  periodDays: number;
+}
+
+const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function Heatmap({ data }: { data: HeatmapData }) {
+  const max = Math.max(...data.cells.map((c) => c.count), 1);
+  const cellMap = new Map(data.cells.map((c) => [`${c.day}:${c.hour}`, c.count]));
+
+  return (
+    <div className="bg-white rounded-lg shadow p-5 overflow-x-auto">
+      <p className="text-xs text-gray-400 mb-3">
+        Activity by hour (UTC) × day of week — last {data.periodDays} days
+      </p>
+      <div className="flex gap-px">
+        {/* Y-axis labels */}
+        <div className="flex flex-col gap-px pt-5">
+          {DAY_LABELS.map((d) => (
+            <div key={d} className="h-5 w-7 flex items-center text-xs text-gray-400">{d}</div>
+          ))}
+        </div>
+        {/* Grid */}
+        <div>
+          {/* Hour labels */}
+          <div className="flex gap-px mb-0.5">
+            {Array.from({ length: 24 }, (_, h) => (
+              <div key={h} className="w-5 text-center text-xs text-gray-300">
+                {h % 6 === 0 ? h : ''}
+              </div>
+            ))}
+          </div>
+          {DAY_LABELS.map((_, day) => (
+            <div key={day} className="flex gap-px mb-px">
+              {Array.from({ length: 24 }, (_, hour) => {
+                const count = cellMap.get(`${day}:${hour}`) ?? 0;
+                const intensity = Math.round((count / max) * 4);
+                const bg = ['bg-gray-100', 'bg-indigo-100', 'bg-indigo-300', 'bg-indigo-500', 'bg-indigo-700'][intensity];
+                return (
+                  <div
+                    key={hour}
+                    title={`${DAY_LABELS[day]} ${hour}:00 — ${count} completions`}
+                    className={`w-5 h-5 rounded-sm ${bg} cursor-default`}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
     <div className="bg-white rounded-lg shadow p-5">
@@ -91,6 +146,11 @@ export function Analytics() {
     queryFn: () => api.get('/analytics/churn-risk').then((r) => r.data),
   });
 
+  const heatmap = useQuery<HeatmapData>({
+    queryKey: ['analytics', 'heatmap'],
+    queryFn: () => api.get('/analytics/heatmap').then((r) => r.data),
+  });
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
@@ -135,6 +195,16 @@ export function Analytics() {
           </div>
         </section>
       )}
+
+      {/* Engagement heatmap */}
+      <section>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">Engagement Heatmap</h2>
+        {heatmap.isLoading ? (
+          <p className="text-gray-400">Loading…</p>
+        ) : heatmap.data ? (
+          <Heatmap data={heatmap.data} />
+        ) : null}
+      </section>
 
       {/* Challenge performance */}
       <section>

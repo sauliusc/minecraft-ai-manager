@@ -143,3 +143,35 @@ analyticsRouter.get('/churn-risk', authMiddleware, async (_req, res, next) => {
     res.json(atRisk);
   } catch (err) { next(err); }
 });
+
+// GET /api/analytics/heatmap  — 24×7 engagement grid (hour × day-of-week)
+// Uses ChallengeProgress completedAt timestamps as proxy for active play sessions.
+analyticsRouter.get('/heatmap', authMiddleware, async (_req, res, next) => {
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 86_400_000);
+
+    // Fetch all completion timestamps in the last 30 days
+    const completions = await prisma.challengeProgress.findMany({
+      where: { completedAt: { gte: thirtyDaysAgo } },
+      select: { completedAt: true },
+    });
+
+    // Build 7×24 grid: grid[dayOfWeek][hour] = count (0=Sunday … 6=Saturday)
+    const grid: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+    for (const { completedAt } of completions) {
+      if (!completedAt) continue;
+      const d = new Date(completedAt);
+      grid[d.getUTCDay()][d.getUTCHours()]++;
+    }
+
+    // Return flat array of {day, hour, count} for easy frontend consumption
+    const cells: { day: number; hour: number; count: number }[] = [];
+    for (let day = 0; day < 7; day++) {
+      for (let hour = 0; hour < 24; hour++) {
+        cells.push({ day, hour, count: grid[day][hour] });
+      }
+    }
+
+    res.json({ cells, periodDays: 30 });
+  } catch (err) { next(err); }
+});

@@ -1,6 +1,7 @@
 package io.craftcontrol.npc;
 
 import net.kyori.adventure.text.minimessage.MiniMessage;
+import org.bukkit.Statistic;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
@@ -34,9 +35,12 @@ public class NpcListener implements Listener {
             player.sendMessage(MM.deserialize("<gray>[" + def.name + "] <white>...</white>"));
             return;
         }
-        // Choose dialogue variant based on join count
-        // For simplicity, always show all lines; returning players get "(Welcome back!)" prefix
         player.sendMessage(MM.deserialize("<gold><bold>" + def.name + "</bold></gold>"));
+        // Recognise returning players (LEAVE_GAME stat > 0 means they've played before)
+        boolean isReturning = player.getStatistic(Statistic.LEAVE_GAME) > 0;
+        if (isReturning) {
+            player.sendMessage(MM.deserialize("<yellow>Oh, " + player.getName() + "! You're back!"));
+        }
         for (String line : lines) {
             String formatted = line
                 .replace("<player>", player.getName())
