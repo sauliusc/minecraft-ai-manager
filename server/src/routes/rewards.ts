@@ -167,13 +167,16 @@ rewardsRouter.get('/pending/:playerId', serviceTokenMiddleware, async (req: Requ
       include: { reward: true },
     });
 
-    const result = records.map((r: any) => ({
-      id: r.id,
-      rewardId: r.rewardId,
-      rewardType: r.reward.type,
-      rarity: r.reward.rarity ?? null,
-      config: r.reward.config,
-    }));
+    // Exclude MYSTERY_BOX records — their inner rewards are stored as separate PlayerReward rows
+    const result = records
+      .filter((r: any) => r.reward.type !== 'MYSTERY_BOX')
+      .map((r: any) => ({
+        id: r.id,
+        rewardId: r.rewardId,
+        rewardType: r.reward.type,
+        rarity: r.reward.rarity ?? null,
+        config: r.reward.config,
+      }));
 
     res.json(result);
   } catch (err) {
