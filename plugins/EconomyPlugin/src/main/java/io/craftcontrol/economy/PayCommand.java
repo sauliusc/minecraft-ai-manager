@@ -43,18 +43,32 @@ public class PayCommand implements CommandExecutor {
             player.sendMessage(Component.text("Insufficient Coins.", NamedTextColor.RED));
             return true;
         }
+        // Capture UUIDs and names before going async — Player references can become invalid
+        // if either participant disconnects before the async callback fires.
+        final java.util.UUID senderUuid = player.getUniqueId();
+        final java.util.UUID targetUuid = target.getUniqueId();
+        final String targetName = target.getName();
+        final String senderName = player.getName();
+
         player.sendMessage(Component.text("Processing transfer…", NamedTextColor.GRAY));
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             economy.transferCoins(
-                player.getUniqueId().toString(),
-                target.getUniqueId().toString(),
+                senderUuid.toString(),
+                targetUuid.toString(),
                 amount,
                 () -> plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    player.sendMessage(Component.text("Sent " + amount + " Coins to " + target.getName() + ".", NamedTextColor.GREEN));
-                    target.sendMessage(Component.text("You received " + amount + " Coins from " + player.getName() + "!", NamedTextColor.GREEN));
+                    Player sender = Bukkit.getPlayer(senderUuid);
+                    Player receiver = Bukkit.getPlayer(targetUuid);
+                    if (sender != null)
+                        sender.sendMessage(Component.text("Sent " + amount + " Coins to " + targetName + ".", NamedTextColor.GREEN));
+                    if (receiver != null)
+                        receiver.sendMessage(Component.text("You received " + amount + " Coins from " + senderName + "!", NamedTextColor.GREEN));
                 }),
-                err -> plugin.getServer().getScheduler().runTask(plugin, () ->
-                    player.sendMessage(Component.text(err, NamedTextColor.RED)))
+                err -> plugin.getServer().getScheduler().runTask(plugin, () -> {
+                    Player sender = Bukkit.getPlayer(senderUuid);
+                    if (sender != null)
+                        sender.sendMessage(Component.text(err, NamedTextColor.RED));
+                })
             )
         );
         return true;

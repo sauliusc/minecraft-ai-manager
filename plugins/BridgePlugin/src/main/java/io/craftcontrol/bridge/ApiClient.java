@@ -74,7 +74,16 @@ public class ApiClient {
     }
 
     public void shutdown() {
+        http.dispatcher().cancelAll();
         http.dispatcher().executorService().shutdown();
+        try {
+            if (!http.dispatcher().executorService().awaitTermination(10, TimeUnit.SECONDS)) {
+                http.dispatcher().executorService().shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            http.dispatcher().executorService().shutdownNow();
+            Thread.currentThread().interrupt();
+        }
         http.connectionPool().evictAll();
     }
 }

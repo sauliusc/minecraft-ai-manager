@@ -136,17 +136,22 @@ export function Moderation() {
               )}
               <div className="flex gap-2 flex-wrap">
                 <button onClick={() => resolve.mutate({ id: selectedReport.id, status: 'REVIEWED' })}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700">Mark Reviewed</button>
+                  disabled={resolve.isPending || applyAction.isPending}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">Mark Reviewed</button>
                 <button onClick={() => resolve.mutate({ id: selectedReport.id, status: 'RESOLVED' })}
-                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700">Resolve</button>
+                  disabled={resolve.isPending || applyAction.isPending}
+                  className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed">Resolve</button>
                 {user?.role === 'SUPER_ADMIN' && (
                   <>
                     <button onClick={() => applyAction.mutate({ targetId: selectedReport.reportedId, type: 'MUTE', reason: selectedReport.reason, expiresAt: new Date(Date.now() + 3600000).toISOString() })}
-                      className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded hover:bg-orange-700">Mute 1h</button>
+                      disabled={resolve.isPending || applyAction.isPending}
+                      className="px-3 py-1.5 text-sm bg-orange-600 text-white rounded hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed">Mute 1h</button>
                     <button onClick={() => applyAction.mutate({ targetId: selectedReport.reportedId, type: 'KICK', reason: selectedReport.reason })}
-                      className="px-3 py-1.5 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700">Kick</button>
+                      disabled={resolve.isPending || applyAction.isPending}
+                      className="px-3 py-1.5 text-sm bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed">Kick</button>
                     <button onClick={() => applyAction.mutate({ targetId: selectedReport.reportedId, type: 'BAN', reason: selectedReport.reason })}
-                      className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700">Ban</button>
+                      disabled={resolve.isPending || applyAction.isPending}
+                      className="px-3 py-1.5 text-sm bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed">Ban</button>
                   </>
                 )}
               </div>

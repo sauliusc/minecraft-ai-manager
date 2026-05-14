@@ -96,7 +96,7 @@ public class NpcManager {
     }
 
     public void despawnAll() {
-        for (UUID entityId : entityIdToNpc.keySet()) {
+        for (UUID entityId : new java.util.ArrayList<>(entityIdToNpc.keySet())) {
             Entity e = Bukkit.getEntity(entityId);
             if (e != null) e.remove();
         }

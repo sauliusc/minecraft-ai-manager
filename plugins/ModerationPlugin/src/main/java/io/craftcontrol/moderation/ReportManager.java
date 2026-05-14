@@ -1,6 +1,7 @@
 package io.craftcontrol.moderation;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.craftcontrol.bridge.ApiClient;
 import io.craftcontrol.bridge.BridgePlugin;
@@ -43,22 +44,15 @@ public class ReportManager {
         }
 
         ArrayDeque<String> buf = chatBuffers.getOrDefault(reported.getUniqueId(), new ArrayDeque<>());
-        StringBuilder sb = new StringBuilder("[");
-        boolean first = true;
-        for (String line : buf) {
-            if (!first) sb.append(",");
-            sb.append("\"").append(line.replace("\\", "\\\\").replace("\"", "\\\"")).append("\"");
-            first = false;
-        }
-        sb.append("]");
+        JsonArray snapshot = new JsonArray();
+        for (String line : buf) snapshot.add(line);
 
-        String json = String.format(
-            "{\"reporterId\":\"%s\",\"reportedId\":\"%s\",\"reason\":\"%s\",\"chatSnapshot\":%s}",
-            reporter.getUniqueId(),
-            reported.getUniqueId(),
-            reason.replace("\"", "\\\""),
-            sb
-        );
+        JsonObject body = new JsonObject();
+        body.addProperty("reporterId", reporter.getUniqueId().toString());
+        body.addProperty("reportedId", reported.getUniqueId().toString());
+        body.addProperty("reason", reason);
+        body.add("chatSnapshot", snapshot);
+        String json = gson.toJson(body);
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/api/moderation/reports", json, new Callback() {

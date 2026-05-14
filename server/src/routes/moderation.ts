@@ -209,7 +209,8 @@ moderationRouter.get('/chat-log', authMiddleware, async (req, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 50)));
-    const search = req.query.search as string | undefined;
+    const rawSearch = req.query.search as string | undefined;
+    const search = rawSearch && rawSearch.length <= 256 ? rawSearch : undefined;
     const playerId = req.query.playerId as string | undefined;
 
     const where: Record<string, unknown> = {};

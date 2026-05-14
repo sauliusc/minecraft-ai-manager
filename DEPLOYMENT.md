@@ -887,9 +887,33 @@ Configure these secrets in **GitHub → Settings → Secrets and variables → A
 
 ### Generating the SSH key pair
 
+**Recommended: use a GitHub Deploy Key** (repository-scoped, cannot access other repos).
+
+1. Generate a dedicated deploy keypair — do **not** reuse personal SSH keys:
+
 ```bash
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/craftcontrol_deploy
-# Add public key to mgmt-vm:
-ssh-copy-id -i ~/.ssh/craftcontrol_deploy.pub www-data@10.10.10.20
-# Paste private key content into MGMT_VM_SSH_KEY secret
+ssh-keygen -t ed25519 -C "craftcontrol-deploy-$(date +%Y%m%d)" -f ~/.ssh/craftcontrol_deploy -N ""
 ```
+
+2. Add the **public** key to mgmt-vm's `authorized_keys`:
+
+```bash
+ssh-copy-id -i ~/.ssh/craftcontrol_deploy.pub www-data@10.10.10.20
+```
+
+Restrict the key to only the commands the deploy job needs:
+
+```
+# /var/www/.ssh/authorized_keys
+command="cd /var/www/craftcontrol/api && git pull origin main && npm ci --omit=dev && npx prisma migrate deploy && pm2 reload craftcontrol-api",no-port-forwarding,no-X11-forwarding,no-agent-forwarding ssh-ed25519 AAAA...
+```
+
+3. Add the **private** key content as the `MGMT_VM_SSH_KEY` GitHub secret:
+
+```bash
+cat ~/.ssh/craftcontrol_deploy   # copy output → GitHub → Settings → Secrets → MGMT_VM_SSH_KEY
+```
+
+4. **Rotate the key every 90 days** — generate a new pair, update `authorized_keys` on the VM, update the GitHub secret, then delete the old public key from `authorized_keys`.
+
+> **Security note:** Never commit SSH private keys to the repository or share them outside GitHub Secrets. If a key is accidentally exposed, rotate it immediately using the steps above.

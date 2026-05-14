@@ -67,8 +67,11 @@ public class ClanCommand implements CommandExecutor {
         }
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) { player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)); return; }
-        String json = String.format("{\"name\":\"%s\",\"tag\":\"%s\",\"leaderId\":\"%s\"}",
-            name, tag, player.getUniqueId());
+        JsonObject createBody = new JsonObject();
+        createBody.addProperty("name", name);
+        createBody.addProperty("tag", tag);
+        createBody.addProperty("leaderId", player.getUniqueId().toString());
+        String json = gson.toJson(createBody);
         player.sendMessage(Component.text("Creating clan…", NamedTextColor.GRAY));
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans", json, new Callback() {
@@ -105,8 +108,11 @@ public class ClanCommand implements CommandExecutor {
         String clanId = manager.getClanId(player.getUniqueId().toString());
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = String.format("{\"clanId\":\"%s\",\"inviterId\":\"%s\",\"inviteeId\":\"%s\"}",
-            clanId, player.getUniqueId(), target.getUniqueId());
+        JsonObject inviteBody = new JsonObject();
+        inviteBody.addProperty("clanId", clanId);
+        inviteBody.addProperty("inviterId", player.getUniqueId().toString());
+        inviteBody.addProperty("inviteeId", target.getUniqueId().toString());
+        String json = gson.toJson(inviteBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/invites", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) {
@@ -133,7 +139,9 @@ public class ClanCommand implements CommandExecutor {
         String clanId = args[1];
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = String.format("{\"playerId\":\"%s\"}", player.getUniqueId());
+        JsonObject joinBody = new JsonObject();
+        joinBody.addProperty("playerId", player.getUniqueId().toString());
+        String json = gson.toJson(joinBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/members", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) {
@@ -160,7 +168,9 @@ public class ClanCommand implements CommandExecutor {
         String clanId = manager.getClanId(uuid);
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = String.format("{\"playerId\":\"%s\"}", uuid);
+        JsonObject leaveBody = new JsonObject();
+        leaveBody.addProperty("playerId", uuid);
+        String json = gson.toJson(leaveBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/leave", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) {
@@ -226,8 +236,12 @@ public class ClanCommand implements CommandExecutor {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
         org.bukkit.Location loc = player.getLocation();
-        String json = String.format("{\"world\":\"%s\",\"x\":%.2f,\"y\":%.2f,\"z\":%.2f}",
-            loc.getWorld().getName(), loc.getX(), loc.getY(), loc.getZ());
+        JsonObject homeBody = new JsonObject();
+        homeBody.addProperty("world", loc.getWorld().getName());
+        homeBody.addProperty("x", loc.getX());
+        homeBody.addProperty("y", loc.getY());
+        homeBody.addProperty("z", loc.getZ());
+        String json = gson.toJson(homeBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clan.id() + "/home", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) {
