@@ -408,3 +408,20 @@ model PendingVote {
   @@index([playerId])
   @@index([claimed])
 }
+
+model BroadcastTrigger {
+  id        String              @id @default(cuid())
+  type      BroadcastTriggerType
+  enabled   Boolean             @default(true)
+  config    Json                @default("{}")
+  updatedAt DateTime            @updatedAt
+  updatedBy String              @default("system")
+
+  @@unique([type])
+}
+
+enum BroadcastTriggerType {
+  DAILY_LOGIN
+  MILESTONE
+  LOW_ACTIVITY
+}
