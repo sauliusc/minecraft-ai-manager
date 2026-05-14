@@ -17,6 +17,10 @@ const registerSchema = z.object({
 const updateSchema = z.object({
   lastSeenAt: z.string().datetime().optional(),
   joinCount: z.number().int().min(0).optional(),
+  safechat: z.boolean().optional(),
+  currentStreak: z.number().int().min(0).optional(),
+  longestStreak: z.number().int().min(0).optional(),
+  lastLoginDate: z.string().datetime().optional(),
 });
 
 function engagementTier(joinCount: number): string {
@@ -134,6 +138,10 @@ playersRouter.patch('/:id', serviceTokenMiddleware, validateBody(updateSchema), 
     const update: Record<string, unknown> = {};
     if (data.lastSeenAt) update.lastSeenAt = new Date(data.lastSeenAt);
     if (data.joinCount !== undefined) update.joinCount = data.joinCount;
+    if (data.safechat !== undefined) update.safechat = data.safechat;
+    if (data.currentStreak !== undefined) update.currentStreak = data.currentStreak;
+    if (data.longestStreak !== undefined) update.longestStreak = data.longestStreak;
+    if (data.lastLoginDate) update.lastLoginDate = new Date(data.lastLoginDate);
 
     const player = await prisma.player.update({
       where: { id },
