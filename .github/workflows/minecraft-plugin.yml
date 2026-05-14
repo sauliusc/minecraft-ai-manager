@@ -24,8 +24,10 @@ jobs:
       - name: Check PaperMC repository is reachable
         id: check
         run: |
+          # Use || echo "000" so curl timeout/error (exit 28) doesn't abort the step
           status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
-            "https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml")
+            "https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml" \
+            || echo "000")
           if [ "$status" = "200" ]; then
             echo "reachable=true" >> "$GITHUB_OUTPUT"
           else
