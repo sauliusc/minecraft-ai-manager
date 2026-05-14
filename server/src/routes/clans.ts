@@ -32,6 +32,7 @@ async function buildClanResponse(clan: any) {
     leaderId: clan.leaderId,
     xp: clan.xp,
     level: clan.level,
+    memberCount: members.length,
     homeWorld: clan.homeWorld,
     homeX: clan.homeX,
     homeY: clan.homeY,

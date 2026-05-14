@@ -9,8 +9,6 @@ interface Clan {
   level: number;
   xp: number;
   memberCount: number;
-  wins: number;
-  losses: number;
   createdAt: string;
 }
 
@@ -69,8 +67,8 @@ export function Clans() {
                   <tr>
                     <th className="px-4 py-2 text-left">Clan</th>
                     <th className="px-4 py-2 text-left">Lvl</th>
+                    <th className="px-4 py-2 text-left">XP</th>
                     <th className="px-4 py-2 text-center">Members</th>
-                    <th className="px-4 py-2 text-center">W/L</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -85,12 +83,8 @@ export function Clans() {
                         <span className="ml-1 text-xs text-gray-400">[{c.tag}]</span>
                       </td>
                       <td className="px-4 py-2 text-gray-600">{c.level}</td>
+                      <td className="px-4 py-2 text-gray-600">{c.xp.toLocaleString()}</td>
                       <td className="px-4 py-2 text-center text-gray-600">{c.memberCount}</td>
-                      <td className="px-4 py-2 text-center">
-                        <span className="text-green-600">{c.wins}</span>
-                        <span className="text-gray-400 mx-0.5">/</span>
-                        <span className="text-red-500">{c.losses}</span>
-                      </td>
                     </tr>
                   ))}
                 </tbody>
