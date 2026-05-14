@@ -12,6 +12,7 @@ const ACTIVE_CACHE_TTL = 60; // seconds
 
 // ChallengeType enum values from Prisma schema
 const ChallengeTypeEnum = z.enum(['BLOCK_BREAK', 'KILL_MOB', 'CRAFT_ITEM', 'TRAVEL', 'CUSTOM']);
+const QuestCategoryEnum = z.enum(['DAILY', 'WEEKLY', 'SIDE']);
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -22,6 +23,7 @@ const createSchema = z.object({
   activeFrom: z.string().datetime(),
   activeUntil: z.string().datetime(),
   assignedTo: z.array(z.string()).optional(),
+  questCategory: QuestCategoryEnum.optional(),
 });
 
 const updateSchema = z.object({
@@ -32,6 +34,7 @@ const updateSchema = z.object({
   activeFrom: z.string().datetime().optional(),
   activeUntil: z.string().datetime().optional(),
   assignedTo: z.array(z.string()).optional(),
+  questCategory: QuestCategoryEnum.optional(),
 });
 
 const progressSchema = z.object({
@@ -96,24 +99,45 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
   }
 });
 
-// GET /api/challenges/active — serviceTokenMiddleware, cached
+// GET /api/challenges/active — serviceTokenMiddleware, cached (cache bypassed when filters present)
 challengesRouter.get('/active', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const cached = await redis.get(ACTIVE_CACHE_KEY);
-    if (cached) {
-      res.json(JSON.parse(cached));
-      return;
+    const playerId = typeof req.query.playerId === 'string' ? req.query.playerId : undefined;
+    const questCategory = typeof req.query.questCategory === 'string' ? req.query.questCategory : undefined;
+    const hasFilters = playerId !== undefined || questCategory !== undefined;
+
+    if (!hasFilters) {
+      const cached = await redis.get(ACTIVE_CACHE_KEY);
+      if (cached) {
+        res.json(JSON.parse(cached));
+        return;
+      }
     }
 
     const now = new Date();
-    const challenges = await prisma.challenge.findMany({
-      where: {
-        activeFrom: { lte: now },
-        activeUntil: { gte: now },
-      },
-    });
+    const where: Record<string, unknown> = {
+      activeFrom: { lte: now },
+      activeUntil: { gte: now },
+    };
 
-    await redis.setex(ACTIVE_CACHE_KEY, ACTIVE_CACHE_TTL, JSON.stringify(challenges));
+    if (questCategory) {
+      where['questCategory'] = questCategory;
+    }
+
+    // Filter by playerId: return challenges assigned to this player OR assigned to nobody (empty = all players)
+    if (playerId) {
+      where['OR'] = [
+        { assignedTo: { has: playerId } },
+        { assignedTo: { isEmpty: true } },
+      ];
+    }
+
+    const challenges = await prisma.challenge.findMany({ where: where as any });
+
+    if (!hasFilters) {
+      await redis.setex(ACTIVE_CACHE_KEY, ACTIVE_CACHE_TTL, JSON.stringify(challenges));
+    }
+
     res.json(challenges);
   } catch (err) {
     next(err);
@@ -135,6 +159,7 @@ challengesRouter.post('/', authMiddleware, validateBody(createSchema), async (re
         activeFrom: new Date(data.activeFrom),
         activeUntil: new Date(data.activeUntil),
         assignedTo: data.assignedTo ?? [],
+        ...(data.questCategory !== undefined ? { questCategory: data.questCategory as any } : {}),
       },
     });
     await invalidateActiveCache();
@@ -194,6 +219,7 @@ challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async
     if (data.activeFrom !== undefined) update.activeFrom = new Date(data.activeFrom);
     if (data.activeUntil !== undefined) update.activeUntil = new Date(data.activeUntil);
     if (data.assignedTo !== undefined) update.assignedTo = data.assignedTo;
+    if (data.questCategory !== undefined) update.questCategory = data.questCategory;
 
     const challenge = await prisma.challenge.update({
       where: { id },
