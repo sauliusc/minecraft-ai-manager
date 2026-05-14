@@ -10,7 +10,13 @@ interface Reward {
   type: string;
   rarity: string | null;
   config: Record<string, unknown>;
+  lootTable?: LootEntry[] | null;
   grantCount?: number;
+}
+
+interface LootEntry {
+  rewardId: string;
+  weight: number;
 }
 
 const RARITY_COLORS: Record<string, string> = {
@@ -32,7 +38,10 @@ const TYPE_BADGE: Record<string, string> = {
   XP: 'bg-cyan-100 text-cyan-700',
   COMMAND: 'bg-orange-100 text-orange-700',
   CURRENCY: 'bg-yellow-100 text-yellow-700',
+  MYSTERY_BOX: 'bg-pink-100 text-pink-700',
 };
+
+const ALL_TYPES = ['ITEM', 'XP', 'COMMAND', 'CURRENCY', 'MYSTERY_BOX'];
 
 const emptyForm = {
   name: '',
@@ -40,6 +49,80 @@ const emptyForm = {
   rarity: 'COMMON',
   config: '{}',
 };
+
+function LootTableEditor({
+  entries,
+  onChange,
+}: {
+  entries: LootEntry[];
+  onChange: (entries: LootEntry[]) => void;
+}) {
+  const total = entries.reduce((s, e) => s + e.weight, 0);
+  const weightError = entries.length > 0 && total !== 100;
+
+  function update(index: number, patch: Partial<LootEntry>) {
+    const next = entries.map((e, i) => (i === index ? { ...e, ...patch } : e));
+    onChange(next);
+  }
+
+  function remove(index: number) {
+    onChange(entries.filter((_, i) => i !== index));
+  }
+
+  function add() {
+    onChange([...entries, { rewardId: '', weight: 0 }]);
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <label className="block text-xs font-medium text-gray-600">Loot Table</label>
+        <span className={`text-xs font-mono ${weightError ? 'text-red-600 font-semibold' : 'text-gray-400'}`}>
+          Total: {total}/100{weightError ? ' ✗ must equal 100' : ' ✓'}
+        </span>
+      </div>
+      {entries.map((entry, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <input
+            required
+            placeholder="Reward ID"
+            value={entry.rewardId}
+            onChange={(e) => update(i, { rewardId: e.target.value })}
+            className="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <input
+            required
+            type="number"
+            min={1}
+            max={100}
+            placeholder="Weight"
+            value={entry.weight || ''}
+            onChange={(e) => update(i, { weight: Number(e.target.value) })}
+            className="w-20 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-xs text-gray-400 w-8">{entry.weight}%</span>
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="text-red-400 hover:text-red-600 text-sm"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        className="text-sm text-blue-600 hover:text-blue-800"
+      >
+        + Add entry
+      </button>
+      {weightError && (
+        <p className="text-xs text-red-600">Weights must sum to exactly 100 (currently {total})</p>
+      )}
+    </div>
+  );
+}
 
 export function Rewards() {
   const navigate = useNavigate();
@@ -51,6 +134,7 @@ export function Rewards() {
   const [typeFilter, setTypeFilter] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [lootTable, setLootTable] = useState<LootEntry[]>([]);
   const [formError, setFormError] = useState('');
 
   const { data, isLoading } = useQuery({
@@ -68,15 +152,31 @@ export function Rewards() {
       qc.invalidateQueries({ queryKey: ['rewards'] });
       setShowForm(false);
       setForm(emptyForm);
+      setLootTable([]);
       setFormError('');
     },
     onError: (err: any) => {
-      setFormError(err?.response?.data?.message ?? 'Failed to create reward');
+      setFormError(err?.response?.data?.message ?? err?.response?.data?.error ?? 'Failed to create reward');
     },
   });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    if (form.type === 'MYSTERY_BOX') {
+      const total = lootTable.reduce((s, e) => s + e.weight, 0);
+      if (lootTable.length === 0) {
+        setFormError('Mystery Box requires at least one loot entry');
+        return;
+      }
+      if (total !== 100) {
+        setFormError(`Loot table weights must sum to 100 (currently ${total})`);
+        return;
+      }
+      create.mutate({ name: form.name, type: form.type, rarity: form.rarity, config: {}, lootTable });
+      return;
+    }
+
     let config: Record<string, unknown>;
     try {
       config = JSON.parse(form.config);
@@ -87,13 +187,20 @@ export function Rewards() {
     create.mutate({ name: form.name, type: form.type, rarity: form.rarity, config });
   }
 
+  function openForm() {
+    setShowForm(true);
+    setForm(emptyForm);
+    setLootTable([]);
+    setFormError('');
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">Rewards</h1>
         {isAdmin && (
           <button
-            onClick={() => { setShowForm(true); setFormError(''); }}
+            onClick={openForm}
             className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
           >
             + New Reward
@@ -105,7 +212,7 @@ export function Rewards() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <form
             onSubmit={handleSubmit}
-            className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 space-y-3"
+            className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 space-y-3 max-h-[90vh] overflow-y-auto"
           >
             <h2 className="text-lg font-semibold text-gray-800">New Reward Template</h2>
             {formError && <p className="text-red-600 text-sm">{formError}</p>}
@@ -125,10 +232,13 @@ export function Rewards() {
                 <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
                 <select
                   value={form.type}
-                  onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, type: e.target.value });
+                    if (e.target.value !== 'MYSTERY_BOX') setLootTable([]);
+                  }}
                   className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  {['ITEM', 'XP', 'COMMAND', 'CURRENCY'].map((t) => (
+                  {ALL_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
@@ -147,26 +257,31 @@ export function Rewards() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">
-                Config (JSON)
-                {form.type === 'ITEM' && <span className="text-gray-400 ml-1">e.g. {`{"material":"DIAMOND","amount":5}`}</span>}
-                {form.type === 'XP' && <span className="text-gray-400 ml-1">e.g. {`{"amount":500}`}</span>}
-                {form.type === 'COMMAND' && <span className="text-gray-400 ml-1">e.g. {`{"command":"give {player} diamond 1"}`}</span>}
-              </label>
-              <textarea
-                required
-                rows={3}
-                value={form.config}
-                onChange={(e) => setForm({ ...form, config: e.target.value })}
-                className="w-full border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {form.type === 'MYSTERY_BOX' ? (
+              <LootTableEditor entries={lootTable} onChange={setLootTable} />
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Config (JSON)
+                  {form.type === 'ITEM' && <span className="text-gray-400 ml-1">e.g. {`{"material":"DIAMOND","amount":5}`}</span>}
+                  {form.type === 'XP' && <span className="text-gray-400 ml-1">e.g. {`{"amount":500}`}</span>}
+                  {form.type === 'COMMAND' && <span className="text-gray-400 ml-1">e.g. {`{"command":"give {player} diamond 1"}`}</span>}
+                  {form.type === 'CURRENCY' && <span className="text-gray-400 ml-1">e.g. {`{"coins":500}`}</span>}
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  value={form.config}
+                  onChange={(e) => setForm({ ...form, config: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-1">
               <button
                 type="button"
-                onClick={() => { setShowForm(false); setForm(emptyForm); setFormError(''); }}
+                onClick={() => { setShowForm(false); setForm(emptyForm); setLootTable([]); setFormError(''); }}
                 className="px-4 py-1.5 text-sm border rounded hover:bg-gray-50"
               >
                 Cancel
@@ -190,7 +305,7 @@ export function Rewards() {
           className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All types</option>
-          {['ITEM', 'XP', 'COMMAND', 'CURRENCY'].map((t) => (
+          {ALL_TYPES.map((t) => (
             <option key={t} value={t}>{t}</option>
           ))}
         </select>
@@ -212,11 +327,14 @@ export function Rewards() {
                   {r.rarity ?? 'COMMON'}
                 </span>
               </div>
-              <span className={`text-xs px-2 py-0.5 rounded font-medium ${TYPE_BADGE[r.type] ?? ''}`}>
+              <span className={`text-xs px-2 py-0.5 rounded font-medium ${TYPE_BADGE[r.type] ?? 'bg-gray-100 text-gray-600'}`}>
                 {r.type}
               </span>
+              {r.type === 'MYSTERY_BOX' && r.lootTable && (
+                <p className="text-xs text-gray-400 mt-1">{r.lootTable.length} loot entries</p>
+              )}
               {r.grantCount !== undefined && (
-                <p className="text-xs text-gray-400 mt-2">{r.grantCount} grants</p>
+                <p className="text-xs text-gray-400 mt-1">{r.grantCount} grants</p>
               )}
             </div>
           ))}

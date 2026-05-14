@@ -75,10 +75,24 @@ public class ChallengeTracker implements Listener {
         for (ActiveChallenge ch : challenges) {
             if (!"CRAFT_ITEM".equals(ch.type())) continue;
             if (!material.equalsIgnoreCase(ch.targetMaterial())) continue;
-            // amount crafted depends on shift-click or single craft
-            int amount = event.isShiftClick()
-                    ? event.getRecipe().getResult().getAmount()
-                    : 1;
+            // Shift-click crafts as many times as the ingredients allow; multiply result amount
+            // by how many craft operations actually occur (inventory slots / recipe ingredient count).
+            // Using getInventory().getResult().getAmount() gives the per-operation yield;
+            // for shift-click we derive the multiplier from the smallest ingredient stack.
+            int amount;
+            if (event.isShiftClick()) {
+                int perCraft = event.getRecipe().getResult().getAmount();
+                // Find the smallest ingredient stack to know how many times the recipe runs
+                int minIngredient = Integer.MAX_VALUE;
+                for (org.bukkit.inventory.ItemStack item : event.getInventory().getMatrix()) {
+                    if (item != null && item.getType() != org.bukkit.Material.AIR) {
+                        minIngredient = Math.min(minIngredient, item.getAmount());
+                    }
+                }
+                amount = (minIngredient == Integer.MAX_VALUE) ? perCraft : perCraft * minIngredient;
+            } else {
+                amount = event.getRecipe().getResult().getAmount();
+            }
             repo.bufferProgress(ch.id(), player.getUniqueId().toString(), amount);
             checkCompletion(ch, player.getUniqueId().toString());
             sendActionBar(player, ch);
@@ -92,11 +106,25 @@ public class ChallengeTracker implements Listener {
                 && event.getFrom().getBlockY() == event.getTo().getBlockY()
                 && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
 
+        Player player = event.getPlayer();
+        // Ignore vertical-only movement (elevators, falling — only count horizontal walking)
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
+
+        // Skip players who are riding a vehicle (minecart, horse, boat, elytra gliding)
+        if (player.isInsideVehicle() || player.isGliding()) return;
+
+        // Skip players who are flying (creative flight or /fly)
+        if (player.isFlying()) return;
+
+        // Only count ground-level movement
+        if (!player.isOnGround()) return;
+
         double dist = event.getFrom().distance(event.getTo());
-        int metres = (int) dist;  // truncate to whole metres
+        int metres = (int) dist;
         if (metres <= 0) return;
 
-        String playerId = event.getPlayer().getUniqueId().toString();
+        String playerId = player.getUniqueId().toString();
         List<ActiveChallenge> challenges = manager.getActive();
         for (ActiveChallenge ch : challenges) {
             if (!"TRAVEL".equals(ch.type())) continue;
@@ -107,7 +135,7 @@ public class ChallengeTracker implements Listener {
                 int toFlush = acc.getAndSet(0);
                 repo.bufferProgress(ch.id(), playerId, toFlush);
                 checkCompletion(ch, playerId);
-                sendActionBar(event.getPlayer(), ch);
+                sendActionBar(player, ch);
             }
         }
     }

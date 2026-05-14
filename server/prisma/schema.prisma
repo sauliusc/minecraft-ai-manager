@@ -8,13 +8,16 @@ datasource db {
 }
 
 model Player {
-  id          String              @id
-  username    String
-  firstJoinAt DateTime
-  lastSeenAt  DateTime
-  joinCount   Int                 @default(0)
-  rewards     PlayerReward[]
-  progress    ChallengeProgress[]
+  id             String              @id
+  username       String
+  firstJoinAt    DateTime
+  lastSeenAt     DateTime
+  joinCount      Int                 @default(0)
+  currentStreak  Int                 @default(0)
+  longestStreak  Int                 @default(0)
+  lastLoginDate  DateTime?
+  rewards        PlayerReward[]
+  progress       ChallengeProgress[]
 }
 
 model Challenge {
@@ -50,7 +53,9 @@ model Reward {
   id         String         @id @default(cuid())
   name       String
   type       RewardType
+  rarity     RewardRarity   @default(COMMON)
   config     Json
+  lootTable  Json?
   challenges Challenge[]
   grants     PlayerReward[]
 }
@@ -88,6 +93,14 @@ enum RewardType {
   XP
   COMMAND
   CURRENCY
+  MYSTERY_BOX
+}
+
+enum RewardRarity {
+  COMMON
+  RARE
+  EPIC
+  LEGENDARY
 }
 
 enum Role {
