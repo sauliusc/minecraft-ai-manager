@@ -37,6 +37,11 @@ public class ChallengeTracker implements Listener {
         this.log = log;
     }
 
+    /** Test-only constructor (null plugin — completion sound/title config not used). */
+    ChallengeTracker(ChallengeManager manager, ChallengeRepository repo, Logger log) {
+        this(null, manager, repo, log);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
@@ -148,6 +153,7 @@ public class ChallengeTracker implements Listener {
     private void checkCompletion(ActiveChallenge ch, String playerId) {
         // This is a best-effort local check; authoritative check is server-side
         // We just fire the complete endpoint; server handles idempotency
+        if (BridgePlugin.getInstance() == null) return;
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
 
@@ -157,6 +163,7 @@ public class ChallengeTracker implements Listener {
             public void onResponse(Call call, Response response) {
                 if (response.code() == 200) {
                     log.info("Challenge " + ch.id() + " completed by " + playerId);
+                    if (plugin == null) { response.close(); return; }
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         Player p = plugin.getServer().getPlayer(java.util.UUID.fromString(playerId));
                         if (p == null) return;

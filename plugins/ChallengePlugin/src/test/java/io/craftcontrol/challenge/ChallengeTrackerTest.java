@@ -220,4 +220,60 @@ class ChallengeTrackerTest {
         List<ChallengeRepository.ProgressEntry> drained = repo.drainBuffer();
         assertTrue(drained.isEmpty(), "Head-only rotation should not buffer any progress");
     }
+
+    @Test
+    void playerMove_insideVehicle_ignored() {
+        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100);
+        when(manager.getActive()).thenReturn(List.of(ch));
+
+        ChallengeTracker tracker = new ChallengeTracker(manager, repo,
+                java.util.logging.Logger.getLogger("test"));
+
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(player.isInsideVehicle()).thenReturn(true);
+
+        World world = mock(World.class);
+        Location from = new Location(world, 0.0, 64.0, 0.0);
+        Location to   = new Location(world, 1.0, 64.0, 0.0);
+
+        PlayerMoveEvent event = mock(PlayerMoveEvent.class);
+        when(event.getPlayer()).thenReturn(player);
+        when(event.getFrom()).thenReturn(from);
+        when(event.getTo()).thenReturn(to);
+
+        tracker.onPlayerMove(event);
+
+        List<ChallengeRepository.ProgressEntry> drained = repo.drainBuffer();
+        assertTrue(drained.isEmpty(), "Riding a vehicle should not count toward TRAVEL challenges");
+    }
+
+    @Test
+    void playerMove_flying_ignored() {
+        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100);
+        when(manager.getActive()).thenReturn(List.of(ch));
+
+        ChallengeTracker tracker = new ChallengeTracker(manager, repo,
+                java.util.logging.Logger.getLogger("test"));
+
+        Player player = mock(Player.class);
+        when(player.getUniqueId()).thenReturn(UUID.randomUUID());
+        when(player.isInsideVehicle()).thenReturn(false);
+        when(player.isGliding()).thenReturn(false);
+        when(player.isFlying()).thenReturn(true);
+
+        World world = mock(World.class);
+        Location from = new Location(world, 0.0, 64.0, 0.0);
+        Location to   = new Location(world, 1.0, 64.0, 0.0);
+
+        PlayerMoveEvent event = mock(PlayerMoveEvent.class);
+        when(event.getPlayer()).thenReturn(player);
+        when(event.getFrom()).thenReturn(from);
+        when(event.getTo()).thenReturn(to);
+
+        tracker.onPlayerMove(event);
+
+        List<ChallengeRepository.ProgressEntry> drained = repo.drainBuffer();
+        assertTrue(drained.isEmpty(), "Flying should not count toward TRAVEL challenges");
+    }
 }
