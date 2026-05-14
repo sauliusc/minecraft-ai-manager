@@ -53,6 +53,16 @@ public class CosmeticsListener implements Listener {
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
         CosmeticsProfile profile = manager.getProfile(player.getUniqueId());
+
+        // Apply title prefix to the rendered chat format
+        String titleId = profile.getTitleId();
+        if (titleId != null && !titleId.isEmpty()) {
+            Component titlePrefix = Component.text("[" + titleId + "] ", NamedTextColor.GOLD);
+            event.renderer((source, sourceDisplayName, message, viewer) ->
+                titlePrefix.append(sourceDisplayName).append(Component.text(": ")).append(message));
+        }
+
+        // Apply chat color to the message body
         String colorName = profile.getChatColor();
         if (colorName == null) return;
         TextColor color = resolveColor(colorName);
