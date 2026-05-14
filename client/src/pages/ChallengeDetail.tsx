@@ -9,6 +9,7 @@ interface Challenge {
   title: string;
   description: string;
   type: string;
+  difficulty: number;
   config: Record<string, unknown>;
   rewardId: string | null;
   activeFrom: string;
@@ -34,6 +35,7 @@ export function ChallengeDetail() {
   const [form, setForm] = useState<{
     title: string;
     description: string;
+    difficulty: string;
     config: string;
     activeFrom: string;
     activeUntil: string;
@@ -72,6 +74,7 @@ export function ChallengeDetail() {
     setForm({
       title: challenge.title,
       description: challenge.description,
+      difficulty: String(challenge.difficulty ?? 1),
       config: JSON.stringify(challenge.config, null, 2),
       activeFrom: toLocalDatetime(challenge.activeFrom),
       activeUntil: toLocalDatetime(challenge.activeUntil),
@@ -94,6 +97,7 @@ export function ChallengeDetail() {
     update.mutate({
       title: form.title,
       description: form.description,
+      difficulty: Number(form.difficulty),
       config,
       activeFrom: new Date(form.activeFrom).toISOString(),
       activeUntil: new Date(form.activeUntil).toISOString(),
@@ -143,6 +147,12 @@ export function ChallengeDetail() {
             <div>
               <p className="text-gray-500 text-xs font-medium uppercase">Type</p>
               <p className="text-gray-800 mt-0.5">{challenge.type.replace('_', ' ')}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 text-xs font-medium uppercase">Difficulty</p>
+              <p className="text-yellow-500 mt-0.5 text-base">
+                {'★'.repeat(challenge.difficulty ?? 1)}{'☆'.repeat(5 - (challenge.difficulty ?? 1))}
+              </p>
             </div>
             <div>
               <p className="text-gray-500 text-xs font-medium uppercase">Active Period</p>
@@ -240,6 +250,19 @@ export function ChallengeDetail() {
               onChange={(e) => setForm({ ...form!, description: e.target.value })}
               className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Difficulty (1–5)</label>
+            <select
+              value={form!.difficulty}
+              onChange={(e) => setForm({ ...form!, difficulty: e.target.value })}
+              className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              {[1, 2, 3, 4, 5].map((d) => (
+                <option key={d} value={d}>{'★'.repeat(d) + '☆'.repeat(5 - d)}</option>
+              ))}
+            </select>
           </div>
 
           <div>
