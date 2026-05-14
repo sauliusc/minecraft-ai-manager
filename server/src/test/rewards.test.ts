@@ -135,6 +135,38 @@ describe('POST /api/rewards', () => {
     const res = await request(app).post('/api/rewards').send(validBody);
     expect(res.status).toBe(401);
   });
+
+  it('rejects MYSTERY_BOX with weights not summing to 100', async () => {
+    const res = await request(app)
+      .post('/api/rewards')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Mystery Box',
+        type: 'MYSTERY_BOX',
+        config: {},
+        lootTable: [
+          { rewardId: 'reward-1', weight: 60 },
+          { rewardId: 'reward-2', weight: 20 }, // total 80, not 100
+        ],
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/100/);
+  });
+
+  it('accepts MYSTERY_BOX with weights summing to 100', async () => {
+    const mbReward = { ...mockReward, type: 'MYSTERY_BOX', lootTable: [{ rewardId: 'reward-1', weight: 100 }] };
+    vi.mocked(prisma.reward.create).mockResolvedValueOnce(mbReward as any);
+    const res = await request(app)
+      .post('/api/rewards')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Mystery Box',
+        type: 'MYSTERY_BOX',
+        config: {},
+        lootTable: [{ rewardId: 'reward-1', weight: 100 }],
+      });
+    expect(res.status).toBe(201);
+  });
 });
 
 describe('GET /api/rewards/:id', () => {
