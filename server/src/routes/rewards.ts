@@ -202,13 +202,41 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
       return;
     }
 
+    // For MYSTERY_BOX: resolve loot table to a concrete reward before bridge call
+    let bridgeReward: { rewardType: string; rarity: string | null; config: unknown } = {
+      rewardType: (reward as any).type,
+      rarity: (reward as any).rarity ?? null,
+      config: reward.config,
+    };
+
+    if ((reward as any).type === 'MYSTERY_BOX' && (reward as any).lootTable) {
+      const lootTable = (reward as any).lootTable as Array<{ rewardId: string; weight: number }>;
+      const totalWeight = lootTable.reduce((sum, e) => sum + e.weight, 0);
+      let roll = Math.random() * totalWeight;
+      let wonEntry = lootTable[0];
+      for (const entry of lootTable) {
+        roll -= entry.weight;
+        if (roll <= 0) { wonEntry = entry; break; }
+      }
+      const wonReward = await prisma.reward.findUnique({ where: { id: wonEntry.rewardId } });
+      if (wonReward) {
+        bridgeReward = {
+          rewardType: (wonReward as any).type,
+          rarity: (wonReward as any).rarity ?? null,
+          config: wonReward.config,
+        };
+        // Also persist the won inner reward for the player's record
+        await prisma.playerReward.create({
+          data: { playerId, rewardId: wonEntry.rewardId, grantedBy: user.sub, grantedAt: new Date() },
+        });
+      }
+    }
+
     // Attempt live delivery first; failure means player is offline — record queued for next login
     const bridgeOk = await callBridge('/bridge/rewards/grant', {
       playerId,
       rewardId,
-      rewardType: (reward as any).type,
-      rarity: (reward as any).rarity ?? null,
-      config: reward.config,
+      ...bridgeReward,
       ...(reason ? { reason } : {}),
     });
 
