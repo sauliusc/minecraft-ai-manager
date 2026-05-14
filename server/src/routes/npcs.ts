@@ -53,7 +53,7 @@ npcsRouter.get('/', authMiddleware, async (_req, res, next) => {
 // GET /api/npcs/:id — single NPC (auth required)
 npcsRouter.get('/:id', authMiddleware, async (req, res, next) => {
   try {
-    const npc = await prisma.npcDefinition.findUnique({ where: { id: req.params.id } });
+    const npc = await prisma.npcDefinition.findUnique({ where: { id: req.params.id as string } });
     if (!npc) { res.status(404).json({ error: 'NOT_FOUND', message: 'NPC not found' }); return; }
     res.json(npc);
   } catch (err) { next(err); }
@@ -75,7 +75,7 @@ npcsRouter.patch('/:id', authMiddleware, validateBody(npcSchema.partial()), asyn
     if (!requireSuperAdmin(req, res)) return;
     const data = req.body as Partial<z.infer<typeof npcSchema>>;
     const npc = await prisma.npcDefinition.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id as string },
       data: { ...data, type: data.type as any },
     });
     res.json(npc);
@@ -86,7 +86,7 @@ npcsRouter.patch('/:id', authMiddleware, validateBody(npcSchema.partial()), asyn
 npcsRouter.delete('/:id', authMiddleware, async (req, res, next) => {
   try {
     if (!requireSuperAdmin(req, res)) return;
-    await prisma.npcDefinition.delete({ where: { id: req.params.id } });
+    await prisma.npcDefinition.delete({ where: { id: req.params.id as string } });
     res.status(204).end();
   } catch (err) { next(err); }
 });
@@ -94,7 +94,8 @@ npcsRouter.delete('/:id', authMiddleware, async (req, res, next) => {
 // GET /api/npcs/:npcId/relationship/:playerId — get or create PlayerNpcRelationship
 npcsRouter.get('/:npcId/relationship/:playerId', authMiddleware, async (req, res, next) => {
   try {
-    const { npcId, playerId } = req.params;
+    const npcId = req.params.npcId as string;
+    const playerId = req.params.playerId as string;
     const relationship = await prisma.playerNpcRelationship.upsert({
       where: { playerId_npcId: { playerId, npcId } },
       create: { playerId, npcId, completedQuestIds: [] },
@@ -108,7 +109,8 @@ npcsRouter.get('/:npcId/relationship/:playerId', authMiddleware, async (req, res
 // body: { questId: string } — increment score by 10, add questId to completedQuestIds
 npcsRouter.post('/:npcId/relationship/:playerId/quest-complete', authMiddleware, async (req, res, next) => {
   try {
-    const { npcId, playerId } = req.params;
+    const npcId = req.params.npcId as string;
+    const playerId = req.params.playerId as string;
     const { questId } = z.object({ questId: z.string().min(1) }).parse(req.body);
 
     const existing = await prisma.playerNpcRelationship.upsert({
@@ -117,7 +119,6 @@ npcsRouter.post('/:npcId/relationship/:playerId/quest-complete', authMiddleware,
       update: {},
     });
 
-    // If it already existed, update score and questIds
     const alreadyDone = existing.completedQuestIds.includes(questId);
     const updated = await prisma.playerNpcRelationship.update({
       where: { playerId_npcId: { playerId, npcId } },

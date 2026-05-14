@@ -1,6 +1,7 @@
 package io.craftcontrol.moderation;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
 import io.craftcontrol.bridge.ApiClient;
 import io.craftcontrol.bridge.BridgePlugin;
 import net.kyori.adventure.text.Component;
@@ -31,7 +32,10 @@ public class ModerationManager {
         blocked.computeIfAbsent(blocker.getUniqueId(), k -> ConcurrentHashMap.newKeySet()).add(target.getUniqueId());
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = String.format("{\"blockerId\":\"%s\",\"blockedId\":\"%s\"}", blocker.getUniqueId(), target.getUniqueId());
+        JsonObject blockBody = new JsonObject();
+        blockBody.addProperty("blockerId", blocker.getUniqueId().toString());
+        blockBody.addProperty("blockedId", target.getUniqueId().toString());
+        String json = gson.toJson(blockBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/api/moderation/block", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
@@ -72,7 +76,9 @@ public class ModerationManager {
         safechatEnabled.put(player.getUniqueId(), enabled);
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = String.format("{\"safechat\":%b}", enabled);
+        JsonObject safechatBody = new JsonObject();
+        safechatBody.addProperty("safechat", enabled);
+        String json = gson.toJson(safechatBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.patch("/api/players/" + player.getUniqueId(), json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
@@ -142,14 +148,13 @@ public class ModerationManager {
     private void postAction(Player executor, Player target, String type, String duration, String reason) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"executorId\":\"").append(executor.getUniqueId())
-          .append("\",\"targetId\":\"").append(target.getUniqueId())
-          .append("\",\"type\":\"").append(type).append("\"");
-        if (duration != null) sb.append(",\"duration\":\"").append(duration).append("\"");
-        if (reason != null) sb.append(",\"reason\":\"").append(reason.replace("\"", "\\\"")).append("\"");
-        sb.append("}");
-        String json = sb.toString();
+        JsonObject body = new JsonObject();
+        body.addProperty("executorId", executor.getUniqueId().toString());
+        body.addProperty("targetId", target.getUniqueId().toString());
+        body.addProperty("type", type);
+        if (duration != null) body.addProperty("duration", duration);
+        if (reason != null) body.addProperty("reason", reason);
+        String json = gson.toJson(body);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/api/moderation/actions", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
@@ -161,14 +166,13 @@ public class ModerationManager {
     private void postActionByName(Player executor, String targetName, String type, String duration, String reason) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        StringBuilder sb = new StringBuilder();
-        sb.append("{\"executorId\":\"").append(executor.getUniqueId())
-          .append("\",\"targetName\":\"").append(targetName)
-          .append("\",\"type\":\"").append(type).append("\"");
-        if (duration != null) sb.append(",\"duration\":\"").append(duration).append("\"");
-        if (reason != null) sb.append(",\"reason\":\"").append(reason.replace("\"", "\\\"")).append("\"");
-        sb.append("}");
-        String json = sb.toString();
+        JsonObject body = new JsonObject();
+        body.addProperty("executorId", executor.getUniqueId().toString());
+        body.addProperty("targetName", targetName);
+        body.addProperty("type", type);
+        if (duration != null) body.addProperty("duration", duration);
+        if (reason != null) body.addProperty("reason", reason);
+        String json = gson.toJson(body);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/api/moderation/actions", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }

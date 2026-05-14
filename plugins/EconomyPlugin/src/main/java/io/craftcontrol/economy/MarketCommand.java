@@ -63,8 +63,13 @@ public class MarketCommand implements CommandExecutor {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) { player.sendMessage(Component.text("Market service unavailable.", NamedTextColor.RED)); return; }
 
-        String json = String.format("{\"sellerId\":\"%s\",\"material\":\"%s\",\"amount\":%d,\"price\":%d,\"fee\":%d}",
-            player.getUniqueId(), material, amount, price, fee);
+        JsonObject listBody = new JsonObject();
+        listBody.addProperty("sellerId", player.getUniqueId().toString());
+        listBody.addProperty("material", material);
+        listBody.addProperty("amount", amount);
+        listBody.addProperty("price", price);
+        listBody.addProperty("fee", fee);
+        String json = gson.toJson(listBody);
         player.sendMessage(Component.text("Listing " + amount + "x " + material + " for " + price + " Coins (fee: " + fee + ")…", NamedTextColor.GRAY));
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/economy/market/listings", json, new Callback() {
@@ -129,7 +134,9 @@ public class MarketCommand implements CommandExecutor {
         String listingId = args[1];
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) { player.sendMessage(Component.text("Market unavailable.", NamedTextColor.RED)); return; }
-        String json = String.format("{\"buyerId\":\"%s\"}", player.getUniqueId());
+        JsonObject buyBody = new JsonObject();
+        buyBody.addProperty("buyerId", player.getUniqueId().toString());
+        String json = gson.toJson(buyBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/economy/market/listings/" + listingId + "/buy", json, new Callback() {
                 @Override

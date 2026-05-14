@@ -140,15 +140,25 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
       return;
     }
 
-    // Redis lock: NX EX 5
+    // Redis idempotency lock — 60 s covers bridge timeout + DB write; prevents duplicate grants on retry
     const lockKey = `bridge:lock:grant:${playerId}:${rewardId}`;
-    const lockResult = await redis.set(lockKey, '1', 'EX', 5, 'NX');
+    const lockResult = await redis.set(lockKey, '1', 'EX', 60, 'NX');
     if (lockResult === null) {
       res.status(409).json({ error: 'CONFLICT', message: 'Duplicate grant in progress' });
       return;
     }
 
-    // Insert PlayerReward record
+    // Attempt live delivery first; failure means player is offline — record queued for next login
+    const bridgeOk = await callBridge('/bridge/rewards/grant', {
+      playerId,
+      rewardId,
+      rewardType: (reward as any).type,
+      rarity: (reward as any).rarity ?? null,
+      config: reward.config,
+      ...(reason ? { reason } : {}),
+    });
+
+    // Always persist for audit trail; plugin polls /pending/:playerId on join for offline delivery
     const grant = await prisma.playerReward.create({
       data: {
         playerId,
@@ -156,17 +166,6 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
         grantedBy: user.sub,
         grantedAt: new Date(),
       },
-    });
-
-    // Attempt bridge call
-    const bridgeOk = await callBridge('/bridge/rewards/grant', {
-      playerId,
-      grantId: grant.id,
-      rewardId,
-      rewardType: (reward as any).type,
-      rarity: (reward as any).rarity ?? null,
-      config: reward.config,
-      ...(reason ? { reason } : {}),
     });
 
     res.json({ grantId: grant.id, queued: !bridgeOk });

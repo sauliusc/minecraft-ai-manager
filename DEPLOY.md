@@ -1,3 +1,7 @@
+> **DEPRECATED** — This guide describes an older single-subnet network topology (`192.168.1.x`) that is incompatible with the current two-bridge Proxmox setup. Use **DEPLOYMENT.md** for all new installations. This file is kept for historical reference only.
+
+---
+
 # CraftControl — Deployment & Infrastructure Guide
 
 ## Overview

@@ -1,5 +1,6 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 import { authRouter } from './routes/auth.js';
 import { playersRouter } from './routes/players.js';
 import { challengesRouter } from './routes/challenges.js';
@@ -14,6 +15,29 @@ import { errorMiddleware, notFoundMiddleware } from './middleware/error.middlewa
 
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
+
+const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173').split(',').map((o) => o.trim());
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  if (req.method === 'OPTIONS') { res.status(204).end(); return; }
+  next();
+});
+
+const globalLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded, try again in a minute', statusCode: 429 },
+});
+app.use('/api', globalLimiter);
 
 app.use(express.json());
 app.use(cookieParser());

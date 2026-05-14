@@ -38,10 +38,12 @@ model ChallengeProgress {
   current     Int       @default(0)
   completed   Boolean   @default(false)
   completedAt DateTime?
-  player      Player    @relation(fields: [playerId], references: [id])
-  challenge   Challenge @relation(fields: [challengeId], references: [id])
+  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
 
   @@unique([playerId, challengeId])
+  @@index([playerId])
+  @@index([challengeId])
 }
 
 model Reward {
@@ -59,8 +61,10 @@ model PlayerReward {
   rewardId  String
   grantedAt DateTime @default(now())
   grantedBy String
-  player    Player   @relation(fields: [playerId], references: [id])
-  reward    Reward   @relation(fields: [rewardId], references: [id])
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+
+  @@index([playerId])
 }
 
 model User {
@@ -139,6 +143,10 @@ model ModerationReport {
   resolvedAt   DateTime?
   resolvedBy   String?
   createdAt    DateTime       @default(now())
+
+  @@index([status])
+  @@index([reportedId])
+  @@index([createdAt])
 }
 
 model ModerationAction {
@@ -167,6 +175,10 @@ model ChatLog {
   message   String
   flagged   Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([playerId])
+  @@index([createdAt])
+  @@index([flagged])
 }
 
 model BroadcastMessage {
@@ -179,6 +191,9 @@ model BroadcastMessage {
   status      BroadcastStatus @default(DRAFT)
   createdBy   String
   createdAt   DateTime        @default(now())
+
+  @@index([status])
+  @@index([scheduledAt])
 }
 
 enum ReportStatus {
