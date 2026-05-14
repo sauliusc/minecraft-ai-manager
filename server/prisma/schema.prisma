@@ -25,17 +25,20 @@ model Player {
 }
 
 model Challenge {
-  id          String              @id @default(cuid())
-  title       String
-  description String
-  type        ChallengeType
-  config      Json
-  rewardId    String?
-  reward      Reward?             @relation(fields: [rewardId], references: [id])
-  activeFrom  DateTime
-  activeUntil DateTime
-  assignedTo  String[]
-  progress    ChallengeProgress[]
+  id             String              @id @default(cuid())
+  title          String
+  description    String
+  type           ChallengeType
+  config         Json
+  rewardId       String?
+  reward         Reward?             @relation(fields: [rewardId], references: [id])
+  activeFrom     DateTime
+  activeUntil    DateTime
+  assignedTo     String[]
+  questCategory  QuestCategory?
+  progress       ChallengeProgress[]
+
+  @@index([questCategory])
 }
 
 model ChallengeProgress {
@@ -90,6 +93,12 @@ enum ChallengeType {
   CRAFT_ITEM
   TRAVEL
   CUSTOM
+}
+
+enum QuestCategory {
+  DAILY
+  WEEKLY
+  SIDE
 }
 
 enum RewardType {
