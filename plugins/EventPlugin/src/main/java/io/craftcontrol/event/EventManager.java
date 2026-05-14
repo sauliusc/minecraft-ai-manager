@@ -75,7 +75,8 @@ public class EventManager {
     private void processEventEntry(JsonObject obj) {
         String id = obj.get("id").getAsString();
         String typeStr = obj.get("type").getAsString();
-        String startTimeStr = obj.get("startTime").getAsString();
+        String startTimeStr = obj.has("startTime") ? obj.get("startTime").getAsString()
+                : obj.get("scheduledAt").getAsString();
 
         EventType type;
         try {

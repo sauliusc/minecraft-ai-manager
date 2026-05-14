@@ -378,3 +378,33 @@ enum ClanRole {
   OFFICER
   MEMBER
 }
+
+model PlayerCosmetics {
+  playerId     String   @id
+  titleId      String?
+  chatColor    String?
+  particleType String?
+  petType      String?
+  trailType    String?
+  updatedAt    DateTime @updatedAt
+}
+
+model CosmeticTitle {
+  id          String @id @default(cuid())
+  name        String @unique
+  description String @default("")
+  createdAt   DateTime @default(now())
+}
+
+model PendingVote {
+  id        String    @id @default(cuid())
+  playerId  String
+  site      String
+  playerIgN String
+  claimed   Boolean   @default(false)
+  claimedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([playerId])
+  @@index([claimed])
+}
