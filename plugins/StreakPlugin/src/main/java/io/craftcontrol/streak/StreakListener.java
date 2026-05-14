@@ -109,8 +109,8 @@ public class StreakListener implements Listener {
         plugin.getServer().getScheduler().runTask(plugin, () ->
                 deliverMilestoneIfAny(player, finalStreak, finalLongest));
 
-        // PATCH lastSeenAt to the API (non-critical; fire-and-forget)
-        patchLastSeenAt(uuid, now);
+        // PATCH streak data + lastSeenAt to the API (non-critical; fire-and-forget)
+        patchPlayerData(uuid, now, finalStreak, finalLongest);
     }
 
     private boolean hasStreakShield(Player player) {
@@ -165,13 +165,16 @@ public class StreakListener implements Listener {
                 "Current login streak: " + streak + " days", NamedTextColor.GREEN));
     }
 
-    private void patchLastSeenAt(String uuid, long nowMs) {
+    private void patchPlayerData(String uuid, long nowMs, int currentStreak, int longestStreak) {
         BridgePlugin bridge = BridgePlugin.getInstance();
         if (bridge == null) return;
         ApiClient api = bridge.getApiClient();
         if (api == null) return;
 
-        String jsonBody = "{\"lastSeenAt\":\"" + Instant.ofEpochMilli(nowMs) + "\"}";
+        String nowIso = Instant.ofEpochMilli(nowMs).toString();
+        String jsonBody = String.format(
+            "{\"lastSeenAt\":\"%s\",\"currentStreak\":%d,\"longestStreak\":%d,\"lastLoginDate\":\"%s\"}",
+            nowIso, currentStreak, longestStreak, nowIso);
         Request request = new Request.Builder()
                 .url(api.getBaseUrl() + "/players/" + uuid)
                 .header("Authorization", "Bearer " + api.getServiceToken())
@@ -182,7 +185,7 @@ public class StreakListener implements Listener {
             public void onResponse(Call call, Response response) { response.close(); }
             @Override
             public void onFailure(Call call, IOException e) {
-                log.fine("Failed to PATCH lastSeenAt for " + uuid + ": " + e.getMessage());
+                log.fine("Failed to PATCH player data for " + uuid + ": " + e.getMessage());
             }
         });
     }

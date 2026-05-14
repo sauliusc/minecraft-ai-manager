@@ -102,27 +102,16 @@ public class ReportManager {
     }
 
     private void escalateReport(UUID reportedUuid, String reportedName, String caseId) {
-        ApiClient api = BridgePlugin.getInstance().getApiClient();
-        if (api == null) return;
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/reports/" + caseId + "/escalate", "{}", new Callback() {
-                @Override
-                public void onResponse(Call call, Response response) {
-                    response.close();
-                    plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        Component alert = Component.text(
-                            "[MOD] Player " + reportedName + " has received " +
-                            plugin.getConfig().getInt("report.escalation_threshold", 3) +
-                            "+ reports. Case #" + caseId + " escalated.", NamedTextColor.RED);
-                        plugin.getServer().getOnlinePlayers().stream()
-                            .filter(p -> p.hasPermission("craftcontrol.mod"))
-                            .forEach(p -> p.sendMessage(alert));
-                    });
-                }
-                @Override public void onFailure(Call call, IOException e) {
-                    plugin.getLogger().fine("Failed to escalate report " + caseId);
-                }
-            })
-        );
+        // Server-side escalation is handled automatically by the API (3+ reports in 24h triggers ESCALATED status).
+        // We just notify online moderators in-game immediately.
+        plugin.getServer().getScheduler().runTask(plugin, () -> {
+            Component alert = Component.text(
+                "[MOD] Player " + reportedName + " has received " +
+                plugin.getConfig().getInt("report.escalation_threshold", 3) +
+                "+ reports. Case #" + caseId + " escalated.", NamedTextColor.RED);
+            plugin.getServer().getOnlinePlayers().stream()
+                .filter(p -> p.hasPermission("craftcontrol.mod"))
+                .forEach(p -> p.sendMessage(alert));
+        });
     }
 }
