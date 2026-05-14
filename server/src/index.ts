@@ -13,6 +13,7 @@ import { analyticsRouter } from './routes/analytics.js';
 import { npcsRouter } from './routes/npcs.js';
 import { economyRouter } from './routes/economy.js';
 import { clansRouter } from './routes/clans.js';
+import { cosmeticsRouter } from './routes/cosmetics.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/analytics', analyticsRouter);
 app.use('/api/npcs', npcsRouter);
 app.use('/api/economy', economyRouter);
 app.use('/api/clans', clansRouter);
+app.use('/api/cosmetics', cosmeticsRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
