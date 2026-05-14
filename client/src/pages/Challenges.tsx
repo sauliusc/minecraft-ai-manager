@@ -14,6 +14,7 @@ interface Challenge {
   activeFrom: string;
   activeUntil: string;
   assignedTo: string[];
+  completionRate?: { total: number; completed: number };
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -374,15 +375,16 @@ export function Challenges() {
               <th className="px-4 py-3 text-left">Type</th>
               <th className="px-4 py-3 text-left">Difficulty</th>
               <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Completion</th>
               <th className="px-4 py-3 text-left">Active From</th>
               <th className="px-4 py-3 text-left">Active Until</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No challenges found</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No challenges found</td></tr>
             ) : data?.data?.map((c: Challenge) => {
               const st = challengeStatus(c);
               const diff = c.difficulty ?? 1;
@@ -403,6 +405,11 @@ export function Challenges() {
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>
                       {st.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    {c.completionRate
+                      ? `${c.completionRate.completed}/${c.completionRate.total}`
+                      : '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-500">{new Date(c.activeFrom).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-gray-500">{new Date(c.activeUntil).toLocaleDateString()}</td>

@@ -93,11 +93,24 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
         orderBy: { activeFrom: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          _count: { select: { progress: true } },
+        },
       }),
     ]);
 
+    const enriched = await Promise.all(
+      challenges.map(async (c: any) => {
+        const completedCount = await prisma.challengeProgress.count({
+          where: { challengeId: c.id, completed: true },
+        });
+        const { _count, ...rest } = c;
+        return { ...rest, completionRate: { total: _count.progress, completed: completedCount } };
+      })
+    );
+
     res.json({
-      data: challenges,
+      data: enriched,
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
