@@ -7,19 +7,72 @@ import { validateBody } from '../middleware/validate.middleware.js';
 
 export const rewardsRouter = Router();
 
-const createRewardSchema = z.object({
-  name: z.string().min(1),
-  type: z.enum(['ITEM', 'XP', 'COMMAND', 'CURRENCY']),
-  config: z.record(z.unknown()),
-  rarity: z.enum(['COMMON', 'RARE', 'EPIC', 'LEGENDARY']).optional(),
+const REWARD_TYPES = ['ITEM', 'XP', 'COMMAND', 'CURRENCY', 'MYSTERY_BOX'] as const;
+const REWARD_RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'] as const;
+
+const lootEntrySchema = z.object({
+  rewardId: z.string().min(1),
+  weight: z.number().int().min(1).max(100),
 });
 
-const updateRewardSchema = z.object({
-  name: z.string().min(1).optional(),
-  type: z.enum(['ITEM', 'XP', 'COMMAND', 'CURRENCY']).optional(),
-  config: z.record(z.unknown()).optional(),
-  rarity: z.enum(['COMMON', 'RARE', 'EPIC', 'LEGENDARY']).optional(),
-});
+const lootTableSchema = z
+  .array(lootEntrySchema)
+  .min(1)
+  .superRefine((entries, ctx) => {
+    const total = entries.reduce((sum, e) => sum + e.weight, 0);
+    if (total !== 100) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Loot table weights must sum to 100 (got ${total})`,
+      });
+    }
+  });
+
+const createRewardSchema = z
+  .object({
+    name: z.string().min(1),
+    type: z.enum(REWARD_TYPES),
+    config: z.record(z.unknown()).default({}),
+    rarity: z.enum(REWARD_RARITIES).optional(),
+    lootTable: lootTableSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === 'MYSTERY_BOX' && !data.lootTable) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lootTable'],
+        message: 'lootTable is required for MYSTERY_BOX rewards',
+      });
+    }
+    if (data.type !== 'MYSTERY_BOX' && data.lootTable) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lootTable'],
+        message: 'lootTable is only valid for MYSTERY_BOX rewards',
+      });
+    }
+  });
+
+const updateRewardSchema = z
+  .object({
+    name: z.string().min(1).optional(),
+    type: z.enum(REWARD_TYPES).optional(),
+    config: z.record(z.unknown()).optional(),
+    rarity: z.enum(REWARD_RARITIES).optional(),
+    lootTable: lootTableSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === 'MYSTERY_BOX' && data.lootTable === undefined) {
+      // Only validate if both type and lootTable are present in the update
+    }
+    if (data.lootTable !== undefined && data.type !== undefined && data.type !== 'MYSTERY_BOX') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lootTable'],
+        message: 'lootTable is only valid for MYSTERY_BOX rewards',
+      });
+    }
+  });
 
 const grantSchema = z.object({
   playerId: z.string().min(1),
@@ -93,7 +146,8 @@ rewardsRouter.post('/', authMiddleware, validateBody(createRewardSchema), async 
         name: data.name,
         type: data.type as any,
         config: data.config as any,
-        ...(data.rarity !== undefined ? { rarity: data.rarity } : {}),
+        ...(data.rarity !== undefined ? { rarity: data.rarity as any } : {}),
+        ...(data.lootTable !== undefined ? { lootTable: data.lootTable as any } : {}),
       },
     });
     res.status(201).json(reward);
@@ -211,6 +265,7 @@ rewardsRouter.patch('/:id', authMiddleware, validateBody(updateRewardSchema), as
     if (data.type !== undefined) update.type = data.type;
     if (data.config !== undefined) update.config = data.config;
     if (data.rarity !== undefined) update.rarity = data.rarity;
+    if (data.lootTable !== undefined) update.lootTable = data.lootTable;
 
     const reward = await prisma.reward.update({
       where: { id },
