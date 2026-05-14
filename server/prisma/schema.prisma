@@ -357,6 +357,22 @@ model ClanInvite {
   @@index([inviteeId])
 }
 
+model ClanWar {
+  id         String       @id
+  clan1Id    String
+  clan2Id    String
+  type       String
+  durationMs Int
+  winnerId   String?
+  clan1Score Int          @default(0)
+  clan2Score Int          @default(0)
+  startedAt  DateTime     @default(now())
+  endedAt    DateTime?
+
+  @@index([clan1Id])
+  @@index([clan2Id])
+}
+
 enum ClanRole {
   LEADER
   OFFICER
