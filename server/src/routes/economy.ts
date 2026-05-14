@@ -129,6 +129,35 @@ economyRouter.post('/adjust', authMiddleware, validateBody(adjustSchema), async 
   }
 });
 
+const pluginCreditSchema = z.object({
+  playerId: z.string().min(1),
+  currency: z.enum(['coins', 'crystals']),
+  amount: z.number().int().positive(),
+  reason: z.string().min(1),
+});
+
+// POST /api/economy/plugin/credit — service token (plugins grant coins/crystals for events/milestones)
+economyRouter.post('/plugin/credit', serviceTokenMiddleware, validateBody(pluginCreditSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { playerId, currency, amount, reason } = req.body as z.infer<typeof pluginCreditSchema>;
+
+    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    if (!player) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
+      return;
+    }
+
+    const [updated] = await prisma.$transaction([
+      prisma.player.update({ where: { id: playerId }, data: { [currency]: { increment: amount } } }),
+      prisma.economyAuditLog.create({ data: { adminId: 'plugin', targetId: playerId, delta: amount, currency, reason } }),
+    ]);
+
+    res.json({ playerId, currency, newBalance: updated[currency] });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // --- Market ---
 
 const createListingSchema = z.object({
