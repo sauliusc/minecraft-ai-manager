@@ -105,7 +105,7 @@ public class WarManager {
             winnerId, war.clan1Score.get(), loserId, war.clan2Score.get());
         broadcastToWarClans(war, Component.text("🏆 " + summary, NamedTextColor.GOLD));
 
-        // POST result to API
+        // POST result to API and grant XP to winning clan
         ApiClient api = BridgePlugin.getInstance() != null ? BridgePlugin.getInstance().getApiClient() : null;
         if (api != null) {
             String json = gson.toJson(Map.of("warId", war.warId, "winnerId", winnerId,
@@ -114,6 +114,14 @@ public class WarManager {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {
                     log.warning("Failed to post war result: " + e.getMessage());
+                }
+            });
+
+            int warXp = plugin.getConfig().getInt("war.win_xp", 500);
+            api.post("/clans/" + winnerId + "/xp", "{\"xp\":" + warXp + "}", new Callback() {
+                @Override public void onResponse(Call call, Response r) { r.close(); }
+                @Override public void onFailure(Call call, IOException e) {
+                    log.warning("Failed to grant war XP to clan " + winnerId + ": " + e.getMessage());
                 }
             });
         }
