@@ -173,10 +173,15 @@ moderationRouter.post('/block', serviceTokenMiddleware, validateBody(blockSchema
   } catch (err) { next(err); }
 });
 
-// DELETE /api/moderation/block
-moderationRouter.delete('/block', serviceTokenMiddleware, validateBody(blockSchema), async (req, res, next) => {
+// DELETE /api/moderation/block  (reads blockerId+blockedId from query params or body)
+moderationRouter.delete('/block', serviceTokenMiddleware, async (req, res, next) => {
   try {
-    const { blockerId, blockedId } = req.body as z.infer<typeof blockSchema>;
+    const blockerId = (req.query.blockerId ?? req.body?.blockerId) as string | undefined;
+    const blockedId = (req.query.blockedId ?? req.body?.blockedId) as string | undefined;
+    if (!blockerId || !blockedId) {
+      res.status(400).json({ error: 'INVALID', message: 'blockerId and blockedId are required', statusCode: 400 });
+      return;
+    }
     await prisma.playerBlock.deleteMany({ where: { blockerId, blockedId } });
     res.status(204).end();
   } catch (err) { next(err); }
