@@ -38,11 +38,27 @@ const emptyForm = {
   description: '',
   type: 'BLOCK_BREAK',
   difficulty: '1',
-  config: '{}',
+  targetMaterial: '',
+  targetEntity: '',
+  targetCount: '1',
+  customConfig: '{}',
   activeFrom: '',
   activeUntil: '',
   assignedTo: '',
 };
+
+function buildConfig(type: string, form: typeof emptyForm): Record<string, unknown> {
+  if (type === 'BLOCK_BREAK' || type === 'CRAFT_ITEM') {
+    return { target_material: form.targetMaterial.toUpperCase(), target_count: Number(form.targetCount) };
+  }
+  if (type === 'KILL_MOB') {
+    return { target_entity: form.targetEntity.toUpperCase(), target_count: Number(form.targetCount) };
+  }
+  if (type === 'TRAVEL') {
+    return { target_count: Number(form.targetCount) };
+  }
+  return JSON.parse(form.customConfig || '{}');
+}
 
 export function Challenges() {
   const navigate = useNavigate();
@@ -53,16 +69,23 @@ export function Challenges() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('all');
   const [type, setType] = useState('');
+  const [difficulty, setDifficulty] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['challenges', page, status, type],
+    queryKey: ['challenges', page, status, type, difficulty],
     queryFn: () =>
       api
         .get('/challenges', {
-          params: { page, limit: 20, status: status || undefined, type: type || undefined },
+          params: {
+            page,
+            limit: 20,
+            status: status || undefined,
+            type: type || undefined,
+            difficulty: difficulty || undefined,
+          },
         })
         .then((r) => r.data),
     placeholderData: (prev) => prev,
@@ -85,9 +108,9 @@ export function Challenges() {
     e.preventDefault();
     let config: Record<string, unknown>;
     try {
-      config = JSON.parse(form.config);
+      config = buildConfig(form.type, form);
     } catch {
-      setFormError('Config must be valid JSON');
+      setFormError('Custom config must be valid JSON');
       return;
     }
     create.mutate({
@@ -190,16 +213,82 @@ export function Challenges() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Config (JSON)</label>
-              <textarea
-                required
-                rows={3}
-                value={form.config}
-                onChange={(e) => setForm({ ...form, config: e.target.value })}
-                className="w-full border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {/* Type-specific config fields */}
+            {(form.type === 'BLOCK_BREAK' || form.type === 'CRAFT_ITEM') && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Material (e.g. OAK_LOG)</label>
+                  <input
+                    required
+                    value={form.targetMaterial}
+                    onChange={(e) => setForm({ ...form, targetMaterial: e.target.value })}
+                    placeholder="OAK_LOG"
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Target count</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={form.targetCount}
+                    onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+            {form.type === 'KILL_MOB' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Entity type (e.g. ZOMBIE)</label>
+                  <input
+                    required
+                    value={form.targetEntity}
+                    onChange={(e) => setForm({ ...form, targetEntity: e.target.value })}
+                    placeholder="ZOMBIE"
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Target count</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={form.targetCount}
+                    onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+            {form.type === 'TRAVEL' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Distance (blocks)</label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={form.targetCount}
+                  onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+            {form.type === 'CUSTOM' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Config (JSON)</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={form.customConfig}
+                  onChange={(e) => setForm({ ...form, customConfig: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -253,6 +342,7 @@ export function Challenges() {
           >
             <option value="all">All statuses</option>
             <option value="active">Active</option>
+            <option value="upcoming">Upcoming</option>
             <option value="expired">Expired</option>
           </select>
           <select
@@ -263,6 +353,16 @@ export function Challenges() {
             <option value="">All types</option>
             {['BLOCK_BREAK', 'KILL_MOB', 'CRAFT_ITEM', 'TRAVEL', 'CUSTOM'].map((t) => (
               <option key={t} value={t}>{t.replace('_', ' ')}</option>
+            ))}
+          </select>
+          <select
+            value={difficulty}
+            onChange={(e) => { setDifficulty(e.target.value); setPage(1); }}
+            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All difficulties</option>
+            {[1, 2, 3, 4, 5].map((d) => (
+              <option key={d} value={d}>{'★'.repeat(d)}</option>
             ))}
           </select>
         </div>

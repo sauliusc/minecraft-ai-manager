@@ -68,6 +68,7 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
     const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 20)));
     const type = typeof req.query.type === 'string' ? req.query.type : undefined;
     const status = typeof req.query.status === 'string' ? req.query.status : 'all';
+    const difficultyParam = typeof req.query.difficulty === 'string' ? Number(req.query.difficulty) : undefined;
 
     const now = new Date();
     let statusFilter: object = {};
@@ -75,11 +76,14 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
       statusFilter = { activeFrom: { lte: now }, activeUntil: { gte: now } };
     } else if (status === 'expired') {
       statusFilter = { activeUntil: { lt: now } };
+    } else if (status === 'upcoming') {
+      statusFilter = { activeFrom: { gt: now } };
     }
 
     const where = {
       ...statusFilter,
       ...(type ? { type: type as any } : {}),
+      ...(difficultyParam ? { difficulty: difficultyParam } : {}),
     };
 
     const [total, challenges] = await Promise.all([
