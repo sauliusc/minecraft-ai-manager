@@ -16,8 +16,12 @@ model Player {
   currentStreak  Int                 @default(0)
   longestStreak  Int                 @default(0)
   lastLoginDate  DateTime?
+  coins          Int                 @default(0)
+  crystals       Int                 @default(0)
   rewards        PlayerReward[]
   progress       ChallengeProgress[]
+  listings       MarketListing[]     @relation("SellerListings")
+  purchases      MarketListing[]     @relation("BuyerListings")
 }
 
 model Challenge {
@@ -265,4 +269,37 @@ enum NpcType {
   GUIDE
   QUEST_GIVER
   MERCHANT
+}
+
+model MarketListing {
+  id        String    @id @default(cuid())
+  sellerId  String
+  buyerId   String?
+  material  String
+  amount    Int
+  price     Int
+  fee       Int       @default(0)
+  sold      Boolean   @default(false)
+  expiresAt DateTime
+  soldAt    DateTime?
+  createdAt DateTime  @default(now())
+  seller    Player    @relation("SellerListings", fields: [sellerId], references: [id], onDelete: Cascade)
+  buyer     Player?   @relation("BuyerListings", fields: [buyerId], references: [id])
+
+  @@index([sellerId])
+  @@index([sold])
+  @@index([expiresAt])
+}
+
+model EconomyAuditLog {
+  id        String   @id @default(cuid())
+  adminId   String
+  targetId  String
+  delta     Int
+  currency  String
+  reason    String
+  createdAt DateTime @default(now())
+
+  @@index([targetId])
+  @@index([createdAt])
 }
