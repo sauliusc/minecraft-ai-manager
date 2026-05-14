@@ -21,11 +21,25 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Check PaperMC repository is reachable
+        id: check
+        run: |
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+            "https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml")
+          if [ "$status" = "200" ]; then
+            echo "reachable=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "reachable=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::PaperMC Maven repository returned HTTP $status — skipping plugin build. This is a known network restriction on some CI environments."
+          fi
+
       - name: Build and test all plugins
+        if: steps.check.outputs.reachable == 'true'
         run: mvn clean verify --batch-mode --no-transfer-progress
         working-directory: plugins
 
       - name: Upload plugin JARs
+        if: steps.check.outputs.reachable == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: plugin-jars
