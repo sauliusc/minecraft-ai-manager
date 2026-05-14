@@ -31,6 +31,11 @@ const leaderboardEntrySchema = z.object({
   score: z.number(),
 });
 
+const completeSchema = z.object({
+  winnerId: z.string().optional(),
+  leaderboardEntries: z.array(leaderboardEntrySchema).optional(),
+});
+
 // GET /api/events
 eventsRouter.get('/', authMiddleware, async (req, res, next) => {
   try {
@@ -149,12 +154,9 @@ eventsRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async (re
 });
 
 // POST /api/events/:id/complete  (service token — from plugin)
-eventsRouter.post('/:id/complete', serviceTokenMiddleware, async (req, res, next) => {
+eventsRouter.post('/:id/complete', serviceTokenMiddleware, validateBody(completeSchema), async (req, res, next) => {
   try {
-    const { winnerId, leaderboardEntries } = req.body as {
-      winnerId?: string;
-      leaderboardEntries?: Array<{ playerId: string; playerName: string; score: number }>;
-    };
+    const { winnerId, leaderboardEntries } = req.body as z.infer<typeof completeSchema>;
 
     const update: Record<string, unknown> = { state: 'FINISHED', endedAt: new Date() };
     if (winnerId) (update.config as any) = { winnerId };

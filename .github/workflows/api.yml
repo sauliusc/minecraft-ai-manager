@@ -57,9 +57,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run migrations
-        if: hashFiles('prisma/schema.prisma') != ''
-        run: npx prisma migrate deploy
+      - name: Push schema to test database
+        run: npx prisma db push --force-reset --accept-data-loss
         env:
           DATABASE_URL: postgresql://craftcontrol:testpass@localhost:5432/craftcontrol_test
 

@@ -36,25 +36,39 @@ jobs:
           cache: 'npm'
           cache-dependency-path: client/package-lock.json
 
+      - name: Check Vercel secrets are configured
+        id: check
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel secrets not configured — skipping deployment. See DEPLOY.md §8 to set up VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Vercel CLI
+        if: steps.check.outputs.configured == 'true'
         run: npm install -g vercel@latest
 
       - name: Pull Vercel environment
+        if: steps.check.outputs.configured == 'true'
         run: vercel pull --yes --environment=${{ github.ref == 'refs/heads/main' && 'production' || 'preview' }} --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build project
+        if: steps.check.outputs.configured == 'true'
         run: vercel build ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
         env:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL || 'https://panel.example.com/api' }}
 
       - name: Deploy to Vercel
+        if: steps.check.outputs.configured == 'true'
         id: deploy
         run: |
           url=$(vercel deploy --prebuilt ${{ github.ref == 'refs/heads/main' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }})
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Comment preview URL on PR
-        if: github.event_name == 'pull_request'
+        if: steps.check.outputs.configured == 'true' && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
