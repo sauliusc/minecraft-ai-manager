@@ -38,15 +38,37 @@ const chatLogSchema = z.object({
 
 // ── Reports ──────────────────────────────────────────────────────────────────
 
+// GET /api/moderation/reports/resolved/:reporterId — service token (plugin checks on join)
+moderationRouter.get('/reports/resolved/:reporterId', serviceTokenMiddleware, async (req, res, next) => {
+  try {
+    const { reporterId } = req.params as { reporterId: string };
+    const since = req.query.since as string | undefined;
+    const where: Record<string, unknown> = { reporterId, status: 'RESOLVED' };
+    if (since) where.resolvedAt = { gte: new Date(since) };
+
+    const reports = await prisma.moderationReport.findMany({
+      where: where as any,
+      select: { id: true, reason: true, resolvedAt: true },
+      orderBy: { resolvedAt: 'desc' },
+      take: 10,
+    });
+    res.json(reports);
+  } catch (err) { next(err); }
+});
+
 // GET /api/moderation/reports
 moderationRouter.get('/reports', authMiddleware, async (req, res, next) => {
   try {
     const page = Math.max(1, Number(req.query.page ?? 1));
     const limit = Math.min(50, Math.max(1, Number(req.query.limit ?? 20)));
     const statusFilter = req.query.status as string | undefined;
+    const reporterIdFilter = req.query.reporterId as string | undefined;
+    const sinceFilter = req.query.since as string | undefined;
 
     const where: Record<string, unknown> = {};
     if (statusFilter) where.status = statusFilter;
+    if (reporterIdFilter) where.reporterId = reporterIdFilter;
+    if (sinceFilter) where.resolvedAt = { gte: new Date(sinceFilter) };
 
     const [total, data] = await Promise.all([
       prisma.moderationReport.count({ where }),
