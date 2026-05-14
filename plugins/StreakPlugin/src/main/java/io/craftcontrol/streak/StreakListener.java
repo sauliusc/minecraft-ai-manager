@@ -130,6 +130,7 @@ public class StreakListener implements Listener {
 
     private void deliverMilestoneIfAny(Player player, int streak, int longest) {
         MiniMessage mm = MiniMessage.miniMessage();
+        String uuid = player.getUniqueId().toString();
 
         for (var m : plugin.getConfig().getMapList("milestones")) {
             int day = ((Number) m.getOrDefault("day", 0)).intValue();
@@ -157,6 +158,39 @@ public class StreakListener implements Listener {
             }
 
             player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+
+            // Coin grant via economy API
+            int coins = ((Number) m.getOrDefault("coins", 0)).intValue();
+            if (coins > 0) {
+                String coinJson = String.format(
+                    "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"streak_milestone_day_%d\"}",
+                    uuid, coins, streak);
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
+                    BridgePlugin.getInstance().getApiClient()
+                        .post("/economy/plugin/credit", coinJson, new Callback() {
+                            @Override public void onResponse(Call call, Response response) { response.close(); }
+                            @Override public void onFailure(Call call, IOException e) {
+                                log.warning("Failed to credit coins for streak milestone: " + e.getMessage());
+                            }
+                        }));
+            }
+
+            // Reward grant via rewards API
+            String rewardId = (String) m.getOrDefault("rewardId", null);
+            if (rewardId != null && !rewardId.isEmpty()) {
+                String rewardJson = String.format(
+                    "{\"playerId\":\"%s\",\"rewardId\":\"%s\",\"reason\":\"streak_milestone_day_%d\"}",
+                    uuid, rewardId, streak);
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
+                    BridgePlugin.getInstance().getApiClient()
+                        .post("/rewards/grant", rewardJson, new Callback() {
+                            @Override public void onResponse(Call call, Response response) { response.close(); }
+                            @Override public void onFailure(Call call, IOException e) {
+                                log.warning("Failed to grant reward for streak milestone: " + e.getMessage());
+                            }
+                        }));
+            }
+
             break;
         }
 

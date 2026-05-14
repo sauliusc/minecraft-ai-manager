@@ -11,6 +11,8 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -67,17 +69,48 @@ public class VoteCommand implements CommandExecutor {
             public void onResponse(Call call, Response response) throws IOException {
                 try (response) {
                     int code = response.code();
-                    plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        if (code == 200) {
-                            player.sendMessage(Component.text("§aVote reward claimed! Thank you for voting!", NamedTextColor.GREEN));
-                        } else if (code == 404) {
-                            player.sendMessage(Component.text("§cNo pending vote reward found. Make sure you voted first!", NamedTextColor.RED));
-                        } else if (code == 409) {
-                            player.sendMessage(Component.text("§cYou already claimed your vote reward recently.", NamedTextColor.RED));
-                        } else {
-                            player.sendMessage(Component.text("§cUnexpected error (" + code + "). Please try again later.", NamedTextColor.RED));
+                    if (code == 200) {
+                        // Grant configured coins
+                        int coins = plugin.getConfig().getInt("vote_reward.coins", 100);
+                        if (coins > 0) {
+                            String creditJson = String.format(
+                                "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"vote_reward\"}",
+                                player.getUniqueId(), coins);
+                            BridgePlugin.getInstance().getApiClient().post("/api/economy/plugin/credit", creditJson, new Callback() {
+                                @Override public void onResponse(Call c, Response r) { r.close(); }
+                                @Override public void onFailure(Call c, IOException e) {
+                                    plugin.getLogger().warning("Failed to credit vote coins: " + e.getMessage());
+                                }
+                            });
                         }
-                    });
+                        // Grant configured reward (e.g. Mystery Box)
+                        String rewardId = plugin.getConfig().getString("vote_reward.reward_id", "");
+                        if (rewardId != null && !rewardId.isEmpty()) {
+                            String grantJson = String.format(
+                                "{\"playerId\":\"%s\",\"rewardId\":\"%s\",\"reason\":\"vote_reward\"}",
+                                player.getUniqueId(), rewardId);
+                            BridgePlugin.getInstance().getApiClient().post("/api/rewards/grant", grantJson, new Callback() {
+                                @Override public void onResponse(Call c, Response r) { r.close(); }
+                                @Override public void onFailure(Call c, IOException e) {
+                                    plugin.getLogger().warning("Failed to grant vote reward: " + e.getMessage());
+                                }
+                            });
+                        }
+                        plugin.getServer().getScheduler().runTask(plugin, () ->
+                            player.sendMessage(Component.text(
+                                "§aVote reward claimed! +" + coins + " coins. Thank you for voting!",
+                                NamedTextColor.GREEN)));
+                    } else {
+                        plugin.getServer().getScheduler().runTask(plugin, () -> {
+                            if (code == 404) {
+                                player.sendMessage(Component.text("§cNo pending vote reward found. Make sure you voted first!", NamedTextColor.RED));
+                            } else if (code == 409) {
+                                player.sendMessage(Component.text("§cYou already claimed your vote reward recently.", NamedTextColor.RED));
+                            } else {
+                                player.sendMessage(Component.text("§cUnexpected error (" + code + "). Please try again later.", NamedTextColor.RED));
+                            }
+                        });
+                    }
                 }
             }
         });
