@@ -18,6 +18,7 @@ const createSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   type: ChallengeTypeEnum,
+  difficulty: z.number().int().min(1).max(5).optional().default(1),
   config: z.record(z.unknown()),
   rewardId: z.string().optional(),
   activeFrom: z.string().datetime(),
@@ -29,6 +30,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
+  difficulty: z.number().int().min(1).max(5).optional(),
   config: z.record(z.unknown()).optional(),
   rewardId: z.string().optional(),
   activeFrom: z.string().datetime().optional(),
@@ -154,6 +156,7 @@ challengesRouter.post('/', authMiddleware, validateBody(createSchema), async (re
         title: data.title,
         description: data.description,
         type: data.type as any,
+        difficulty: data.difficulty ?? 1,
         config: data.config as any,
         rewardId: data.rewardId,
         activeFrom: new Date(data.activeFrom),
@@ -214,6 +217,7 @@ challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async
     const update: Record<string, unknown> = {};
     if (data.title !== undefined) update.title = data.title;
     if (data.description !== undefined) update.description = data.description;
+    if (data.difficulty !== undefined) update.difficulty = data.difficulty;
     if (data.config !== undefined) update.config = data.config;
     if (data.rewardId !== undefined) update.rewardId = data.rewardId;
     if (data.activeFrom !== undefined) update.activeFrom = new Date(data.activeFrom);

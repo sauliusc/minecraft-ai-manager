@@ -13,6 +13,7 @@ import { Players } from './pages/Players.js';
 import { PlayerDetail } from './pages/PlayerDetail.js';
 import { Challenges } from './pages/Challenges.js';
 import { ChallengeDetail } from './pages/ChallengeDetail.js';
+import { ChallengesCalendar } from './pages/ChallengesCalendar.js';
 import { Rewards } from './pages/Rewards.js';
 import { RewardDetail } from './pages/RewardDetail.js';
 import { Events } from './pages/Events.js';
@@ -40,6 +41,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/players" element={<Players />} />
                 <Route path="/players/:id" element={<PlayerDetail />} />
                 <Route path="/challenges" element={<Challenges />} />
+                <Route path="/challenges/calendar" element={<ChallengesCalendar />} />
                 <Route path="/challenges/:id" element={<ChallengeDetail />} />
                 <Route path="/rewards" element={<Rewards />} />
                 <Route path="/rewards/:id" element={<RewardDetail />} />

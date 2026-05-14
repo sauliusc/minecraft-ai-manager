@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
 
@@ -9,6 +9,7 @@ interface Challenge {
   title: string;
   description: string;
   type: string;
+  difficulty: number;
   config: Record<string, unknown>;
   activeFrom: string;
   activeUntil: string;
@@ -36,6 +37,7 @@ const emptyForm = {
   title: '',
   description: '',
   type: 'BLOCK_BREAK',
+  difficulty: '1',
   config: '{}',
   activeFrom: '',
   activeUntil: '',
@@ -92,6 +94,7 @@ export function Challenges() {
       title: form.title,
       description: form.description,
       type: form.type,
+      difficulty: Number(form.difficulty),
       config,
       activeFrom: new Date(form.activeFrom).toISOString(),
       activeUntil: new Date(form.activeUntil).toISOString(),
@@ -103,14 +106,22 @@ export function Challenges() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">Challenges</h1>
-        {isAdmin && (
-          <button
-            onClick={() => { setShowForm(true); setFormError(''); }}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+        <div className="flex items-center gap-2">
+          <Link
+            to="/challenges/calendar"
+            className="text-sm px-4 py-2 border rounded hover:bg-gray-50 text-gray-700"
           >
-            + New Challenge
-          </button>
-        )}
+            Calendar
+          </Link>
+          {isAdmin && (
+            <button
+              onClick={() => { setShowForm(true); setFormError(''); }}
+              className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+            >
+              + New Challenge
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -143,7 +154,7 @@ export function Challenges() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
                 <select
@@ -153,6 +164,18 @@ export function Challenges() {
                 >
                   {['BLOCK_BREAK', 'KILL_MOB', 'CRAFT_ITEM', 'TRAVEL', 'CUSTOM'].map((t) => (
                     <option key={t} value={t}>{t.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Difficulty (1–5)</label>
+                <select
+                  value={form.difficulty}
+                  onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {[1, 2, 3, 4, 5].map((d) => (
+                    <option key={d} value={d}>{'★'.repeat(d) + '☆'.repeat(5 - d)}</option>
                   ))}
                 </select>
               </div>
@@ -249,6 +272,7 @@ export function Challenges() {
             <tr>
               <th className="px-4 py-3 text-left">Title</th>
               <th className="px-4 py-3 text-left">Type</th>
+              <th className="px-4 py-3 text-left">Difficulty</th>
               <th className="px-4 py-3 text-left">Status</th>
               <th className="px-4 py-3 text-left">Active From</th>
               <th className="px-4 py-3 text-left">Active Until</th>
@@ -256,11 +280,12 @@ export function Challenges() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No challenges found</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-gray-400">No challenges found</td></tr>
             ) : data?.data?.map((c: Challenge) => {
               const st = challengeStatus(c);
+              const diff = c.difficulty ?? 1;
               return (
                 <tr
                   key={c.id}
@@ -273,6 +298,7 @@ export function Challenges() {
                       {c.type.replace('_', ' ')}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-yellow-500 text-sm">{'★'.repeat(diff)}{'☆'.repeat(5 - diff)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>
                       {st.label}
