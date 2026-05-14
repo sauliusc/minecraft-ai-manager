@@ -105,7 +105,8 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
           where: { challengeId: c.id, completed: true },
         });
         const { _count, ...rest } = c;
-        return { ...rest, completionRate: { total: _count.progress, completed: completedCount } };
+        const total = (_count as any)?.progress ?? 0;
+        return { ...rest, completionRate: { total, completed: completedCount } };
       })
     );
 

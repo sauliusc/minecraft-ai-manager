@@ -14,6 +14,7 @@ vi.mock('../lib/prisma.js', () => ({
       delete: vi.fn(),
     },
     challengeProgress: {
+      count: vi.fn().mockResolvedValue(0),
       findUnique: vi.fn(),
       upsert: vi.fn(),
       deleteMany: vi.fn(),
@@ -63,6 +64,7 @@ beforeEach(() => {
   process.env.BRIDGE_SECRET = SERVICE_TOKEN;
   vi.clearAllMocks();
   vi.mocked(redis.get).mockResolvedValue(null);
+  vi.mocked(prisma.challengeProgress.count).mockResolvedValue(0);
 });
 
 describe('GET /api/challenges', () => {
@@ -110,6 +112,45 @@ describe('GET /api/challenges', () => {
         where: expect.objectContaining({ type: 'BLOCK_BREAK' }),
       })
     );
+  });
+
+  it('filters by status=upcoming', async () => {
+    vi.mocked(prisma.challenge.count).mockResolvedValueOnce(1);
+    vi.mocked(prisma.challenge.findMany).mockResolvedValueOnce([mockChallenge] as any);
+    const res = await request(app)
+      .get('/api/challenges?status=upcoming')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(prisma.challenge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ activeFrom: expect.objectContaining({ gt: expect.any(Date) }) }),
+      })
+    );
+  });
+
+  it('filters by difficulty', async () => {
+    vi.mocked(prisma.challenge.count).mockResolvedValueOnce(1);
+    vi.mocked(prisma.challenge.findMany).mockResolvedValueOnce([mockChallenge] as any);
+    const res = await request(app)
+      .get('/api/challenges?difficulty=4')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(prisma.challenge.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ difficulty: 4 }),
+      })
+    );
+  });
+
+  it('includes completionRate in list response', async () => {
+    vi.mocked(prisma.challenge.count).mockResolvedValueOnce(1);
+    vi.mocked(prisma.challenge.findMany).mockResolvedValueOnce([{ ...mockChallenge, _count: { progress: 5 } }] as any);
+    vi.mocked(prisma.challengeProgress.count).mockResolvedValueOnce(3);
+    const res = await request(app)
+      .get('/api/challenges')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data[0].completionRate).toEqual({ total: 5, completed: 3 });
   });
 });
 
