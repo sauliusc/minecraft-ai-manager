@@ -12,6 +12,7 @@ import { broadcastRouter } from './routes/broadcast.js';
 import { analyticsRouter } from './routes/analytics.js';
 import { npcsRouter } from './routes/npcs.js';
 import { economyRouter } from './routes/economy.js';
+import { clansRouter } from './routes/clans.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -58,6 +59,7 @@ app.use('/api/broadcast', broadcastRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/npcs', npcsRouter);
 app.use('/api/economy', economyRouter);
+app.use('/api/clans', clansRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);

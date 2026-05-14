@@ -303,3 +303,52 @@ model EconomyAuditLog {
   @@index([targetId])
   @@index([createdAt])
 }
+
+model Clan {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  tag       String       @unique
+  leaderId  String
+  xp        Int          @default(0)
+  level     Int          @default(1)
+  homeWorld String?
+  homeX     Float?
+  homeY     Float?
+  homeZ     Float?
+  createdAt DateTime     @default(now())
+  members   ClanMember[]
+  invites   ClanInvite[]
+
+  @@index([leaderId])
+}
+
+model ClanMember {
+  id       String   @id @default(cuid())
+  clanId   String
+  playerId String
+  role     ClanRole @default(MEMBER)
+  joinedAt DateTime @default(now())
+  clan     Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId])
+  @@index([clanId])
+}
+
+model ClanInvite {
+  id         String   @id @default(cuid())
+  clanId     String
+  inviterId  String
+  inviteeId  String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  clan       Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+
+  @@unique([clanId, inviteeId])
+  @@index([inviteeId])
+}
+
+enum ClanRole {
+  LEADER
+  OFFICER
+  MEMBER
+}
