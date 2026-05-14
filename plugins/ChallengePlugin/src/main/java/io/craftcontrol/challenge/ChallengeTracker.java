@@ -160,13 +160,19 @@ public class ChallengeTracker implements Listener {
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         Player p = plugin.getServer().getPlayer(java.util.UUID.fromString(playerId));
                         if (p == null) return;
-                        // Title
+                        // Title (configurable via config.yml completion.title)
+                        String titleText = plugin.getConfig().getString("completion.title", "CHALLENGE COMPLETE!");
                         p.showTitle(net.kyori.adventure.title.Title.title(
-                            net.kyori.adventure.text.Component.text("CHALLENGE COMPLETE!", net.kyori.adventure.text.format.NamedTextColor.GOLD),
+                            net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(titleText),
                             net.kyori.adventure.text.Component.text(ch.title(), net.kyori.adventure.text.format.NamedTextColor.YELLOW)
                         ));
-                        // Sound
-                        p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+                        // Sound (configurable via config.yml completion.sound)
+                        String soundName = plugin.getConfig().getString("completion.sound", "ENTITY_PLAYER_LEVELUP");
+                        try {
+                            p.playSound(p.getLocation(), org.bukkit.Sound.valueOf(soundName), 1.0f, 1.0f);
+                        } catch (IllegalArgumentException ex) {
+                            p.playSound(p.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+                        }
                         // Particles
                         p.getWorld().spawnParticle(org.bukkit.Particle.TOTEM_OF_UNDYING,
                             p.getLocation().add(0, 1, 0), 40, 0.5, 0.5, 0.5, 0.1);
