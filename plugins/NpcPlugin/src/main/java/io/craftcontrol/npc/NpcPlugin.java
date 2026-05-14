@@ -13,7 +13,7 @@ public class NpcPlugin extends JavaPlugin {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         npcManager = new NpcManager(this, api);
         npcManager.start();
-        getServer().getPluginManager().registerEvents(new NpcListener(npcManager), this);
+        getServer().getPluginManager().registerEvents(new NpcListener(npcManager, this), this);
         getLogger().info("NpcPlugin enabled — syncing NPCs from API.");
     }
 
