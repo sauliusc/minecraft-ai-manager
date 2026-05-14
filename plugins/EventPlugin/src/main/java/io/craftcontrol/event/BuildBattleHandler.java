@@ -39,6 +39,7 @@ public class BuildBattleHandler {
 
     private volatile String activeEventId;
     private final Map<UUID, Location> playerPlots = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> playerPlotRadii = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> voteAccumulator = new ConcurrentHashMap<>();
     private final Map<UUID, Integer> voteCount = new ConcurrentHashMap<>();
     private final Map<UUID, Boolean> hasVoted = new ConcurrentHashMap<>();
@@ -86,6 +87,7 @@ public class BuildBattleHandler {
             int radius = toInt(pc.get("radius"), 10);
             Location center = new Location(world, px, py, pz);
             playerPlots.put(p.getUniqueId(), center);
+            playerPlotRadii.put(p.getUniqueId(), radius);
             builderOrder.add(p.getUniqueId());
             voteAccumulator.put(p.getUniqueId(), 0);
             voteCount.put(p.getUniqueId(), 0);
@@ -287,4 +289,13 @@ public class BuildBattleHandler {
     public boolean isActive() { return activeEventId != null; }
     public Map<UUID, Location> getPlayerPlots() { return playerPlots; }
     public Map<UUID, Integer> getVoteAccumulator() { return voteAccumulator; }
+
+    public boolean isInOwnPlot(UUID playerId, Location loc) {
+        Location center = playerPlots.get(playerId);
+        if (center == null) return false;
+        if (!loc.getWorld().equals(center.getWorld())) return false;
+        int radius = playerPlotRadii.getOrDefault(playerId, 10);
+        return Math.abs(loc.getBlockX() - center.getBlockX()) <= radius
+            && Math.abs(loc.getBlockZ() - center.getBlockZ()) <= radius;
+    }
 }
