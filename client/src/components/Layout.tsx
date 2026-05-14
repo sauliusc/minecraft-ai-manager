@@ -46,6 +46,9 @@ export function Layout() {
           <Link to="/npcs" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
             NPCs
           </Link>
+          <Link to="/cosmetics" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
+            Cosmetics
+          </Link>
         </nav>
         <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-400">
           <p className="truncate">{user?.email}</p>

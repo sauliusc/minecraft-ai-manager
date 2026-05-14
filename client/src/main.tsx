@@ -22,6 +22,7 @@ import { Moderation } from './pages/Moderation.js';
 import { Analytics } from './pages/Analytics.js';
 import { Broadcast } from './pages/Broadcast.js';
 import { Npcs } from './pages/Npcs.js';
+import { Cosmetics } from './pages/Cosmetics.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -51,6 +52,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/broadcast" element={<Broadcast />} />
                 <Route path="/npcs" element={<Npcs />} />
+                <Route path="/cosmetics" element={<Cosmetics />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Route>
