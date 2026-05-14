@@ -96,7 +96,7 @@ clansRouter.get('/:id/home', serviceTokenMiddleware, async (req: Request, res: R
   }
 });
 
-// GET /api/clans/:id/wars — JWT (war history placeholder — wars are managed in-memory by plugin)
+// GET /api/clans/:id/wars — JWT (war history for a clan)
 clansRouter.get('/:id/wars', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params as { id: string };
@@ -105,9 +105,63 @@ clansRouter.get('/:id/wars', authMiddleware, async (req: Request, res: Response,
       res.status(404).json({ error: 'NOT_FOUND', message: 'Clan not found', statusCode: 404 });
       return;
     }
-    // Wars are currently managed in-memory by ClanPlugin; return empty list until persistence is added
-    res.json({ clanId: id, wars: [] });
+    const wars = await prisma.clanWar.findMany({
+      where: { OR: [{ clan1Id: id }, { clan2Id: id }] },
+      orderBy: { startedAt: 'desc' },
+    });
+    res.json({ clanId: id, wars });
   } catch (err) {
+    next(err);
+  }
+});
+
+const warStartSchema = z.object({
+  warId: z.string().min(1),
+  clan1Id: z.string().min(1),
+  clan2Id: z.string().min(1),
+  type: z.string().min(1),
+  durationMs: z.number().int().positive(),
+});
+
+const warResultSchema = z.object({
+  warId: z.string().min(1),
+  winnerId: z.string().optional(),
+  clan1Score: z.number().int().min(0),
+  clan2Score: z.number().int().min(0),
+});
+
+// POST /api/clans/wars — service token (WarManager calls this on war start)
+clansRouter.post('/wars', serviceTokenMiddleware, validateBody(warStartSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { warId, clan1Id, clan2Id, type, durationMs } = req.body as z.infer<typeof warStartSchema>;
+    const war = await prisma.clanWar.create({
+      data: { id: warId, clan1Id, clan2Id, type, durationMs },
+    });
+    res.status(201).json(war);
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      res.status(409).json({ error: 'CONFLICT', message: 'War already exists', statusCode: 409 });
+      return;
+    }
+    next(err);
+  }
+});
+
+// POST /api/clans/wars/:warId/result — service token (WarManager calls this on war resolution)
+clansRouter.post('/wars/:warId/result', serviceTokenMiddleware, validateBody(warResultSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { warId } = req.params as { warId: string };
+    const { winnerId, clan1Score, clan2Score } = req.body as z.infer<typeof warResultSchema>;
+    const war = await prisma.clanWar.update({
+      where: { id: warId },
+      data: { winnerId: winnerId ?? null, clan1Score, clan2Score, endedAt: new Date() },
+    });
+    res.json(war);
+  } catch (err: any) {
+    if (err?.code === 'P2025') {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'War not found', statusCode: 404 });
+      return;
+    }
     next(err);
   }
 });
