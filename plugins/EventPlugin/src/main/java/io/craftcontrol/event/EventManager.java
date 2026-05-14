@@ -121,6 +121,12 @@ public class EventManager {
         if (event == null) return;
         event.setState(EventState.FINISHED);
 
+        // Cleanup handler state and despawn any lingering entities on main thread
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (event.getType() == EventType.BOSS_RAID) bossRaidHandler.cleanup();
+            else if (event.getType() == EventType.TREASURE_HUNT) treasureHuntHandler.cleanup();
+        });
+
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         api.post("/api/events/" + id + "/complete", "{\"result\":\"completed\"}", new Callback() {
             @Override
