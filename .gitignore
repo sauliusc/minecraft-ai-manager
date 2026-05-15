@@ -32,3 +32,6 @@ logs/
 
 # Prisma
 prisma/migrations/dev.db
+
+# Coverage reports
+coverage/
