@@ -112,7 +112,7 @@ moderationRouter.patch('/reports/:id', authMiddleware, validateBody(resolveSchem
     const user = (req as any).user;
     const { status } = req.body as z.infer<typeof resolveSchema>;
     const update: Record<string, unknown> = { status };
-    if (status === 'RESOLVED') { update.resolvedAt = new Date(); update.resolvedBy = user.id; }
+    if (status === 'RESOLVED') { update.resolvedAt = new Date(); update.resolvedBy = user.sub; }
     const report = await prisma.moderationReport.update({ where: { id: req.params.id as string }, data: update as any });
     res.json(report);
   } catch (err) { next(err); }
@@ -146,7 +146,7 @@ moderationRouter.post('/actions/admin', authMiddleware, validateBody(actionSchem
     const action = await prisma.moderationAction.create({
       data: {
         targetId: data.targetId,
-        adminId: user.id,
+        adminId: user.sub,
         type: data.type as any,
         reason: data.reason,
         expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
