@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minecraft AI Manager — User Guide</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:   #22c55e;
+      --green-d: #15803d;
+      --blue:    #3b82f6;
+      --blue-d:  #1d4ed8;
+      --purple:  #a855f7;
+      --orange:  #f97316;
+      --red:     #ef4444;
+      --yellow:  #eab308;
+      --gray-50: #f9fafb;
+      --gray-100:#f3f4f6;
+      --gray-200:#e5e7eb;
+      --gray-400:#9ca3af;
+      --gray-600:#4b5563;
+      --gray-700:#374151;
+      --gray-800:#1f2937;
+      --gray-900:#111827;
+      --font: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Courier New', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font);
+      background: var(--gray-50);
+      color: var(--gray-800);
+      line-height: 1.6;
+    }
+
+    /* ── Sidebar layout ── */
+    .layout { display: flex; min-height: 100vh; }
+
+    nav.sidebar {
+      width: 260px;
+      min-width: 260px;
+      background: var(--gray-900);
+      color: #e5e7eb;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      padding: 0 0 2rem;
+      flex-shrink: 0;
+    }
+
+    .sidebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 1.25rem 1.5rem;
+      background: var(--gray-800);
+      border-bottom: 2px solid var(--green);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--green);
+      letter-spacing: .3px;
+    }
+
+    .sidebar-logo .icon { font-size: 1.4rem; }
+
+    .nav-section {
+      padding: .75rem 1.5rem .25rem;
+      font-size: .65rem;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--gray-400);
+      margin-top: .5rem;
+    }
+
+    .sidebar a {
+      display: block;
+      padding: .45rem 1.5rem .45rem 2rem;
+      color: #d1d5db;
+      text-decoration: none;
+      font-size: .875rem;
+      border-left: 3px solid transparent;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+
+    .sidebar a:hover,
+    .sidebar a.active {
+      background: rgba(255,255,255,.05);
+      border-left-color: var(--green);
+      color: #fff;
+    }
+
+    /* ── Main content ── */
+    main {
+      flex: 1;
+      padding: 2.5rem 3rem;
+      max-width: 960px;
+    }
+
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, var(--gray-900) 0%, #0f4c1e 100%);
+      color: #fff;
+      border-radius: 16px;
+      padding: 2.5rem 2.5rem 2rem;
+      margin-bottom: 2.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '⛏ 🗡 🧱 🏆 🎮 🌍';
+      position: absolute;
+      top: -10px;
+      right: -20px;
+      font-size: 5rem;
+      opacity: .07;
+      letter-spacing: 4px;
+      transform: rotate(-10deg);
+      pointer-events: none;
+    }
+
+    .hero h1 { font-size: 2rem; margin-bottom: .5rem; color: var(--green); }
+    .hero p  { font-size: 1.05rem; color: #d1d5db; max-width: 620px; }
+
+    .hero .badges { display: flex; gap: .75rem; margin-top: 1.2rem; flex-wrap: wrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: .3rem .75rem;
+      border-radius: 99px;
+      font-size: .78rem;
+      font-weight: 600;
+    }
+    .badge-green  { background: rgba(34,197,94,.15);  color: #86efac; border: 1px solid rgba(34,197,94,.3); }
+    .badge-blue   { background: rgba(59,130,246,.15); color: #93c5fd; border: 1px solid rgba(59,130,246,.3); }
+    .badge-purple { background: rgba(168,85,247,.15); color: #d8b4fe; border: 1px solid rgba(168,85,247,.3); }
+    .badge-orange { background: rgba(249,115,22,.15); color: #fdba74; border: 1px solid rgba(249,115,22,.3); }
+
+    /* ── Sections ── */
+    section { margin-bottom: 3rem; scroll-margin-top: 1.5rem; }
+
+    h2 {
+      font-size: 1.5rem;
+      color: var(--gray-900);
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding-bottom: .6rem;
+      border-bottom: 2px solid var(--gray-200);
+      margin-bottom: 1.5rem;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      color: var(--gray-800);
+      margin: 1.5rem 0 .6rem;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+    }
+
+    h4 {
+      font-size: .95rem;
+      color: var(--gray-700);
+      margin: 1.1rem 0 .4rem;
+      font-weight: 600;
+    }
+
+    p { margin-bottom: .75rem; color: var(--gray-700); }
+
+    /* ── Cards ── */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: 12px;
+      padding: 1.25rem 1.25rem 1rem;
+      transition: box-shadow .2s;
+    }
+
+    .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+
+    .card-icon { font-size: 1.8rem; margin-bottom: .5rem; }
+    .card h4   { margin: 0 0 .4rem; font-size: 1rem; }
+    .card p    { margin: 0; font-size: .875rem; color: var(--gray-600); }
+
+    /* ── Role pills ── */
+    .role { display: inline-block; padding: .15rem .55rem; border-radius: 99px; font-size: .72rem; font-weight: 700; letter-spacing: .3px; }
+    .role-admin  { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .role-mod    { background: #ede9fe; color: #6d28d9; border: 1px solid #ddd6fe; }
+    .role-player { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .role-plugin { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+
+    /* ── Info / Tip / Warning boxes ── */
+    .box {
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      margin: 1rem 0;
+      display: flex;
+      gap: .75rem;
+      align-items: flex-start;
+    }
+
+    .box-icon { font-size: 1.2rem; flex-shrink: 0; margin-top: 1px; }
+    .box p    { margin: 0; font-size: .9rem; }
+
+    .box-tip  { background: #ecfdf5; border: 1px solid #a7f3d0; }
+    .box-tip .box-icon { color: var(--green-d); }
+
+    .box-info { background: #eff6ff; border: 1px solid #bfdbfe; }
+    .box-info .box-icon { color: var(--blue-d); }
+
+    .box-warn { background: #fffbeb; border: 1px solid #fde68a; }
+    .box-warn .box-icon { color: #b45309; }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; margin: 1rem 0 1.5rem; border-radius: 10px; border: 1px solid var(--gray-200); }
+
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; background: #fff; }
+    thead tr { background: var(--gray-100); }
+    th { padding: .65rem 1rem; text-align: left; font-size: .75rem; letter-spacing: .5px; text-transform: uppercase; color: var(--gray-600); border-bottom: 1px solid var(--gray-200); font-weight: 700; }
+    td { padding: .65rem 1rem; border-bottom: 1px solid var(--gray-100); vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--gray-50); }
+
+    /* ── Step list ── */
+    ol.steps { list-style: none; counter-reset: steps; margin: 1rem 0; }
+    ol.steps li {
+      counter-increment: steps;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      margin-bottom: 1rem;
+    }
+    ol.steps li::before {
+      content: counter(steps);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--green);
+      color: #fff;
+      font-size: .78rem;
+      font-weight: 800;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    ol.steps li p { margin: 0; font-size: .9rem; }
+
+    /* ── Command block ── */
+    .cmd {
+      display: inline-block;
+      background: var(--gray-900);
+      color: #86efac;
+      font-family: var(--mono);
+      font-size: .82rem;
+      padding: .15rem .55rem;
+      border-radius: 5px;
+    }
+
+    /* ── Inline tags ── */
+    .tag {
+      display: inline-block;
+      background: var(--gray-100);
+      border: 1px solid var(--gray-200);
+      padding: .1rem .5rem;
+      border-radius: 5px;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+
+    /* ── Feature list ── */
+    ul.features { list-style: none; margin: .5rem 0 1rem; }
+    ul.features li {
+      padding: .35rem 0 .35rem 1.5rem;
+      position: relative;
+      font-size: .9rem;
+      color: var(--gray-700);
+      border-bottom: 1px solid var(--gray-100);
+    }
+    ul.features li:last-child { border-bottom: none; }
+    ul.features li::before {
+      content: '▸';
+      position: absolute;
+      left: 0;
+      color: var(--green);
+      font-size: .8rem;
+    }
+
+    /* ── Status chips ── */
+    .status { display: inline-block; padding: .12rem .55rem; border-radius: 99px; font-size: .72rem; font-weight: 700; }
+    .s-pending   { background: #fef3c7; color: #92400e; }
+    .s-active    { background: #dcfce7; color: #166534; }
+    .s-finished  { background: #f3f4f6; color: #6b7280; }
+    .s-upcoming  { background: #dbeafe; color: #1e40af; }
+    .s-escalated { background: #fee2e2; color: #991b1b; }
+    .s-resolved  { background: #f0fdf4; color: #166534; }
+
+    /* ── Accordion (sub sections) ── */
+    details {
+      background: #fff;
+      border: 1px solid var(--gray-200);
+      border-radius: 10px;
+      margin-bottom: .75rem;
+      overflow: hidden;
+    }
+
+    summary {
+      padding: .85rem 1.25rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: .95rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      list-style: none;
+      user-select: none;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: '▾'; margin-left: auto; color: var(--gray-400); font-size: .9rem; transition: transform .2s; }
+    details[open] summary::after { transform: rotate(-180deg); }
+    details[open] summary { border-bottom: 1px solid var(--gray-200); }
+
+    .details-body { padding: 1rem 1.25rem 1.25rem; }
+
+    /* ── Scrollbar ── */
+    nav.sidebar::-webkit-scrollbar { width: 4px; }
+    nav.sidebar::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+
+    /* ── Responsive ── */
+    @media (max-width: 768px) {
+      .layout { flex-direction: column; }
+      nav.sidebar { width: 100%; height: auto; position: static; }
+      main { padding: 1.5rem 1.25rem; }
+      h2 { font-size: 1.25rem; }
+      .hero h1 { font-size: 1.5rem; }
+    }
+
+    /* ── Print ── */
+    @media print {
+      nav.sidebar { display: none; }
+      main { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <div class="sidebar-logo">
+      <span class="icon">⛏</span> AI Manager Docs
+    </div>
+
+    <div class="nav-section">Getting Started</div>
+    <a href="#what-is-this">What Is This?</a>
+    <a href="#roles">User Roles</a>
+    <a href="#login">Logging In</a>
+
+    <div class="nav-section">Dashboard Pages</div>
+    <a href="#dashboard">Dashboard</a>
+    <a href="#players">Players</a>
+    <a href="#challenges">Challenges</a>
+    <a href="#events">Events</a>
+    <a href="#rewards">Rewards</a>
+    <a href="#cosmetics">Cosmetics</a>
+    <a href="#clans">Clans</a>
+    <a href="#npcs">NPCs</a>
+    <a href="#moderation">Moderation</a>
+    <a href="#analytics">Analytics</a>
+    <a href="#broadcast">Broadcast</a>
+
+    <div class="nav-section">In-Game Commands</div>
+    <a href="#ingame-challenges">Challenges</a>
+    <a href="#ingame-clans">Clans</a>
+    <a href="#ingame-cosmetics">Cosmetics</a>
+    <a href="#ingame-reporting">Reporting</a>
+
+    <div class="nav-section">How Things Work</div>
+    <a href="#flow-join">Player Join Flow</a>
+    <a href="#flow-rewards">Reward Delivery</a>
+    <a href="#flow-events">Event Flow</a>
+    <a href="#flow-moderation">Moderation Flow</a>
+
+    <div class="nav-section">Reference</div>
+    <a href="#faq">FAQ</a>
+  </nav>
+
+  <!-- ── Main ── -->
+  <main>
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>⛏ Minecraft AI Manager</h1>
+      <p>The complete admin dashboard and game manager for your Minecraft server — handle players, challenges, events, clans, rewards, and moderation all in one place.</p>
+      <div class="badges">
+        <span class="badge badge-green">✓ Web Dashboard</span>
+        <span class="badge badge-blue">✓ Live Events</span>
+        <span class="badge badge-purple">✓ Clan System</span>
+        <span class="badge badge-orange">✓ Smart Moderation</span>
+      </div>
+    </div>
+
+    <!-- ─────────────────────────────────── GETTING STARTED ─── -->
+    <section id="what-is-this">
+      <h2>🧭 What Is This?</h2>
+      <p>
+        <strong>Minecraft AI Manager</strong> is a web-based control panel for a Minecraft server.
+        Think of it as the "admin HQ" — a website where server staff can manage everything that
+        happens in the game without having to type long commands in the Minecraft console.
+      </p>
+      <p>
+        The system has two parts that talk to each other:
+      </p>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">🌐</div>
+          <h4>The Web Dashboard</h4>
+          <p>A website that admins and moderators open in their browser to manage the server.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🎮</div>
+          <h4>The Minecraft Plugins</h4>
+          <p>Code running inside the Minecraft server that reacts to what players do in-game.</p>
+        </div>
+      </div>
+      <p>
+        Whenever something happens in Minecraft (a player joins, breaks a block, files a report),
+        the plugin tells the web dashboard. Whenever an admin does something on the website
+        (creates a challenge, bans a player), the plugin acts on it in-game automatically.
+      </p>
+
+      <div class="box box-tip">
+        <span class="box-icon">💡</span>
+        <p><strong>Example:</strong> An admin creates a "Mine 100 Diamonds" challenge on the website.
+        The Minecraft plugin automatically starts tracking every player's diamond-mining progress
+        and grants the reward when they hit 100 — no commands needed!</p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────── ROLES ─── -->
+    <section id="roles">
+      <h2>👥 User Roles</h2>
+      <p>There are three types of accounts. Every person on the server has one of these roles:</p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Who Has It</th>
+              <th>What They Can Do</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="role role-admin">SUPER_ADMIN</span></td>
+              <td>Server owners / head admins</td>
+              <td>Everything — create challenges, rewards, events, ban players, manage NPCs, see all analytics, configure automatic triggers.</td>
+            </tr>
+            <tr>
+              <td><span class="role role-mod">MODERATOR</span></td>
+              <td>Moderators / helpers</td>
+              <td>View all player data, review reports, mute and kick players, view chat logs and analytics. <em>Cannot</em> ban players or delete core content.</td>
+            </tr>
+            <tr>
+              <td><span class="role role-player">PLAYER</span></td>
+              <td>Regular players</td>
+              <td>View their own profile and progress, report other players, and use in-game commands (clan, cosmetics, etc.).</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-info">
+        <span class="box-icon">ℹ️</span>
+        <p>Throughout this guide, features marked <span class="role role-admin">SUPER_ADMIN</span> are only available to the server owner and head admins. Features marked <span class="role role-mod">MODERATOR</span> are available to both mods and admins.</p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────── LOGIN ─── -->
+    <section id="login">
+      <h2>🔑 Logging In</h2>
+      <p>
+        To access the web dashboard, open the server's web address in your browser and you'll
+        see the login screen. Enter your email address and password.
+      </p>
+
+      <ol class="steps">
+        <li><p>Open the dashboard URL in your browser (your server owner will give you this).</p></li>
+        <li><p>Type your email address and password in the login form.</p></li>
+        <li><p>Click <strong>Sign In</strong>. You'll go straight to the Dashboard home page.</p></li>
+      </ol>
+
+      <div class="box box-warn">
+        <span class="box-icon">⚠️</span>
+        <p><strong>Too many failed attempts:</strong> If you type the wrong password 5 times in a row, you'll be locked out for one minute. Wait and try again carefully!</p>
+      </div>
+
+      <h3>🔐 Staying Logged In</h3>
+      <p>
+        The system uses a short-lived access token (15 minutes) and a longer refresh token
+        (7 days). In plain terms: you stay logged in for up to 7 days without having to sign in
+        again, but the app quietly renews your session in the background. Just use it normally!
+      </p>
+    </section>
+
+    <!-- ─────────────────────────────────── DASHBOARD ─── -->
+    <section id="dashboard">
+      <h2>🏠 Dashboard</h2>
+      <p>
+        The <strong>Dashboard</strong> is the first thing you see after logging in. It gives you
+        a quick health-check of the server in one glance.
+      </p>
+
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">💚</div>
+          <h4>Server Status</h4>
+          <p>A green dot means the server is online and responding. Checks automatically every 5 seconds.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🎯</div>
+          <h4>Active Challenges</h4>
+          <p>How many challenges are currently running that players can participate in.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🎁</div>
+          <h4>Rewards Today</h4>
+          <p>How many rewards have been granted to players so far today.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────── PLAYERS ─── -->
+    <section id="players">
+      <h2>👤 Players</h2>
+      <p>
+        The Players section shows everyone who has ever joined your Minecraft server.
+        Admins and moderators can search for players, view their full history, and take actions.
+      </p>
+      <p>Access: <span class="role role-admin">SUPER_ADMIN</span> <span class="role role-mod">MODERATOR</span></p>
+
+      <h3>📋 Player List</h3>
+      <p>The main players page shows a table of all players with:</p>
+      <ul class="features">
+        <li><strong>Username</strong> — their Minecraft name</li>
+        <li><strong>Tier</strong> — a rank based on how many times they've joined (see below)</li>
+        <li><strong>Last Seen</strong> — when they were last online</li>
+        <li><strong>Join Count</strong> — total number of logins ever</li>
+      </ul>
+
+      <p>You can search by username and filter by tier. Results load 20 per page.</p>
+
+      <h4>Player Tiers</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Tier</th><th>Required Joins</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">New</span></td><td>Less than 5</td><td>Brand new player, just started</td></tr>
+            <tr><td><span class="tag">Regular</span></td><td>5 – 29</td><td>Active player who plays often</td></tr>
+            <tr><td><span class="tag">Veteran</span></td><td>30 – 99</td><td>Long-time player, well experienced</td></tr>
+            <tr><td><span class="tag">Legend</span></td><td>100+</td><td>Super dedicated player</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>🔍 Player Detail Page</h3>
+      <p>
+        Click any player's name to open their full profile. The profile has four tabs:
+      </p>
+
+      <details>
+        <summary>📊 Overview Tab</summary>
+        <div class="details-body">
+          <p>Shows the player's basic stats:</p>
+          <ul class="features">
+            <li><strong>First Join</strong> — when they joined the server for the very first time</li>
+            <li><strong>Last Seen</strong> — most recent login date</li>
+            <li><strong>Total Joins</strong> — lifetime login count</li>
+            <li><strong>Current Streak</strong> — how many days in a row they've logged in</li>
+            <li><strong>Longest Streak</strong> — their all-time best streak</li>
+          </ul>
+          <p>Admins also see buttons to <strong>Grant Reward</strong> and <strong>Apply Action</strong> (mute/kick/ban).</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>🎯 Challenge Progress Tab</summary>
+        <div class="details-body">
+          <p>Shows every challenge the player has started or completed:</p>
+          <ul class="features">
+            <li>Challenge name and type</li>
+            <li>Progress bar (e.g. "47 / 100 blocks mined")</li>
+            <li>Status: <span class="status s-active">In Progress</span> or <span class="status s-finished">Completed</span></li>
+            <li>Completion date (if finished)</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>🎁 Reward History Tab</summary>
+        <div class="details-body">
+          <p>All rewards the player has ever received:</p>
+          <ul class="features">
+            <li>Reward name and type (Item, XP, Currency, etc.)</li>
+            <li>When it was granted</li>
+            <li>Who granted it (admin username or "system" if automatic)</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>🔨 Moderation History Tab</summary>
+        <div class="details-body">
+          <p>Any moderation actions taken against this player:</p>
+          <ul class="features">
+            <li>Action type: Mute, Kick, Ban, Unmute, Unban</li>
+            <li>Reason given</li>
+            <li>Which admin did it</li>
+            <li>Expiry date (for temporary mutes/bans)</li>
+          </ul>
+        </div>
+      </details>
+
+      <h3>✅ Granting a Reward to a Player</h3>
+      <p>Admins can manually give a player a reward:</p>
+      <ol class="steps">
+        <li><p>Open the player's profile page.</p></li>
+        <li><p>Click the <strong>Grant Reward</strong> button.</p></li>
+        <li><p>Choose a reward from the dropdown list.</p></li>
+        <li><p>Optionally add a reason (e.g. "Won the build contest").</p></li>
+        <li><p>Click <strong>Grant</strong>. If the player is online, they get it instantly. If offline, it queues until they log in.</p></li>
+      </ol>
+
+      <h3>🔨 Applying a Moderation Action</h3>
+      <p><span class="role role-admin">SUPER_ADMIN</span> <span class="role role-mod">MODERATOR</span> (Mods can mute/kick only; only Admins can ban)</p>
+      <ol class="steps">
+        <li><p>Open the player's profile page.</p></li>
+        <li><p>Click <strong>Apply Action</strong>.</p></li>
+        <li><p>Choose the action type: <span class="tag">Mute</span>, <span class="tag">Kick</span>, or <span class="tag">Ban</span>.</p></li>
+        <li><p>Enter a reason (required).</p></li>
+        <li><p>For Mute and Ban, optionally set an expiry date/time (leave blank for permanent).</p></li>
+        <li><p>Click <strong>Apply</strong>. The action takes effect in-game immediately and is saved to the audit log.</p></li>
+      </ol>
+    </section>
+
+    <!-- ─────────────────────────────────── CHALLENGES ─── -->
+    <section id="challenges">
+      <h2>🎯 Challenges</h2>
+      <p>
+        Challenges are tasks that players can complete in Minecraft to earn rewards.
+        Think of them as quests or achievements — "Mine 500 blocks", "Kill 10 skeletons", etc.
+      </p>
+
+      <h3>📋 Challenge List</h3>
+      <p>The main challenges page shows all challenges with filters:</p>
+      <ul class="features">
+        <li><strong>Status filter</strong> — Active (running now), Upcoming (starts later), or Expired</li>
+        <li><strong>Type filter</strong> — filter by challenge category</li>
+        <li><strong>Difficulty filter</strong> — from 1 star (easy) to 5 stars (very hard)</li>
+      </ul>
+
+      <p>Each challenge card shows the title, type, difficulty stars, and how many players have completed it.</p>
+
+      <h3>📖 Challenge Types</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>What Players Do</th><th>Example</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">BLOCK_BREAK</span></td><td>Break a specific type of block</td><td>"Mine 100 diamonds"</td></tr>
+            <tr><td><span class="tag">KILL_MOB</span></td><td>Kill a specific type of monster</td><td>"Slay 20 creepers"</td></tr>
+            <tr><td><span class="tag">CRAFT_ITEM</span></td><td>Craft a specific item</td><td>"Craft 5 golden swords"</td></tr>
+            <tr><td><span class="tag">TRAVEL</span></td><td>Walk a certain number of blocks</td><td>"Travel 10,000 blocks"</td></tr>
+            <tr><td><span class="tag">CUSTOM</span></td><td>Any special plugin-defined action</td><td>"Win 3 clan wars"</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>➕ Creating a Challenge <span class="role role-admin">SUPER_ADMIN</span></h3>
+      <ol class="steps">
+        <li><p>Go to the Challenges page and click <strong>New Challenge</strong>.</p></li>
+        <li><p>Enter a <strong>title</strong> and <strong>description</strong>.</p></li>
+        <li><p>Choose a <strong>type</strong> (see table above). Extra config fields appear based on type — for example BLOCK_BREAK asks for the block material and a count target.</p></li>
+        <li><p>Set the <strong>difficulty</strong> from 1–5 stars.</p></li>
+        <li><p>Set <strong>start and end dates</strong> for when the challenge is active.</p></li>
+        <li><p>Optionally assign to <strong>specific player UUIDs</strong> (leave blank to make it available to everyone).</p></li>
+        <li><p>Click <strong>Create</strong>. The challenge goes live at the start date automatically.</p></li>
+      </ol>
+
+      <h3>📅 Challenges Calendar</h3>
+      <p>
+        The Calendar view shows all challenges on a monthly grid — green blocks for easy challenges,
+        red blocks for hard ones. If 3 or more hard challenges (difficulty 4 or 5) fall on the same
+        day, a warning icon appears. This helps admins avoid overloading players!
+      </p>
+
+      <div class="box box-tip">
+        <span class="box-icon">💡</span>
+        <p>Hover over a challenge block on the calendar to see a quick popup with its name, type, and difficulty.</p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────── EVENTS ─── -->
+    <section id="events">
+      <h2>🏆 Events</h2>
+      <p>
+        Events are big, exciting server-wide activities — bigger than regular challenges.
+        All players participate at the same time, and a leaderboard tracks who's winning!
+      </p>
+
+      <h3>🎮 Event Types</h3>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">🐉</div>
+          <h4>Boss Raid</h4>
+          <p>A giant boss monster spawns. Everyone teams up to defeat it! The boss has multiple health phases and special attacks.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🗺️</div>
+          <h4>Treasure Hunt</h4>
+          <p>Chests are hidden across a region. Players race to find and loot them all before time runs out.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🏗️</div>
+          <h4>Build Battle</h4>
+          <p>Players get their own plots and build on a theme. Admins (or the system) judge who built the best!</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚔️</div>
+          <h4>Clan War</h4>
+          <p>Two clans battle each other. The war result is automatically tracked and recorded. (These events are created automatically by the clan system.)</p>
+        </div>
+      </div>
+
+      <h3>📋 Event States</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>State</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><span class="status s-upcoming">UPCOMING</span></td><td>Scheduled for the future, not started yet</td></tr>
+            <tr><td><span class="status s-active">ACTIVE</span></td><td>Happening right now — players can join!</td></tr>
+            <tr><td><span class="status s-finished">FINISHED</span></td><td>Over — results and leaderboard are locked in</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>➕ Creating an Event <span class="role role-admin">SUPER_ADMIN</span></h3>
+      <ol class="steps">
+        <li><p>Go to the Events page and click <strong>New Event</strong>.</p></li>
+        <li><p>Choose the <strong>event type</strong>. The form changes based on type — Boss Raid asks for the boss's name, HP, and arena coordinates; Treasure Hunt asks for how many chests and a loot preset; Build Battle asks for a theme and plot size.</p></li>
+        <li><p>Give the event a <strong>title</strong> and pick a <strong>scheduled start time</strong>.</p></li>
+        <li><p>Click <strong>Create</strong>. The event is now in <span class="status s-upcoming">UPCOMING</span> state.</p></li>
+      </ol>
+
+      <h3>▶️ Starting & Ending an Event</h3>
+      <p>
+        On the Events page, upcoming events show a <strong>Launch Now</strong> button.
+        Active events show an <strong>End Event</strong> button.
+        You can also use these buttons from the Event Detail page.
+      </p>
+
+      <div class="box box-info">
+        <span class="box-icon">ℹ️</span>
+        <p>Active events auto-refresh their leaderboard every 5 seconds so you can watch scores update in real time!</p>
+      </div>
+
+      <h3>🏅 Leaderboard</h3>
+      <p>
+        Every event has a live leaderboard. The top 3 players get medal icons (🥇🥈🥉).
+        The leaderboard is visible to all logged-in users and updates automatically while
+        the event is active.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────────────── REWARDS ─── -->
+    <section id="rewards">
+      <h2>🎁 Rewards</h2>
+      <p>
+        Rewards are prizes players earn for completing challenges, participating in events,
+        or given manually by admins. You create reward <em>templates</em> first (what the reward is),
+        then they can be granted to players.
+      </p>
+
+      <h3>🌟 Reward Types</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>What the Player Gets</th></tr></thead>
+          <tbody>
+            <tr><td><span class="tag">ITEM</span></td><td>A specific Minecraft item (sword, armour, blocks, etc.)</td></tr>
+            <tr><td><span class="tag">XP</span></td><td>Experience points that level them up in-game</td></tr>
+            <tr><td><span class="tag">CURRENCY</span></td><td>Coins they can spend on cosmetics or in the marketplace</td></tr>
+            <tr><td><span class="tag">COMMAND</span></td><td>Runs any server command (useful for giving ranks, permissions, etc.)</td></tr>
+            <tr><td><span class="tag">MYSTERY_BOX</span></td><td>A random reward chosen from a weighted loot table — the player doesn't know what they'll get!</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>✨ Rarity Levels</h3>
+      <p>Rewards have a rarity that affects how the card looks in the UI (colour-coded):</p>
+      <div class="card-grid">
+        <div class="card" style="border-left:4px solid #9ca3af">
+          <h4>⚪ Common</h4>
+          <p>Everyday items. Easy to get, given out frequently.</p>
+        </div>
+        <div class="card" style="border-left:4px solid #3b82f6">
+          <h4>🔵 Rare</h4>
+          <p>Better items, less common. Something to aim for!</p>
+        </div>
+        <div class="card" style="border-left:4px solid #a855f7">
+          <h4>🟣 Epic</h4>
+          <p>Special prizes for tough challenges or major events.</p>
+        </div>
+        <div class="card" style="border-left:4px solid #eab308">
+          <h4>🟡 Legendary</h4>
+          <p>The best of the best. Very rare, very valuable!</p>
+        </div>
+      </div>
+
+      <h3>🎲 Mystery Box Loot Tables</h3>
+      <p>
+        When you create a <span class="tag">MYSTERY_BOX</span> reward, you build a <strong>loot table</strong> —
+        a list of possible prizes, each with a weight (percentage chance).
+        All weights must add up to exactly 100.
+      </p>
+      <p>Example loot table:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Prize</th><th>Weight</th><th>Chance</th></tr></thead>
+          <tbody>
+            <tr><td>100 Coins</td><td>60</td><td>60% chance</td></tr>
+            <tr><td>Diamond Sword</td><td>25</td><td>25% chance</td></tr>
+            <tr><td>VIP Rank (COMMAND)</td><td>15</td><td>15% chance</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-warn">
+        <span class="box-icon">⚠️</span>
+        <p>Weights must total exactly 100. If they don't, the system will reject the reward with an error message.</p>
+      </div>
+
+      <h3>➕ Creating a Reward <span class="role role-admin">SUPER_ADMIN</span></h3>
+      <ol class="steps">
+        <li><p>Go to Rewards and click <strong>New Reward</strong>.</p></li>
+        <li><p>Give it a name (e.g. "Diamond Bundle"), choose the <strong>type</strong> and <strong>rarity</strong>.</p></li>
+        <li><p>Fill in the type-specific config fields — for ITEM, pick the item material and quantity; for XP, enter the amount; for COMMAND, write the command template; for MYSTERY_BOX, add your loot table entries.</p></li>
+        <li><p>Click <strong>Create</strong>. The reward template is now available to assign to challenges or grant manually.</p></li>
+      </ol>
+    </section>
+
+    <!-- ─────────────────────────────────── COSMETICS ─── -->
+    <section id="cosmetics">
+      <h2>🎨 Cosmetics</h2>
+      <p>
+        Cosmetics are visual/style extras that players can equip to personalise their appearance
+        in-game. They don't give any gameplay advantage — they're purely for fun!
+      </p>
+
+      <h3>🏷️ Types of Cosmetics</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Cosmetic</th><th>What It Does</th><th>How to Equip</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Title</strong></td><td>Shows a coloured prefix before your name in chat and the tab list, e.g. <strong>[Dragon Slayer]</strong></td><td><span class="cmd">/title equip &lt;name&gt;</span></td></tr>
+            <tr><td><strong>Chat Colour</strong></td><td>Your chat messages appear in a chosen colour</td><td><span class="cmd">/chatcolor &lt;color&gt;</span></td></tr>
+            <tr><td><strong>Particle Trail</strong></td><td>Particles follow you as you walk (flames, hearts, stars, etc.)</td><td><span class="cmd">/trail &lt;type&gt;</span></td></tr>
+            <tr><td><strong>Pet</strong></td><td>A small mob companion that follows you around</td><td><span class="cmd">/pet &lt;type&gt;</span></td></tr>
+            <tr><td><strong>Particle Effect</strong></td><td>Particles that float around you constantly</td><td><span class="cmd">/particle &lt;type&gt;</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>📋 Managing Titles <span class="role role-admin">SUPER_ADMIN</span></h3>
+      <p>
+        Admins can create new titles in the Cosmetics page by clicking <strong>New Title</strong>,
+        entering a name (e.g. "Champion") and description, then saving. Players can then equip it
+        in-game with <span class="cmd">/title equip Champion</span>.
+      </p>
+      <p>
+        To remove a title, click the delete button next to it. Players who had it equipped will
+        lose it automatically.
+      </p>
+
+      <div class="box box-info">
+        <span class="box-icon">ℹ️</span>
+        <p>Titles appear in gold before a player's name in chat. Example: <strong style="color:#b8860b">[Champion]</strong> Steve: Hello everyone!</p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────── CLANS ─── -->
+    <section id="clans">
+      <h2>⚔️ Clans</h2>
+      <p>
+        Clans are player groups — like teams or guilds. Players form them in-game, earn XP
+        together, and battle other clans in wars. Admins can view all clans and their history
+        from the dashboard.
+      </p>
+
+      <h3>📊 Clan Info</h3>
+      <p>Each clan has:</p>
+      <ul class="features">
+        <li><strong>Name &amp; Tag</strong> — the clan's full name and a short tag shown in chat (e.g. [EPIC])</li>
+        <li><strong>Level</strong> — increases every 1,000 XP earned, maximum level 10</li>
+        <li><strong>XP</strong> — earned by completing challenges, winning wars, etc.</li>
+        <li><strong>Members</strong> — list of players and their role (Leader, Officer, Member)</li>
+        <li><strong>Home</strong> — a saved location that members can teleport to</li>
+        <li><strong>War History</strong> — record of past clan wars (wins, losses, draws)</li>
+      </ul>
+
+      <h3>📋 Clan Roles</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Role</th><th>Permissions</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Leader</strong></td><td>Can invite, kick members, start wars, set home, disband clan. Full control.</td></tr>
+            <tr><td><strong>Officer</strong></td><td>Can invite new members and help manage the clan.</td></tr>
+            <tr><td><strong>Member</strong></td><td>Can participate in clan activities. Cannot manage.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>⚔️ Clan Wars</h3>
+      <p>
+        Three types of clan wars are available, each with different rules:
+      </p>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">🏹</div>
+          <h4>PvP War</h4>
+          <p>Teams fight each other directly in PvP combat. The clan with the most kills wins.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⛏️</div>
+          <h4>Resource War</h4>
+          <p>Clans race to gather and deposit the most resources. First to the goal wins.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🏰</div>
+          <h4>Territory War</h4>
+          <p>Clans compete to control and hold territory on the map.</p>
+        </div>
+      </div>
+
+      <div class="box box-tip">
+        <span class="box-icon">💡</span>
+        <p><strong>Clan Creation Cost:</strong> Creating a clan costs <strong>500 coins</strong>. Make sure the player who types <span class="cmd">/clan create</span> has enough coins!</p>
+      </div>
+    </section>
+
+    <!-- ─────────────────────────────────── NPCS ─── -->
+    <section id="npcs">
+      <h2>🗣️ NPCs</h2>
+      <p>
+        NPCs (Non-Player Characters) are custom characters that stand in specific spots in the
+        Minecraft world. When a player right-clicks one, it talks to them! Admins create and
+        manage NPCs from the dashboard.
+      </p>
+
+      <h3>🤖 NPC Types</h3>
+      <div class="card-grid">
+        <div class="card">
+          <div class="card-icon">📖</div>
+          <h4>Guide</h4>
+          <p>Gives players helpful tips and information about the server. Perfect for the spawn area.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">❓</div>
+          <h4>Quest Giver</h4>
+          <p>Offers quests to players. The NPC remembers which quests the player has completed and unlocks new ones step by step.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🛍️</div>
+          <h4>Merchant</h4>
+          <p>A shop NPC where players can buy or trade items.</p>
+        </div>
+      </div>
+
+      <h3>⭐ Quest Giver NPC — How Quests Unlock</h3>
+      <p>
+        Quest Giver NPCs use a <strong>tier system</strong>. If an NPC has 3 quests assigned,
+        a new player starts at tier 0 and can only see the first quest. Once they complete it,
+        tier becomes 1 and the second quest unlocks. And so on!
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Quest Status</th><th>How It Looks in Chat</th></tr></thead>
+          <tbody>
+            <tr><td>Already completed</td><td><span style="text-decoration:line-through;color:#888">✓ quest-name (completed)</span></td></tr>
+            <tr><td>Available now</td><td><span style="color:#22c55e">➤ quest-name (available)</span></td></tr>
+            <tr><td>Still locked</td><td><span style="color:#6b7280">🔒 quest-name (locked — complete previous quest first)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>➕ Creating an NPC <span class="role role-admin">SUPER_ADMIN</span></h3>
+      <ol class="steps">
+        <li><p>Go to the NPCs page and click <strong>New NPC</strong>.</p></li>
+        <li><p>Enter the NPC's <strong>name</strong> and <strong>title</strong> (displayed above their head).</p></li>
+        <li><p>Choose the <strong>type</strong> (Guide, Quest Giver, or Merchant).</p></li>
+        <li><p>Enter the <strong>world name</strong> and <strong>X, Y, Z coordinates</strong> where they should stand.</p></li>
+        <li><p>Add <strong>dialogue lines</strong> — each line on a new line. These are what the NPC says when clicked.</p></li>
+        <li><p>For Quest Givers, add <strong>Quest IDs</strong> — one per line, in the order you want them to unlock.</p></li>
+        <li><p>Click <strong>Save</strong>. The plugin will automatically spawn the NPC in-game within seconds.</p></li>
+      </ol>
+
+      <h3>🔄 Dynamic Dialogue</h3>
+      <p>
+        Some NPCs have <strong>dynamic dialogue</strong> — if there's a live event happening,
+        the NPC automatically mentions it! For example, a Guide NPC might say "There's a Boss Raid
+        starting in 5 minutes at the arena!" when a Boss Raid event is upcoming.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────────────── MODERATION ─── -->
+    <section id="moderation">
+      <h2>🛡️ Moderation</h2>
+      <p>
+        The Moderation section is where staff handle player reports, review chat, and keep
+        the server safe and friendly.
+      </p>
+      <p>Access: <span class="role role-admin">SUPER_ADMIN</span> <span class="role role-mod">MODERATOR</span></p>
+
+      <h3>📨 Reports Tab</h3>
+      <p>
+        When a player reports someone in-game (using <span class="cmd">/report &lt;player&gt; &lt;reason&gt;</span>),
+        it appears here. Each report shows:
+      </p>
+      <ul class="features">
+        <li>Who filed the report and who was reported</li>
+        <li>The reason given</li>
+        <li>A <strong>chat snapshot</strong> — the last few messages from that player so you can see context</li>
+        <li>The current status of the report</li>
+      </ul>
+
+      <h4>Report Statuses</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><span class="status s-pending">PENDING</span></td><td>New report, not yet looked at by staff</td></tr>
+            <tr><td><span class="tag">REVIEWED</span></td><td>A mod has seen it and is handling it</td></tr>
+            <tr><td><span class="status s-escalated">ESCALATED</span></td><td>Automatically escalated because 3 or more reports came in for the same player in 24 hours — needs urgent attention!</td></tr>
+            <tr><td><span class="status s-resolved">RESOLVED</span></td><td>Dealt with and closed</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="box box-warn">
+        <span class="box-icon">⚠️</span>
+        <p><strong>Auto-Escalation:</strong> If the same player gets 3 or more reports within 24 hours, all pending reports for them automatically jump to <span class="status s-escalated">ESCALATED</span> status so staff notice fast!</p>
+      </div>
+
+      <h4>Actions on a Report</h4>
+      <p>When viewing a report, you can:</p>
+      <ul class="features">
+        <li><strong>Mark Reviewed</strong> — signals you've seen it <span class="role role-mod">MODERATOR</span></li>
+        <li><strong>Resolve</strong> — close the report as handled <span class="role role-mod">MODERATOR</span></li>
+        <li><strong>Mute 1 Hour</strong> — temporarily silence the reported player <span class="role role-mod">MODERATOR</span></li>
+        <li><strong>Kick</strong> — remove the player from the server (they can rejoin) <span class="role role-mod">MODERATOR</span></li>
+        <li><strong>Ban</strong> — permanently (or temporarily) block the player <span class="role role-admin">SUPER_ADMIN</span> only</li>
+      </ul>
+
+      <h3>💬 Chat Log Tab</h3>
+      <p>
+        Every message sent in chat is saved here. Staff can search the chat log to investigate
+        players:
+      </p>
+      <ul class="features">
+        <li><strong>Search by message content</strong> — find anyone who said a specific word</li>
+        <li><strong>Search by player name</strong> — see everything one player has said</li>
+        <li><strong>Date filter</strong> — narrow down to a specific time period</li>
+        <li><strong>Flagged messages</strong> — messages that were automatically flagged by the chat filter appear with a 🚩 icon</li>
+      </ul>
+
+      <h3>📋 Audit Log Tab</h3>
+      <p>
+        The Audit Log is a <strong>read-only permanent record</strong> of every moderation action
+        ever taken on the server (mutes, kicks, bans, unmutes, unbans). You can filter by player
+        to see their full moderation history. Nothing can be deleted from here — it's a tamper-proof log.
+      </p>
+    </section>
+
+    <!-- ─────────────────────────────────── ANALYTICS ─── -->
+    <section id="analytics">
+      <h2>📊 Analytics</h2>
+      <p>
+        The Analytics page shows statistics about how players are engaging with the server.
+        Great for understanding what's working and what isn't!
+      </p>
+      <p>Access: <span class="role role-admin">SUPER_ADMIN</span> <span class="role role-mod">MODERATOR</span></p>
+
+      <details open>
+        <summary>👥 Player Activity</summary>
+        <div class="details-body">
+          <p>Shows player counts for different time periods:</p>
+          <ul class="features">
+            <li><strong>DAU</strong> (Daily Active Users) — players online today</li>
+            <li><strong>WAU</strong> (Weekly Active Users) — players online in the last 7 days</li>
+            <li><strong>MAU</strong> (Monthly Active Users) — players online in the last 30 days</li>
+            <li><strong>Total Players</strong> — everyone who has ever joined</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>🚀 New Player Funnel</summary>
+        <div class="details-body">
+          <p>
+            Tracks what percentage of new players (joined in the last 30 days) actually get
+            engaged with the server:
+          </p>
+          <ol class="steps">
+            <li><p><strong>Joined</strong> — they logged in at all</p></li>
+            <li><p><strong>Started a Challenge</strong> — they tried at least one challenge</p></li>
+            <li><p><strong>Earned a Reward</strong> — they completed something and got a prize</p></li>
+          </ol>
+          <p>This shows if new players are finding content quickly or leaving before engaging!</p>
+        </div>
+      </details>
+
+      <details>
+        <summary>🌡️ Engagement Heatmap</summary>
+        <div class="details-body">
+          <p>
+            A colour grid showing which hours and days of the week are busiest for challenge
+            completions (based on the last 30 days). Darker squares = more activity.
+            Use this to schedule events at peak times!
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>📈 Challenge Performance</summary>
+        <div class="details-body">
+          <p>Shows stats for each challenge:</p>
+          <ul class="features">
+            <li><strong>Attempts</strong> — players who started it</li>
+            <li><strong>Completions</strong> — players who finished it</li>
+            <li><strong>Completion Rate</strong> — percentage who finished</li>
+          </ul>
+          <p>Special flags are shown automatically:</p>
+          <ul class="features">
+            <li>🔴 <strong>TOO HARD</strong> — if less than 20% of players finish it</li>
+            <li>🟢 <strong>TOO EASY</strong> — if more than 95% of players finish it immediately</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>💰 Economy Overview</summary>
+        <div class="details-body">
+          <ul class="features">
+            <li><strong>Top 10 reward recipients</strong> — players who have received the most rewards</li>
+            <li><strong>Top 10 most-granted rewards</strong> — which reward templates have been given out the most</li>
+          </ul>
+        </div>
+      </details>
+
+      <details>
+        <summary>⚠️ Churn Risk</summary>
+        <div class="details-body">
+          <p>
+            Shows players who used to be active but seem to be leaving. The algorithm
+            finds players who were online 2–4 weeks ago but haven't logged in for at
+            least 2 weeks. Reach out to them with a special event or reward before they're gone!
+          </p>
+        </div>
+      </details>
+    </section>
+
+    <!-- ─────────────────────────────────── BROADCAST ─── -->
+    <section id="broadcast">
+      <h2>📢 Broadcast</h2>
+      <p>
+        The Broadcast feature lets admins send messages to players in-game without logging
+        into Minecraft. Messages can be sent instantly, scheduled for later, or triggered
+        automatically by server events.
+      </p>
+      <p>Access: <span class="role role-admin">SUPER_ADMIN</span></p>
+
+      <h3>📝 Sending a Message</h3>
+      <ol class="steps">
+        <li><p>Go to Broadcast and click <strong>New Message</strong>.</p></li>
+        <li><p>Write your <strong>message content</strong> (max 500 characters).</p></li>
+        <li><p>Choose one or more <strong>channels</strong> where it'll appear (see below).</p></li>
+        <li><p>Choose the <strong>audience</strong> who should receive it.</p></li>
+        <li><p>Either click <strong>Send Now</strong> or set a future date/time and click <strong>Schedule</strong>.</p></li>
+      </ol>
+
+      <h3>📡 Channels</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Channel</th><th>Where Players See It</th></tr></thead>
+          <tbody>
+            <tr><td><strong>CHAT</strong></td><td>As a regular chat message (seen in the chat box)</td></tr>
+            <tr><td><strong>TITLE</strong></td><td>Big text that flashes in the centre of the screen</td></tr>
+            <tr><td><strong>ACTION_BAR</strong></td><td>Small text above the hotbar at the bottom of the screen</td></tr>
+            <tr><td><strong>DISCORD</strong></td><td>Posted to a linked Discord channel</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>🎯 Audience Targeting</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Audience</th><th>Who Gets the Message</th></tr></thead>
+          <tbody>
+            <tr><td><strong>ALL</strong></td><td>Every player currently online</td></tr>
+            <tr><td><strong>VIP</strong></td><td>Only players with VIP status</td></tr>
+            <tr><td><strong>MODS</strong></td><td>Only moderators and admins</td></tr>
+            <tr><td><strong>NEW</strong></td><td>Only players who joined in the last few days</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>⚡ Automated Triggers</h3>
+      <p>
+        Triggers automatically send broadcasts when specific server events happen —
+        no human needs to do anything! Configure them in the Automated Triggers section.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Trigger</th><th>When It Fires</th><th>Example Use</th></tr></thead>
+          <tbody>
+            <tr><td><strong>DAILY_LOGIN</strong></td><td>A player's first login of the day</td><td>"Welcome back! Your daily reward is ready."</td></tr>
+            <tr><td><strong>MILESTONE</strong></td><td>The server hits a defined milestone (e.g. 1,000th player)</td><td>"We just hit 1,000 players! Fireworks for everyone!"</td></tr>
+            <tr><td><strong>LOW_ACTIVITY</strong></td><td>Online player count drops below a threshold</td><td>Sends a private alert to admins that the server is quiet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Each trigger can be <strong>enabled or disabled</strong> with a toggle and configured with a JSON config that sets the message, channel, and audience.</p>
+    </section>
+
+    <!-- ─────────────────────────────────── IN-GAME ─── -->
+    <section id="ingame-challenges">
+      <h2>🎮 In-Game — Challenges</h2>
+      <p>
+        Players don't need to use the website for challenges! Everything happens automatically
+        in-game. Here's how it works from a player's perspective:
+      </p>
+      <ol class="steps">
+        <li><p>A challenge becomes active (e.g. "Mine 100 diamonds"). The player doesn't need to do anything to sign up.</p></li>
+        <li><p>As the player mines diamonds, their progress increments automatically. No commands needed!</p></li>
+        <li><p>When they hit 100 diamonds, a notification appears in chat saying the challenge is complete.</p></li>
+        <li><p>The reward is delivered instantly. If the player is offline when the reward processes, it queues and delivers the next time they log in.</p></li>
+      </ol>
+    </section>
+
+    <section id="ingame-clans">
+      <h2>⚔️ In-Game — Clan Commands</h2>
+      <p>Players manage clans entirely through in-game commands:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>What It Does</th><th>Required Role</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/clan create &lt;name&gt; &lt;tag&gt;</span></td><td>Create a new clan (costs 500 coins)</td><td>Any player</td></tr>
+            <tr><td><span class="cmd">/clan invite &lt;player&gt;</span></td><td>Invite a player to your clan (invite expires after 24 hours)</td><td>Leader / Officer</td></tr>
+            <tr><td><span class="cmd">/clan join &lt;clan&gt;</span></td><td>Accept an invite and join a clan</td><td>Any invited player</td></tr>
+            <tr><td><span class="cmd">/clan leave</span></td><td>Leave your current clan. If you're the last member, the clan is disbanded. If you're the leader with other members, leadership transfers automatically.</td><td>Any member</td></tr>
+            <tr><td><span class="cmd">/clan home</span></td><td>Teleport to your clan's home location</td><td>Any member</td></tr>
+            <tr><td><span class="cmd">/clan sethome</span></td><td>Set the clan home to your current position</td><td>Leader</td></tr>
+            <tr><td><span class="cmd">/clan war &lt;clan&gt; &lt;type&gt;</span></td><td>Challenge another clan to a war (PVP / RESOURCE / TERRITORY)</td><td>Leader</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ingame-cosmetics">
+      <h2>🎨 In-Game — Cosmetic Commands</h2>
+      <p>Players equip cosmetics with simple slash commands:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>Effect</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/title equip &lt;name&gt;</span></td><td>Show a title prefix before your name in chat (e.g. [Champion])</td></tr>
+            <tr><td><span class="cmd">/title remove</span></td><td>Remove your currently equipped title</td></tr>
+            <tr><td><span class="cmd">/chatcolor &lt;color&gt;</span></td><td>Make your chat messages appear in a colour (e.g. RED, GREEN, AQUA, GOLD)</td></tr>
+            <tr><td><span class="cmd">/trail &lt;particle&gt;</span></td><td>Set a particle trail that follows you as you walk</td></tr>
+            <tr><td><span class="cmd">/pet &lt;type&gt;</span></td><td>Summon a pet companion to follow you</td></tr>
+            <tr><td><span class="cmd">/particle &lt;type&gt;</span></td><td>Set floating particles around your character</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>Available Chat Colours</h4>
+      <p>
+        <span style="color:#000">BLACK</span> ·
+        <span style="color:#00008b">DARK_BLUE</span> ·
+        <span style="color:#006400">DARK_GREEN</span> ·
+        <span style="color:#008b8b">DARK_AQUA</span> ·
+        <span style="color:#8b0000">DARK_RED</span> ·
+        <span style="color:#800080">DARK_PURPLE</span> ·
+        <span style="color:#b8860b">GOLD</span> ·
+        <span style="color:#808080">GRAY</span> ·
+        <span style="color:#404040">DARK_GRAY</span> ·
+        <span style="color:#0000cd">BLUE</span> ·
+        <span style="color:#22c55e">GREEN</span> ·
+        <span style="color:#00ced1">AQUA</span> ·
+        <span style="color:#ef4444">RED</span> ·
+        <span style="color:#da70d6">LIGHT_PURPLE</span> ·
+        <span style="color:#eab308">YELLOW</span> ·
+        <span style="color:#6b7280">WHITE</span>
+      </p>
+    </section>
+
+    <section id="ingame-reporting">
+      <h2>🚨 In-Game — Reporting Players</h2>
+      <p>
+        If a player sees someone being mean, cheating, or breaking the rules, they can report
+        them directly in-game:
+      </p>
+
+      <p><span class="cmd">/report &lt;playername&gt; &lt;reason&gt;</span></p>
+      <p>
+        Example: <span class="cmd">/report Steve Spamming bad words in chat</span>
+      </p>
+
+      <p>When a report is submitted:</p>
+      <ol class="steps">
+        <li><p>The report appears instantly in the Moderation panel on the dashboard.</p></li>
+        <li><p>A snapshot of the reported player's recent chat messages is saved with the report.</p></li>
+        <li><p>If the same player gets 3+ reports within 24 hours, the reports automatically escalate to get staff attention.</p></li>
+        <li><p>Once staff resolve the report, the reporting player gets notified next time they log in.</p></li>
+      </ol>
+    </section>
+
+    <!-- ─────────────────────────────────── FLOWS ─── -->
+    <section id="flow-join">
+      <h2>🔄 How Things Work — Player Join</h2>
+      <p>Here's exactly what happens every time a player logs into the Minecraft server:</p>
+      <ol class="steps">
+        <li><p>Minecraft fires a "Player Joined" event. The GreeterPlugin catches it.</p></li>
+        <li><p>The plugin calls the web API to register or update the player's profile (increments join count, updates last seen time).</p></li>
+        <li><p>The plugin checks if there are any <strong>queued rewards</strong> waiting for this player (from challenges completed while they were offline). If so, they're delivered now.</p></li>
+        <li><p>The plugin checks if any of the player's reports have been resolved since they last logged in. If so, they get a notification.</p></li>
+        <li><p>A welcome message may be broadcast based on the DAILY_LOGIN trigger configuration.</p></li>
+      </ol>
+    </section>
+
+    <section id="flow-rewards">
+      <h2>🎁 How Things Work — Reward Delivery</h2>
+      <p>When a reward is granted (automatically or by an admin), here's the delivery process:</p>
+      <ol class="steps">
+        <li><p>The system checks if the player is <strong>currently online</strong>.</p></li>
+        <li><p><strong>If online:</strong> The reward is delivered immediately. Items are put in their inventory, XP is added, commands run, coins are credited.</p></li>
+        <li><p><strong>If offline:</strong> The reward is saved to a queue in the database.</p></li>
+        <li><p>Next time the player logs in, the GreeterPlugin checks the queue and delivers all pending rewards right away.</p></li>
+      </ol>
+
+      <h4>Mystery Box Resolution</h4>
+      <p>
+        When a <span class="tag">MYSTERY_BOX</span> is delivered, the plugin rolls the weighted
+        loot table (like rolling a weighted dice), picks one prize, and delivers that prize instead.
+        The player sees a message telling them what they got!
+      </p>
+    </section>
+
+    <section id="flow-events">
+      <h2>🏆 How Things Work — Event Lifecycle</h2>
+      <ol class="steps">
+        <li><p>An admin creates an event on the dashboard with a scheduled start time.</p></li>
+        <li><p>The EventPlugin polls the API every 35 minutes for upcoming events. When an event is less than 35 minutes away, the plugin starts preparing (arena setup, NPC announcements).</p></li>
+        <li><p>The admin clicks <strong>Launch Now</strong> on the dashboard. The event switches to <span class="status s-active">ACTIVE</span>.</p></li>
+        <li><p>The EventPlugin starts the game logic for that event type (spawns the boss, scatters treasure chests, creates build plots).</p></li>
+        <li><p>As players participate, scores are tracked. The dashboard leaderboard updates every 5 seconds.</p></li>
+        <li><p>When the event ends (admin clicks End or the timer runs out), the plugin sends the final leaderboard to the API and the event becomes <span class="status s-finished">FINISHED</span>.</p></li>
+        <li><p>Top players receive any configured rewards automatically.</p></li>
+      </ol>
+    </section>
+
+    <section id="flow-moderation">
+      <h2>🛡️ How Things Work — Moderation</h2>
+      <ol class="steps">
+        <li><p>A player uses <span class="cmd">/report Steve Being rude</span> in-game.</p></li>
+        <li><p>The ModerationPlugin captures the last 10 chat messages from Steve as a snapshot and sends the report + snapshot to the API.</p></li>
+        <li><p>The report appears in the dashboard with <span class="status s-pending">PENDING</span> status.</p></li>
+        <li><p>If Steve gets 2 more reports in the next 24 hours, all his pending reports jump to <span class="status s-escalated">ESCALATED</span>.</p></li>
+        <li><p>A moderator opens the report, reads the chat snapshot, and decides to mute Steve for 1 hour.</p></li>
+        <li><p>The mute is logged to the Audit Log. Steve gets a mute applied in-game immediately. The report is marked <span class="status s-resolved">RESOLVED</span>.</p></li>
+        <li><p>Next time the reporting player logs in, they receive a notification: "Your report against Steve has been resolved."</p></li>
+      </ol>
+    </section>
+
+    <!-- ─────────────────────────────────── FAQ ─── -->
+    <section id="faq">
+      <h2>❓ FAQ</h2>
+
+      <details>
+        <summary>A player says they didn't receive their reward — what do I check?</summary>
+        <div class="details-body">
+          <p>
+            Go to <strong>Players → [Player Name] → Reward History</strong> tab. If the reward shows there,
+            it was recorded but maybe the in-game delivery glitched. Check if they were online at the
+            time. Rewards queue automatically if the player is offline and deliver on next login —
+            so if they just need to log in again, tell them to do that!
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>How do I stop a challenge from running?</summary>
+        <div class="details-body">
+          <p>
+            Go to <strong>Challenges → [Challenge Name] → Edit</strong> and set the end date to now
+            (or a past date). The challenge will immediately stop being active and no further
+            progress will be tracked.
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I delete a reward that's been given to players already?</summary>
+        <div class="details-body">
+          <p>
+            Yes, but only if the reward isn't linked to an <em>active</em> challenge. Go to the
+            reward's detail page and click Delete. Past grant records are kept in the Reward History
+            for each player — deleting the template doesn't erase those records.
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>What happens to a clan if the leader leaves?</summary>
+        <div class="details-body">
+          <p>
+            Two cases: (1) If the leader is the <em>only</em> member left, the clan is automatically
+            disbanded and deleted. (2) If there are other members, the system picks the next most
+            senior active member (an Officer first, otherwise the longest-standing Member) and
+            makes them the new Leader.
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>A player has a title equipped but it's not showing in chat. Why?</summary>
+        <div class="details-body">
+          <p>
+            Check that the title still exists in the Cosmetics section (it may have been deleted).
+            If the title exists, the issue may be a plugin restart — the cosmetics plugin caches
+            profiles, and on a fresh join the title should re-appear. Ask the player to relog.
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>How do I give someone moderator access to the dashboard?</summary>
+        <div class="details-body">
+          <p>
+            Account roles are set directly in the database by a SUPER_ADMIN.
+            There is no in-dashboard role editor — ask a developer or server owner to run an
+            update on the account's role field in the database, or use the seed / user-creation
+            tools available to server owners.
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>Can I schedule an event to start automatically without clicking Launch Now?</summary>
+        <div class="details-body">
+          <p>
+            Currently the event switches to ACTIVE only when an admin clicks <strong>Launch Now</strong>
+            on the dashboard or in the Event Detail page. The scheduled time on an event is
+            informational (it helps the plugin pre-load the event), but the final "start" signal
+            still requires a manual admin action.
+          </p>
+        </div>
+      </details>
+
+      <details>
+        <summary>The chat log shows 500 error — why?</summary>
+        <div class="details-body">
+          <p>
+            If the Minecraft plugin is sending malformed chat log data (missing required fields
+            like timestamp or playerId), the API will return an error. Check plugin logs for
+            JSON formatting errors. The server's error middleware now returns 400 for bad data,
+            so if you still see 500, it may be a database connectivity issue — check the
+            server's health on the Dashboard page first.
+          </p>
+        </div>
+      </details>
+
+    </section>
+
+    <footer style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--gray-200);color:var(--gray-400);font-size:.8rem;text-align:center;">
+      Minecraft AI Manager — User Guide · Generated for server staff and players · Keep this page bookmarked for quick reference!
+    </footer>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active nav link on scroll
+  const sections = document.querySelectorAll('section[id]');
+  const links    = document.querySelectorAll('.sidebar a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
