@@ -132,6 +132,15 @@ public class TreasureHuntHandler {
         return "↑";
     }
 
+    public void cleanup() {
+        activeEventId = null;
+        remainingChests.clear();
+        playerFinds.clear();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.getInventory().remove(Material.COMPASS);
+        }
+    }
+
     public Set<Location> getRemainingChests() { return remainingChests; }
     public boolean isActive() { return activeEventId != null; }
 }

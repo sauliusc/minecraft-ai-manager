@@ -235,6 +235,16 @@ public class BossRaidHandler {
         }
     }
 
+    public void cleanup() {
+        activeEventId = null;
+        damageTrackers.clear();
+        firedPhases.clear();
+        if (boss != null && !boss.isDead()) {
+            boss.remove();
+        }
+        boss = null;
+    }
+
     public LivingEntity getBoss() { return boss; }
     public String getActiveEventId() { return activeEventId; }
 }

@@ -18,6 +18,17 @@ const claimSchema = z.object({
   playerName: z.string().min(1),
 });
 
+// GET /api/vote/stats — service token (plugin polls weekly vote count)
+voteRouter.get('/stats', serviceTokenMiddleware, async (_req, res, next) => {
+  try {
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const weeklyVotes = await prisma.pendingVote.count({
+      where: { createdAt: { gte: weekAgo } },
+    });
+    res.json({ weeklyVotes });
+  } catch (err) { next(err); }
+});
+
 // POST /api/vote/webhook — service token (voting site posts here after a vote)
 voteRouter.post('/webhook', serviceTokenMiddleware, validateBody(webhookSchema), async (req, res, next) => {
   try {

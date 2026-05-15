@@ -102,16 +102,18 @@ public class ReportManager {
     }
 
     private void escalateReport(UUID reportedUuid, String reportedName, String caseId) {
-        // Server-side escalation is handled automatically by the API (3+ reports in 24h triggers ESCALATED status).
-        // We just notify online moderators in-game immediately.
+        // Server-side DB escalation is handled by the API. Notify all online SUPER_ADMIN players via actionbar + chat.
         plugin.getServer().getScheduler().runTask(plugin, () -> {
             Component alert = Component.text(
-                "[MOD] Player " + reportedName + " has received " +
+                "⚠ [ESCALATED] " + reportedName + " received " +
                 plugin.getConfig().getInt("report.escalation_threshold", 3) +
-                "+ reports. Case #" + caseId + " escalated.", NamedTextColor.RED);
+                "+ reports in 24h. Case #" + caseId, NamedTextColor.RED);
             plugin.getServer().getOnlinePlayers().stream()
-                .filter(p -> p.hasPermission("craftcontrol.mod"))
-                .forEach(p -> p.sendMessage(alert));
+                .filter(p -> p.hasPermission("craftcontrol.admin"))
+                .forEach(p -> {
+                    p.sendActionBar(alert);
+                    p.sendMessage(alert);
+                });
         });
     }
 }

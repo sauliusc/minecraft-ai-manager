@@ -62,6 +62,18 @@ eventsRouter.get('/', authMiddleware, async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/events/active  (service token — NPC plugin checks on right-click for dynamic dialogue)
+eventsRouter.get('/active', serviceTokenMiddleware, async (_req, res, next) => {
+  try {
+    const events = await prisma.gameEvent.findMany({
+      where: { state: 'ACTIVE' },
+      select: { id: true, type: true, title: true, scheduledAt: true, participantCount: true },
+      orderBy: { scheduledAt: 'asc' },
+    });
+    res.json(events);
+  } catch (err) { next(err); }
+});
+
 // GET /api/events/upcoming  (service token — for plugin polling)
 eventsRouter.get('/upcoming', serviceTokenMiddleware, async (_req, res, next) => {
   try {

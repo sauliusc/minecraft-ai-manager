@@ -19,12 +19,23 @@ const titleSchema = z.object({
   description: z.string().max(256).optional(),
 });
 
-// GET /api/cosmetics/titles — service token (plugin fetches available titles)
-cosmeticsRouter.get('/titles', serviceTokenMiddleware, async (_req, res, next) => {
-  try {
-    const titles = await prisma.cosmeticTitle.findMany({ orderBy: { name: 'asc' } });
-    res.json(titles);
-  } catch (err) { next(err); }
+// GET /api/cosmetics/titles — service token OR JWT (plugin + dashboard)
+cosmeticsRouter.get('/titles', async (req, res, next) => {
+  const authHeader = req.headers.authorization ?? '';
+  const isServiceToken = authHeader.startsWith('Bearer ') && authHeader.slice(7) === process.env.SERVICE_TOKEN;
+  if (isServiceToken) {
+    try {
+      const titles = await prisma.cosmeticTitle.findMany({ orderBy: { name: 'asc' } });
+      return res.json(titles);
+    } catch (err) { return next(err); }
+  }
+  // Fall through to JWT check
+  return authMiddleware(req, res, async () => {
+    try {
+      const titles = await prisma.cosmeticTitle.findMany({ orderBy: { name: 'asc' } });
+      res.json(titles);
+    } catch (err) { next(err); }
+  });
 });
 
 // POST /api/cosmetics/titles — JWT SUPER_ADMIN (admin creates titles)
@@ -41,6 +52,25 @@ cosmeticsRouter.post('/titles', authMiddleware, validateBody(titleSchema), async
   } catch (err: any) {
     if (err?.code === 'P2002') {
       res.status(409).json({ error: 'CONFLICT', message: 'Title name already exists', statusCode: 409 });
+      return;
+    }
+    next(err);
+  }
+});
+
+// DELETE /api/cosmetics/titles/:id — JWT SUPER_ADMIN
+cosmeticsRouter.delete('/titles/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const user = (req as any).user;
+    if (user?.role !== 'SUPER_ADMIN') {
+      res.status(403).json({ error: 'FORBIDDEN', message: 'SUPER_ADMIN required', statusCode: 403 });
+      return;
+    }
+    await prisma.cosmeticTitle.delete({ where: { id: req.params.id as string } });
+    res.status(204).end();
+  } catch (err: any) {
+    if (err?.code === 'P2025') {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Title not found', statusCode: 404 });
       return;
     }
     next(err);

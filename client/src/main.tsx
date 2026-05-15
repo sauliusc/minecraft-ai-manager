@@ -13,6 +13,7 @@ import { Players } from './pages/Players.js';
 import { PlayerDetail } from './pages/PlayerDetail.js';
 import { Challenges } from './pages/Challenges.js';
 import { ChallengeDetail } from './pages/ChallengeDetail.js';
+import { ChallengesCalendar } from './pages/ChallengesCalendar.js';
 import { Rewards } from './pages/Rewards.js';
 import { RewardDetail } from './pages/RewardDetail.js';
 import { Events } from './pages/Events.js';
@@ -21,6 +22,8 @@ import { Moderation } from './pages/Moderation.js';
 import { Analytics } from './pages/Analytics.js';
 import { Broadcast } from './pages/Broadcast.js';
 import { Npcs } from './pages/Npcs.js';
+import { Cosmetics } from './pages/Cosmetics.js';
+import { Clans } from './pages/Clans.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -40,6 +43,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/players" element={<Players />} />
                 <Route path="/players/:id" element={<PlayerDetail />} />
                 <Route path="/challenges" element={<Challenges />} />
+                <Route path="/challenges/calendar" element={<ChallengesCalendar />} />
                 <Route path="/challenges/:id" element={<ChallengeDetail />} />
                 <Route path="/rewards" element={<Rewards />} />
                 <Route path="/rewards/:id" element={<RewardDetail />} />
@@ -49,6 +53,8 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/broadcast" element={<Broadcast />} />
                 <Route path="/npcs" element={<Npcs />} />
+                <Route path="/cosmetics" element={<Cosmetics />} />
+                <Route path="/clans" element={<Clans />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Route>

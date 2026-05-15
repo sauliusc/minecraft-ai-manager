@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
 
@@ -9,10 +9,12 @@ interface Challenge {
   title: string;
   description: string;
   type: string;
+  difficulty: number;
   config: Record<string, unknown>;
   activeFrom: string;
   activeUntil: string;
   assignedTo: string[];
+  completionRate?: { total: number; completed: number };
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -36,11 +38,28 @@ const emptyForm = {
   title: '',
   description: '',
   type: 'BLOCK_BREAK',
-  config: '{}',
+  difficulty: '1',
+  targetMaterial: '',
+  targetEntity: '',
+  targetCount: '1',
+  customConfig: '{}',
   activeFrom: '',
   activeUntil: '',
   assignedTo: '',
 };
+
+function buildConfig(type: string, form: typeof emptyForm): Record<string, unknown> {
+  if (type === 'BLOCK_BREAK' || type === 'CRAFT_ITEM') {
+    return { target_material: form.targetMaterial.toUpperCase(), target_count: Number(form.targetCount) };
+  }
+  if (type === 'KILL_MOB') {
+    return { target_entity: form.targetEntity.toUpperCase(), target_count: Number(form.targetCount) };
+  }
+  if (type === 'TRAVEL') {
+    return { target_count: Number(form.targetCount) };
+  }
+  return JSON.parse(form.customConfig || '{}');
+}
 
 export function Challenges() {
   const navigate = useNavigate();
@@ -51,16 +70,23 @@ export function Challenges() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('all');
   const [type, setType] = useState('');
+  const [difficulty, setDifficulty] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [formError, setFormError] = useState('');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['challenges', page, status, type],
+    queryKey: ['challenges', page, status, type, difficulty],
     queryFn: () =>
       api
         .get('/challenges', {
-          params: { page, limit: 20, status: status || undefined, type: type || undefined },
+          params: {
+            page,
+            limit: 20,
+            status: status || undefined,
+            type: type || undefined,
+            difficulty: difficulty || undefined,
+          },
         })
         .then((r) => r.data),
     placeholderData: (prev) => prev,
@@ -83,15 +109,16 @@ export function Challenges() {
     e.preventDefault();
     let config: Record<string, unknown>;
     try {
-      config = JSON.parse(form.config);
+      config = buildConfig(form.type, form);
     } catch {
-      setFormError('Config must be valid JSON');
+      setFormError('Custom config must be valid JSON');
       return;
     }
     create.mutate({
       title: form.title,
       description: form.description,
       type: form.type,
+      difficulty: Number(form.difficulty),
       config,
       activeFrom: new Date(form.activeFrom).toISOString(),
       activeUntil: new Date(form.activeUntil).toISOString(),
@@ -103,14 +130,22 @@ export function Challenges() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold text-gray-800">Challenges</h1>
-        {isAdmin && (
-          <button
-            onClick={() => { setShowForm(true); setFormError(''); }}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+        <div className="flex items-center gap-2">
+          <Link
+            to="/challenges/calendar"
+            className="text-sm px-4 py-2 border rounded hover:bg-gray-50 text-gray-700"
           >
-            + New Challenge
-          </button>
-        )}
+            Calendar
+          </Link>
+          {isAdmin && (
+            <button
+              onClick={() => { setShowForm(true); setFormError(''); }}
+              className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700"
+            >
+              + New Challenge
+            </button>
+          )}
+        </div>
       </div>
 
       {showForm && (
@@ -143,7 +178,7 @@ export function Challenges() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Type</label>
                 <select
@@ -153,6 +188,18 @@ export function Challenges() {
                 >
                   {['BLOCK_BREAK', 'KILL_MOB', 'CRAFT_ITEM', 'TRAVEL', 'CUSTOM'].map((t) => (
                     <option key={t} value={t}>{t.replace('_', ' ')}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Difficulty (1–5)</label>
+                <select
+                  value={form.difficulty}
+                  onChange={(e) => setForm({ ...form, difficulty: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {[1, 2, 3, 4, 5].map((d) => (
+                    <option key={d} value={d}>{'★'.repeat(d) + '☆'.repeat(5 - d)}</option>
                   ))}
                 </select>
               </div>
@@ -167,16 +214,82 @@ export function Challenges() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Config (JSON)</label>
-              <textarea
-                required
-                rows={3}
-                value={form.config}
-                onChange={(e) => setForm({ ...form, config: e.target.value })}
-                className="w-full border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            {/* Type-specific config fields */}
+            {(form.type === 'BLOCK_BREAK' || form.type === 'CRAFT_ITEM') && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Material (e.g. OAK_LOG)</label>
+                  <input
+                    required
+                    value={form.targetMaterial}
+                    onChange={(e) => setForm({ ...form, targetMaterial: e.target.value })}
+                    placeholder="OAK_LOG"
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Target count</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={form.targetCount}
+                    onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+            {form.type === 'KILL_MOB' && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Entity type (e.g. ZOMBIE)</label>
+                  <input
+                    required
+                    value={form.targetEntity}
+                    onChange={(e) => setForm({ ...form, targetEntity: e.target.value })}
+                    placeholder="ZOMBIE"
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Target count</label>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={form.targetCount}
+                    onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
+                    className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            )}
+            {form.type === 'TRAVEL' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Distance (blocks)</label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={form.targetCount}
+                  onChange={(e) => setForm({ ...form, targetCount: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
+            {form.type === 'CUSTOM' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Config (JSON)</label>
+                <textarea
+                  required
+                  rows={3}
+                  value={form.customConfig}
+                  onChange={(e) => setForm({ ...form, customConfig: e.target.value })}
+                  className="w-full border rounded px-3 py-1.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -230,6 +343,7 @@ export function Challenges() {
           >
             <option value="all">All statuses</option>
             <option value="active">Active</option>
+            <option value="upcoming">Upcoming</option>
             <option value="expired">Expired</option>
           </select>
           <select
@@ -242,6 +356,16 @@ export function Challenges() {
               <option key={t} value={t}>{t.replace('_', ' ')}</option>
             ))}
           </select>
+          <select
+            value={difficulty}
+            onChange={(e) => { setDifficulty(e.target.value); setPage(1); }}
+            className="border border-gray-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">All difficulties</option>
+            {[1, 2, 3, 4, 5].map((d) => (
+              <option key={d} value={d}>{'★'.repeat(d)}</option>
+            ))}
+          </select>
         </div>
 
         <table className="w-full text-sm">
@@ -249,18 +373,21 @@ export function Challenges() {
             <tr>
               <th className="px-4 py-3 text-left">Title</th>
               <th className="px-4 py-3 text-left">Type</th>
+              <th className="px-4 py-3 text-left">Difficulty</th>
               <th className="px-4 py-3 text-left">Status</th>
+              <th className="px-4 py-3 text-left">Completion</th>
               <th className="px-4 py-3 text-left">Active From</th>
               <th className="px-4 py-3 text-left">Active Until</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
             ) : data?.data?.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-400">No challenges found</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-gray-400">No challenges found</td></tr>
             ) : data?.data?.map((c: Challenge) => {
               const st = challengeStatus(c);
+              const diff = c.difficulty ?? 1;
               return (
                 <tr
                   key={c.id}
@@ -273,10 +400,16 @@ export function Challenges() {
                       {c.type.replace('_', ' ')}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-yellow-500 text-sm">{'★'.repeat(diff)}{'☆'.repeat(5 - diff)}</td>
                   <td className="px-4 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${st.cls}`}>
                       {st.label}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">
+                    {c.completionRate
+                      ? `${c.completionRate.completed}/${c.completionRate.total}`
+                      : '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-500">{new Date(c.activeFrom).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-gray-500">{new Date(c.activeUntil).toLocaleDateString()}</td>

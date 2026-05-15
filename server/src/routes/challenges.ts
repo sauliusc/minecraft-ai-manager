@@ -18,6 +18,7 @@ const createSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
   type: ChallengeTypeEnum,
+  difficulty: z.number().int().min(1).max(5).optional().default(1),
   config: z.record(z.unknown()),
   rewardId: z.string().optional(),
   activeFrom: z.string().datetime(),
@@ -29,6 +30,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().min(1).optional(),
+  difficulty: z.number().int().min(1).max(5).optional(),
   config: z.record(z.unknown()).optional(),
   rewardId: z.string().optional(),
   activeFrom: z.string().datetime().optional(),
@@ -66,6 +68,7 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
     const limit = Math.min(100, Math.max(1, Number(req.query.limit ?? 20)));
     const type = typeof req.query.type === 'string' ? req.query.type : undefined;
     const status = typeof req.query.status === 'string' ? req.query.status : 'all';
+    const difficultyParam = typeof req.query.difficulty === 'string' ? Number(req.query.difficulty) : undefined;
 
     const now = new Date();
     let statusFilter: object = {};
@@ -73,11 +76,14 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
       statusFilter = { activeFrom: { lte: now }, activeUntil: { gte: now } };
     } else if (status === 'expired') {
       statusFilter = { activeUntil: { lt: now } };
+    } else if (status === 'upcoming') {
+      statusFilter = { activeFrom: { gt: now } };
     }
 
     const where = {
       ...statusFilter,
       ...(type ? { type: type as any } : {}),
+      ...(difficultyParam ? { difficulty: difficultyParam } : {}),
     };
 
     const [total, challenges] = await Promise.all([
@@ -87,11 +93,25 @@ challengesRouter.get('/', authMiddleware, async (req: Request, res: Response, ne
         orderBy: { activeFrom: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
+        include: {
+          _count: { select: { progress: true } },
+        },
       }),
     ]);
 
+    const enriched = await Promise.all(
+      challenges.map(async (c: any) => {
+        const completedCount = await prisma.challengeProgress.count({
+          where: { challengeId: c.id, completed: true },
+        });
+        const { _count, ...rest } = c;
+        const total = (_count as any)?.progress ?? 0;
+        return { ...rest, completionRate: { total, completed: completedCount } };
+      })
+    );
+
     res.json({
-      data: challenges,
+      data: enriched,
       meta: { total, page, limit, pages: Math.ceil(total / limit) },
     });
   } catch (err) {
@@ -154,6 +174,7 @@ challengesRouter.post('/', authMiddleware, validateBody(createSchema), async (re
         title: data.title,
         description: data.description,
         type: data.type as any,
+        difficulty: data.difficulty ?? 1,
         config: data.config as any,
         rewardId: data.rewardId,
         activeFrom: new Date(data.activeFrom),
@@ -214,6 +235,7 @@ challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async
     const update: Record<string, unknown> = {};
     if (data.title !== undefined) update.title = data.title;
     if (data.description !== undefined) update.description = data.description;
+    if (data.difficulty !== undefined) update.difficulty = data.difficulty;
     if (data.config !== undefined) update.config = data.config;
     if (data.rewardId !== undefined) update.rewardId = data.rewardId;
     if (data.activeFrom !== undefined) update.activeFrom = new Date(data.activeFrom);

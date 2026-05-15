@@ -15,6 +15,9 @@ public class VotePlugin extends JavaPlugin {
         if (vote != null) vote.setExecutor(new VoteCommand(this));
         var claim = getCommand("voteclaim");
         if (claim != null) claim.setExecutor(new VoteCommand(this));
+        // Poll weekly vote count every 10 minutes; announces milestone if threshold hit
+        long pollInterval = 20L * 60 * 10;
+        new VoteMilestoneTask(this).runTaskTimerAsynchronously(this, pollInterval, pollInterval);
         getLogger().info("VotePlugin enabled.");
     }
 

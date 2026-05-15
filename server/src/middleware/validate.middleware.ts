@@ -5,10 +5,11 @@ export function validateBody(schema: ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
+      const errors = (result.error as ZodError).errors;
       res.status(400).json({
         error: 'VALIDATION_ERROR',
-        message: 'Invalid request body',
-        details: (result.error as ZodError).errors,
+        message: errors[0]?.message ?? 'Invalid request body',
+        details: errors,
         statusCode: 400,
       });
       return;

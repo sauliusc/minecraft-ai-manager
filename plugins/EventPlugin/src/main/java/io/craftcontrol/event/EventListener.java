@@ -7,6 +7,8 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -42,6 +44,24 @@ public class EventListener implements Listener {
         Location loc = event.getClickedBlock().getLocation();
         if (treasureHuntHandler.tryClaimChest(event.getPlayer(), loc)) {
             event.setCancelled(true);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        if (!buildBattleHandler.isActive()) return;
+        if (!buildBattleHandler.isInOwnPlot(event.getPlayer().getUniqueId(), event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cYou can only build within your assigned plot!");
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (!buildBattleHandler.isActive()) return;
+        if (!buildBattleHandler.isInOwnPlot(event.getPlayer().getUniqueId(), event.getBlock().getLocation())) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cYou can only break blocks within your assigned plot!");
         }
     }
 

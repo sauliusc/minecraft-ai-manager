@@ -30,6 +30,7 @@ model Challenge {
   title          String
   description    String
   type           ChallengeType
+  difficulty     Int                 @default(1)
   config         Json
   rewardId       String?
   reward         Reward?             @relation(fields: [rewardId], references: [id])

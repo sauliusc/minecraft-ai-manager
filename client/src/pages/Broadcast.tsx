@@ -4,6 +4,7 @@ import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
 
 type Channel = 'CHAT' | 'TITLE' | 'ACTION_BAR' | 'DISCORD';
+type TriggerType = 'DAILY_LOGIN' | 'MILESTONE' | 'LOW_ACTIVITY';
 
 interface BroadcastMessage {
   id: string;
@@ -16,6 +17,26 @@ interface BroadcastMessage {
   createdBy: string;
   createdAt: string;
 }
+
+interface BroadcastTrigger {
+  type: TriggerType;
+  enabled: boolean;
+  config: Record<string, unknown>;
+}
+
+const TRIGGER_LABELS: Record<TriggerType, string> = {
+  DAILY_LOGIN: 'Daily Login',
+  MILESTONE: 'Milestone',
+  LOW_ACTIVITY: 'Low Activity Alert',
+};
+
+const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
+  DAILY_LOGIN: 'Broadcast to a player when they log in for the first time each day.',
+  MILESTONE: 'Broadcast to all players when a server milestone is reached.',
+  LOW_ACTIVITY: 'Broadcast to admins when online player count drops below the threshold.',
+};
+
+const ALL_TRIGGER_TYPES: TriggerType[] = ['DAILY_LOGIN', 'MILESTONE', 'LOW_ACTIVITY'];
 
 const CHANNEL_LABELS: Record<Channel, string> = {
   CHAT: 'Chat',
@@ -55,6 +76,25 @@ export function Broadcast() {
   const [scheduledAt, setScheduledAt] = useState('');
   const [formError, setFormError] = useState('');
 
+  // Trigger config state: map from type → {enabled, config}
+  const [triggerEdits, setTriggerEdits] = useState<Record<string, { enabled: boolean; config: string }>>({});
+  const [triggerSaved, setTriggerSaved] = useState(false);
+
+  const triggers = useQuery<BroadcastTrigger[]>({
+    queryKey: ['broadcast', 'triggers'],
+    queryFn: () => api.get('/broadcast/triggers').then((r) => r.data),
+    enabled: isSuperAdmin,
+  });
+
+  const saveTriggers = useMutation({
+    mutationFn: (body: object[]) => api.put('/broadcast/triggers', body).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broadcast', 'triggers'] });
+      setTriggerSaved(true);
+      setTimeout(() => setTriggerSaved(false), 2000);
+    },
+  });
+
   const scheduled = useQuery<BroadcastMessage[]>({
     queryKey: ['broadcast', 'scheduled'],
     queryFn: () => api.get('/broadcast/scheduled').then((r) => r.data),
@@ -79,6 +119,34 @@ export function Broadcast() {
     mutationFn: (id: string) => api.delete(`/broadcast/scheduled/${id}`).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['broadcast'] }),
   });
+
+  function getTriggerState(type: TriggerType) {
+    const edit = triggerEdits[type];
+    if (edit) return edit;
+    const saved = triggers.data?.find((t) => t.type === type);
+    return {
+      enabled: saved?.enabled ?? false,
+      config: saved ? JSON.stringify(saved.config, null, 2) : '{}',
+    };
+  }
+
+  function setTriggerField(type: TriggerType, field: 'enabled' | 'config', value: boolean | string) {
+    setTriggerEdits((prev) => ({
+      ...prev,
+      [type]: { ...getTriggerState(type), [field]: value },
+    }));
+  }
+
+  function handleSaveTriggers(e: React.FormEvent) {
+    e.preventDefault();
+    const payload = ALL_TRIGGER_TYPES.map((type) => {
+      const { enabled, config } = getTriggerState(type);
+      let parsedConfig: Record<string, unknown>;
+      try { parsedConfig = JSON.parse(config); } catch { parsedConfig = {}; }
+      return { type, enabled, config: parsedConfig };
+    });
+    saveTriggers.mutate(payload);
+  }
 
   function toggleChannel(ch: Channel) {
     setChannels((prev) => {
@@ -263,6 +331,60 @@ export function Broadcast() {
           </div>
         )}
       </section>
+      {/* Automated Triggers */}
+      {isSuperAdmin && (
+        <section>
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Automated Triggers</h2>
+          {triggers.isLoading ? (
+            <p className="text-gray-400 text-sm">Loading…</p>
+          ) : (
+            <form onSubmit={handleSaveTriggers} className="bg-white rounded-lg shadow divide-y">
+              {ALL_TRIGGER_TYPES.map((type) => {
+                const { enabled, config } = getTriggerState(type);
+                return (
+                  <div key={type} className="p-5 space-y-3">
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="font-medium text-gray-800 text-sm">{TRIGGER_LABELS[type]}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{TRIGGER_DESCRIPTIONS[type]}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer flex-shrink-0">
+                        <input
+                          type="checkbox"
+                          className="sr-only peer"
+                          checked={enabled}
+                          onChange={(e) => setTriggerField(type, 'enabled', e.target.checked)}
+                        />
+                        <div className="w-10 h-5 bg-gray-200 peer-focus:ring-2 peer-focus:ring-indigo-400 rounded-full peer peer-checked:bg-indigo-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Config (JSON)</label>
+                      <textarea
+                        rows={3}
+                        value={config}
+                        onChange={(e) => setTriggerField(type, 'config', e.target.value)}
+                        className="w-full border border-gray-300 rounded px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="px-5 py-4 flex items-center gap-3">
+                <button
+                  type="submit"
+                  disabled={saveTriggers.isPending}
+                  className="px-4 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saveTriggers.isPending ? 'Saving…' : 'Save Triggers'}
+                </button>
+                {triggerSaved && <span className="text-sm text-green-600">Saved!</span>}
+                {saveTriggers.isError && <span className="text-sm text-red-600">Save failed</span>}
+              </div>
+            </form>
+          )}
+        </section>
+      )}
     </div>
   );
 }
