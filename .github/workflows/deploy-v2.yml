@@ -1,0 +1,125 @@
+name: Deploy V2 (Docker Compose)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # allow one-click manual deploy from GitHub UI
+
+concurrency:
+  group: deploy-v2
+  cancel-in-progress: false  # never cancel a running deploy mid-flight
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Run tests before deploying
+  # ────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB:       craftcontrol_test
+          POSTGRES_USER:     craftcontrol
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ["5432:5432"]
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports: ["6379:6379"]
+    defaults:
+      run:
+        working-directory: server
+    env:
+      DATABASE_URL: postgresql://craftcontrol:test_password@localhost:5432/craftcontrol_test
+      REDIS_URL:    redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npx prisma db push --force-reset
+      - run: npm test
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Deploy to production server
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: test
+    runs-on: ubuntu-latest
+    environment: production       # requires manual approval if configured
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host:        ${{ secrets.MGMT_VM_HOST }}
+          username:    ${{ secrets.MGMT_VM_SSH_USER }}
+          key:         ${{ secrets.MGMT_VM_SSH_KEY }}
+          port:        ${{ secrets.MGMT_VM_SSH_PORT || 22 }}
+          script_stop: true         # abort on first error
+          script: |
+            set -euo pipefail
+
+            # Pull latest code
+            cd /opt/craftcontrol
+            git pull --ff-only
+
+            # Run the same deploy script used locally
+            bash deploymentV2/scripts/deploy.sh
+
+            echo "✓ Deployment finished"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Build & deploy Minecraft plugins (only when plugins/ changes)
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy-plugins:
+    name: Deploy Plugins
+    needs: test
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' &&
+      contains(toJson(github.event.commits), '"plugins/'))
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Build plugins
+        run: mvn -f plugins/pom.xml clean package -DskipTests -q
+
+      - name: Upload JARs to game server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host:     ${{ secrets.GAME_VM_HOST }}
+          username: ${{ secrets.GAME_VM_SSH_USER }}
+          key:      ${{ secrets.GAME_VM_SSH_KEY }}
+          source:   "plugins/*/target/*-*.jar"
+          target:   "/opt/minecraft/plugins/"
+          strip_components: 3     # removes plugins/PluginName/target/ prefix
+
+      - name: Restart Minecraft via DiscoPanel
+        run: |
+          curl -s -f -X POST \
+            -H "Authorization: Bearer ${{ secrets.DISCOPANEL_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"signal":"restart"}' \
+            "https://${{ secrets.GAME_VM_HOST }}:3001/api/client/servers/${{ secrets.DISCOPANEL_SERVER_ID }}/power"
+          echo "✓ Minecraft server restart triggered"
