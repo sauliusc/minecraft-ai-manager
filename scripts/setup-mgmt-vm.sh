@@ -43,6 +43,7 @@ EMAIL=""
 DB_PASS=""
 SKIP_SSL=false
 GAME_VM_IP="10.10.10.10"
+REPO_URL=""
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -51,7 +52,8 @@ while [[ $# -gt 0 ]]; do
     --db-pass)  DB_PASS="$2";   shift 2 ;;
     --skip-ssl) SKIP_SSL=true;  shift   ;;
     --game-vm)  GAME_VM_IP="$2"; shift 2 ;;
-    *) err "Unknown option: $1\nUsage: sudo bash setup-mgmt-vm.sh --domain <host> --email <email> [--db-pass <pass>] [--skip-ssl] [--game-vm <ip>]" ;;
+    --repo)     REPO_URL="$2";  shift 2 ;;
+    *) err "Unknown option: $1\nUsage: sudo bash setup-mgmt-vm.sh --domain <host> --email <email> [--db-pass <pass>] [--skip-ssl] [--game-vm <ip>] [--repo <git-url>]" ;;
   esac
 done
 
@@ -163,10 +165,25 @@ systemctl enable redis-server
 systemctl restart redis-server
 log "  Redis configured and running."
 
-# ── 5. App directories ─────────────────────────────────────────────────────────
+# ── 5. App directories + code ──────────────────────────────────────────────────
 log "Step 5/12 — Creating application directories..."
-mkdir -p /var/www/craftcontrol/{api,public}
+mkdir -p /var/www/craftcontrol/public
 mkdir -p /var/backups/craftcontrol
+
+if [[ -n "$REPO_URL" ]]; then
+  if [[ -d /var/www/craftcontrol/api/.git ]]; then
+    log "  Repo already cloned — pulling latest..."
+    sudo -u www-data git -C /var/www/craftcontrol/api pull --ff-only
+  else
+    log "  Cloning repository from $REPO_URL..."
+    sudo -u www-data git clone "$REPO_URL" /var/www/craftcontrol/api
+  fi
+else
+  mkdir -p /var/www/craftcontrol/api
+  warn "No --repo supplied. Code directory created but empty."
+  warn "Clone manually: sudo -u www-data git clone <your-repo-url> /var/www/craftcontrol/api"
+fi
+
 chown -R www-data:www-data /var/www/craftcontrol
 chmod 750 /var/www/craftcontrol/api  # restrict .env from other users
 
@@ -314,13 +331,32 @@ echo "  .env location:  /var/www/craftcontrol/api/.env"
 echo ""
 echo "  Next steps:"
 echo "  1. Copy BRIDGE_SECRET to DiscoPanel env vars on game-vm (BRIDGE_SECRET variable)"
-echo "  2. Deploy API:"
-echo "       cd /var/www/craftcontrol/api"
-echo "       npm ci --omit=dev"
-echo "       npx prisma migrate deploy"
-echo "       pm2 start dist/index.js --name craftcontrol-api --user www-data"
-echo "       pm2 save"
-echo "  3. Deploy SPA:"
-echo "       rsync -av dist/ /var/www/craftcontrol/public/"
-echo "  4. Verify panel is accessible at https://${DOMAIN}"
+echo ""
+if [[ -z "$REPO_URL" ]]; then
+echo "  2. Clone the repo (--repo was not supplied — do this manually):"
+echo "       sudo -u www-data git clone <your-repo-url> /var/www/craftcontrol/api"
+echo ""
+else
+echo "  2. Code already cloned to /var/www/craftcontrol/api"
+echo ""
+fi
+echo "  3. Build and start the API:"
+echo "       cd /var/www/craftcontrol/api/server"
+echo "       sudo -u www-data npm ci --omit=dev"
+echo "       sudo -u www-data npm run build"
+echo "       sudo -u www-data npx prisma migrate deploy"
+echo "       sudo -u www-data pm2 start dist/index.js --name craftcontrol-api"
+echo "       sudo -u www-data pm2 save"
+echo ""
+echo "  4. Build and deploy the React panel:"
+echo "       cd /var/www/craftcontrol/api/client"
+echo "       sudo -u www-data npm ci"
+echo "       sudo -u www-data VITE_API_BASE_URL=/api npm run build"
+echo "       sudo cp -r dist/. /var/www/craftcontrol/public/"
+echo ""
+if [[ "$SKIP_SSL" == true ]]; then
+echo "  5. Open the panel at:  http://${DOMAIN}"
+else
+echo "  5. Open the panel at:  https://${DOMAIN}"
+fi
 echo -e "${GREEN}=================================================================${NC}"
