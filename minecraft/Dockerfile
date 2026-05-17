@@ -21,7 +21,7 @@ ENV EULA=TRUE \
     RCON_PORT=25575 \
     REPLACE_ENV_VARIABLES=TRUE
 
-# Plugin JARs — itzg copies /config → /data on every startup
+# Plugin JARs — itzg copies /config -> /data on every startup
 COPY --from=builder /jars/ /config/plugins/
 
 # Plugin config templates — env vars (${BRIDGE_SECRET} etc.) are substituted
