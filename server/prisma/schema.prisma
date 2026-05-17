@@ -426,3 +426,49 @@ enum BroadcastTriggerType {
   MILESTONE
   LOW_ACTIVITY
 }
+
+// ── AI features ───────────────────────────────────────────────────────────────
+
+model AiConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("ai_config")
+}
+
+model AiChallengeDraft {
+  id         String          @id @default(cuid())
+  payload    Json
+  confidence Float
+  reasoning  String
+  status     AiDraftStatus   @default(PENDING)
+  reviewedBy String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  @@index([status])
+  @@map("ai_challenge_drafts")
+}
+
+model AiEngagementScan {
+  id        String   @id @default(cuid())
+  results   Json
+  scannedAt DateTime @default(now())
+
+  @@map("ai_engagement_scans")
+}
+
+model AiChatScan {
+  id        String   @id @default(cuid())
+  results   Json
+  scannedAt DateTime @default(now())
+
+  @@map("ai_chat_scans")
+}
+
+enum AiDraftStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

@@ -56,6 +56,9 @@ export function Layout() {
           <Link to="/server" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm font-medium text-green-400">
             Minecraft Server
           </Link>
+          <Link to="/ai" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm font-medium text-indigo-400">
+            AI Features
+          </Link>
         </nav>
         <div className="px-4 py-3 border-t border-gray-700 text-xs text-gray-400">
           <p className="truncate">{user?.email}</p>
