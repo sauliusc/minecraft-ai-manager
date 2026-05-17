@@ -24,6 +24,7 @@ import { Broadcast } from './pages/Broadcast.js';
 import { Npcs } from './pages/Npcs.js';
 import { Cosmetics } from './pages/Cosmetics.js';
 import { Clans } from './pages/Clans.js';
+import { MinecraftServer } from './pages/MinecraftServer.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -55,6 +56,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/npcs" element={<Npcs />} />
                 <Route path="/cosmetics" element={<Cosmetics />} />
                 <Route path="/clans" element={<Clans />} />
+                <Route path="/server" element={<MinecraftServer />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Route>
