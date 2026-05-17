@@ -143,7 +143,7 @@ public class PlayerJoinListener implements Listener {
         for (var section : cfg.getMapList("starter_kit.items")) {
             try {
                 Material mat = Material.valueOf(section.get("material").toString());
-                int amount = Integer.parseInt(section.getOrDefault("amount", 1).toString());
+                int amount = Integer.parseInt(section.getOrDefault("amount", "1").toString());
                 items.add(new ItemStack(mat, amount));
             } catch (Exception ignored) {
             }
