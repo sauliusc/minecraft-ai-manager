@@ -28,8 +28,40 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # repo.papermc.io is blocked in some CI environments.
+      # Download the Paper server jar from the Downloads API (different host) and
+      # install it as paper-api in the local Maven repo so compilation succeeds.
+      # The server jar is a superset of the API — all compile-time symbols are present.
+      - name: Install Paper API into local Maven repo
+        run: |
+          PAPER_VERSION="1.21.4"
+          PAPER_MAVEN_VERSION="${PAPER_VERSION}-R0.1-SNAPSHOT"
+          LOCAL_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_MAVEN_VERSION}"
+
+          # Skip if already in the Maven cache (e.g. restored from actions/cache)
+          if find "${LOCAL_DIR}" -name "*.jar" -not -name "*sources*" 2>/dev/null | grep -q .; then
+            echo "Paper API already in local Maven cache — skipping download"
+            exit 0
+          fi
+
+          echo "Fetching latest Paper ${PAPER_VERSION} build number..."
+          BUILD=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds" \
+                  | python3 -c "import json,sys; print(json.load(sys.stdin)['builds'][-1]['build'])")
+          echo "Downloading paper-${PAPER_VERSION}-${BUILD}.jar ..."
+          curl -sf -L -o /tmp/paper.jar \
+            "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds/${BUILD}/downloads/paper-${PAPER_VERSION}-${BUILD}.jar"
+
+          mvn install:install-file -q \
+            -Dfile=/tmp/paper.jar \
+            -DgroupId=io.papermc.paper \
+            -DartifactId=paper-api \
+            -Dversion="${PAPER_MAVEN_VERSION}" \
+            -Dpackaging=jar
+          echo "Installed paper-api ${PAPER_MAVEN_VERSION} from server jar (build ${BUILD})"
+
       - name: Build all plugins
-        run: mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress
+        # -nsu: do not check remote repos for SNAPSHOT updates (use locally installed paper-api)
+        run: mvn -f plugins/pom.xml clean package -DskipTests -nsu --batch-mode --no-transfer-progress
 
       # Collect only the shaded/final JARs — skip -sources and -javadoc
       - name: Collect plugin JARs
