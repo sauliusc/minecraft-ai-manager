@@ -32,3 +32,8 @@ logs/
 
 # Prisma
 prisma/migrations/dev.db
+
+# Coverage reports
+coverage/
+deploymentV2/.env
+deploymentV2/backups/
