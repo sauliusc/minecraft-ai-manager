@@ -16,6 +16,7 @@ import { clansRouter } from './routes/clans.js';
 import { cosmeticsRouter } from './routes/cosmetics.js';
 import { voteRouter } from './routes/vote.js';
 import { minecraftRouter } from './routes/minecraft.js';
+import { aiRouter } from './routes/ai.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -66,6 +67,7 @@ app.use('/api/clans', clansRouter);
 app.use('/api/cosmetics', cosmeticsRouter);
 app.use('/api/vote', voteRouter);
 app.use('/api/minecraft', minecraftRouter);
+app.use('/api/ai', aiRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
