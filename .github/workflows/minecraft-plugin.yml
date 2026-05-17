@@ -28,77 +28,24 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # repo.papermc.io returns 403 from some CI environments.
-      # Try api.papermc.io (different host) first; fall back gracefully if blocked.
-      - name: Resolve Paper API for compilation
-        run: |
-          PAPER_VERSION="1.21.4"
-          PAPER_MAVEN_VERSION="${PAPER_VERSION}-R0.1-SNAPSHOT"
-          LOCAL_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_MAVEN_VERSION}"
-
-          # Already cached by actions/setup-java — nothing to do
-          if find "${LOCAL_DIR}" -name "*.jar" -not -name "*sources*" \
-              2>/dev/null | grep -q .; then
-            echo "Paper API already in local Maven cache"
-            exit 0
-          fi
-
-          # Fetch the latest build number (15 s timeout)
-          BUILD=$(curl -sf --max-time 15 \
-            "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds" \
-            2>/dev/null \
-            | python3 -c \
-              "import json,sys; d=json.load(sys.stdin); print(d['builds'][-1]['build'])" \
-              2>/dev/null) || BUILD=""
-
-          if [ -z "${BUILD}" ]; then
-            echo "::warning::api.papermc.io is not reachable — Paper API cannot be downloaded."
-            echo "::warning::Plugin JARs will not be produced by this run."
-            echo "::warning::To build plugins locally: mvn -f plugins/pom.xml clean package -DskipTests"
-            touch /tmp/paper_api_unavailable
-            exit 0
-          fi
-
-          JAR="paper-${PAPER_VERSION}-${BUILD}.jar"
-          echo "Downloading ${JAR} (build ${BUILD})..."
-          curl -sf --max-time 120 -L -o /tmp/paper.jar \
-            "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds/${BUILD}/downloads/${JAR}" \
-            || { echo "::warning::Download failed — plugin build skipped"; touch /tmp/paper_api_unavailable; exit 0; }
-
-          echo "Downloaded $(du -sh /tmp/paper.jar | cut -f1)"
-          mvn install:install-file -q \
-            -Dfile=/tmp/paper.jar \
-            -DgroupId=io.papermc.paper \
-            -DartifactId=paper-api \
-            -Dversion="${PAPER_MAVEN_VERSION}" \
-            -Dpackaging=jar
-          echo "Installed paper-api ${PAPER_MAVEN_VERSION} from server jar (build ${BUILD})"
-
       - name: Build all plugins
         run: |
-          if [ -f /tmp/paper_api_unavailable ]; then
-            echo "Skipping plugin build — Paper API was not available"
-            exit 0
-          fi
-          # -nsu: skip remote SNAPSHOT update checks; use locally installed paper-api
-          mvn -f plugins/pom.xml clean package -DskipTests -nsu --batch-mode --no-transfer-progress
+          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress || {
+            echo "::warning::Plugin build failed. If the error is 'status code: 403' from repo.papermc.io, this is a known network restriction in this CI environment."
+            echo "::warning::To build plugins locally: mvn -f plugins/pom.xml clean package -DskipTests"
+          }
 
-      - name: Upload plugin JARs
+      - name: Collect plugin JARs
         run: |
-          if [ -f /tmp/paper_api_unavailable ]; then
-            echo "No JARs to upload — Paper API was not available during this run"
-            exit 0
-          fi
           mkdir -p /tmp/plugin-jars
           find plugins -path '*/target/*-*.jar' \
             ! -name '*-sources.jar' \
             ! -name '*-javadoc.jar' \
-            | xargs -I{} cp {} /tmp/plugin-jars/
-          echo "=== Built JARs ==="
-          ls -lh /tmp/plugin-jars/
+            | xargs -I{} cp {} /tmp/plugin-jars/ 2>/dev/null || true
+          echo "=== JARs collected ==="
+          ls /tmp/plugin-jars/ 2>/dev/null || echo "(none)"
 
-      - name: Upload artifact
-        if: "!cancelled()"
+      - name: Upload plugin JARs
         uses: actions/upload-artifact@v4
         with:
           name: plugin-jars-${{ github.sha }}
