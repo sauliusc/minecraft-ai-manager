@@ -28,39 +28,52 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
-      # repo.papermc.io is blocked in some CI environments.
-      # Download the Paper server jar from the Downloads API (different host) and
-      # install it as paper-api in the local Maven repo so compilation succeeds.
-      # The server jar is a superset of the API — all compile-time symbols are present.
+      # repo.papermc.io returns 403 from some CI environments.
+      # We download the Paper server jar from the Downloads API instead and
+      # install it as paper-api — the server jar is a superset of the API.
       - name: Install Paper API into local Maven repo
+        id: paper-api
         run: |
+          set -euo pipefail
           PAPER_VERSION="1.21.4"
           PAPER_MAVEN_VERSION="${PAPER_VERSION}-R0.1-SNAPSHOT"
           LOCAL_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_MAVEN_VERSION}"
 
-          # Skip if already in the Maven cache (e.g. restored from actions/cache)
-          if find "${LOCAL_DIR}" -name "*.jar" -not -name "*sources*" 2>/dev/null | grep -q .; then
+          # Fast path: already cached by actions/setup-java
+          if find "${LOCAL_DIR}" -name "*.jar" ! -name "*sources*" ! -name "*javadoc*" 2>/dev/null | grep -q .; then
             echo "Paper API already in local Maven cache — skipping download"
             exit 0
           fi
 
-          echo "Fetching latest Paper ${PAPER_VERSION} build number..."
-          BUILD=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds" \
-                  | python3 -c "import json,sys; print(json.load(sys.stdin)['builds'][-1]['build'])")
-          echo "Downloading paper-${PAPER_VERSION}-${BUILD}.jar ..."
-          curl -sf -L -o /tmp/paper.jar \
-            "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds/${BUILD}/downloads/paper-${PAPER_VERSION}-${BUILD}.jar"
+          echo "--- Network diagnostics ---"
+          curl -sf --max-time 5 "https://api.papermc.io/v2/projects/paper" \
+            && echo "api.papermc.io: reachable" \
+            || echo "api.papermc.io: UNREACHABLE (will try anyway)"
 
+          echo "--- Fetching latest Paper ${PAPER_VERSION} build ---"
+          BUILDS_JSON=$(curl -sf --max-time 30 \
+            "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds")
+          BUILD=$(echo "${BUILDS_JSON}" | python3 -c \
+            "import json,sys; d=json.load(sys.stdin); print(d['builds'][-1]['build'])")
+          echo "Using Paper build ${BUILD}"
+
+          JAR_NAME="paper-${PAPER_VERSION}-${BUILD}.jar"
+          echo "--- Downloading ${JAR_NAME} ---"
+          curl -sf --max-time 120 -L -o /tmp/paper.jar \
+            "https://api.papermc.io/v2/projects/paper/versions/${PAPER_VERSION}/builds/${BUILD}/downloads/${JAR_NAME}"
+          echo "Downloaded $(du -sh /tmp/paper.jar | cut -f1)"
+
+          echo "--- Installing to local Maven repo ---"
           mvn install:install-file -q \
             -Dfile=/tmp/paper.jar \
             -DgroupId=io.papermc.paper \
             -DartifactId=paper-api \
             -Dversion="${PAPER_MAVEN_VERSION}" \
             -Dpackaging=jar
-          echo "Installed paper-api ${PAPER_MAVEN_VERSION} from server jar (build ${BUILD})"
+          echo "Installed paper-api ${PAPER_MAVEN_VERSION}"
 
       - name: Build all plugins
-        # -nsu: do not check remote repos for SNAPSHOT updates (use locally installed paper-api)
+        # -nsu: skip remote SNAPSHOT update checks — use the locally installed paper-api
         run: mvn -f plugins/pom.xml clean package -DskipTests -nsu --batch-mode --no-transfer-progress
 
       # Collect only the shaded/final JARs — skip -sources and -javadoc
