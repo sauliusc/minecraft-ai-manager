@@ -1,0 +1,11 @@
+bridge:
+  port: 25580
+  bind: "0.0.0.0"
+  secret: "${BRIDGE_SECRET}"
+
+api:
+  base_url: "http://api:3000/api"
+  service_token: "${BRIDGE_SECRET}"
+  timeout_ms: 5000
+  retry_max: 3
+  retry_backoff_ms: 500

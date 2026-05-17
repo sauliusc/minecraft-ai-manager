@@ -2,10 +2,6 @@
 # Start everything: docker compose up -d
 # View logs:        docker compose logs -f
 # Stop:             docker compose down
-#
-# First-time only: copy BRIDGE_SECRET to your Minecraft server
-#   grep BRIDGE_SECRET .env
-#   DiscoPanel → Startup → Environment Variables → BRIDGE_SECRET=<value>
 
 services:
 
@@ -50,6 +46,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
       NODE_ENV:               production
       PORT:                   3000
@@ -60,7 +58,10 @@ services:
       JWT_EXPIRES_IN:         ${JWT_EXPIRES_IN:-15m}
       JWT_REFRESH_EXPIRES_IN: ${JWT_REFRESH_EXPIRES_IN:-7d}
       BRIDGE_SECRET:          ${BRIDGE_SECRET}
-      MINECRAFT_BRIDGE_URL:   http://${GAME_VM_HOST:-127.0.0.1}:25580
+      MINECRAFT_BRIDGE_URL:   http://minecraft:25580
+      MINECRAFT_HOST:         minecraft
+      RCON_PORT:              ${RCON_PORT:-25575}
+      RCON_PASSWORD:          ${RCON_PASSWORD}
       ADMIN_EMAIL:            ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD:         ${ADMIN_PASSWORD:-}
     healthcheck:
@@ -79,6 +80,35 @@ services:
     ports:
       - "${HTTP_PORT:-80}:80"
 
+  # ── Minecraft server ────────────────────────────────────────────────────────
+  minecraft:
+    image: ghcr.io/sauliusc/minecraft-ai-manager/minecraft:latest
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "25565:25565"
+    volumes:
+      - minecraft_data:/data
+    environment:
+      EULA:          "TRUE"
+      TYPE:          PAPER
+      VERSION:       "1.21.4"
+      MEMORY:        ${MINECRAFT_MEMORY:-4G}
+      ENABLE_RCON:   "true"
+      RCON_PORT:     ${RCON_PORT:-25575}
+      RCON_PASSWORD: ${RCON_PASSWORD}
+      BRIDGE_SECRET: ${BRIDGE_SECRET}
+      # ONLINE_MODE: "false"   # uncomment to allow non-premium accounts
+    healthcheck:
+      test: ["CMD-SHELL", "mc-monitor status --host localhost --port 25565 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
 volumes:
   postgres_data:
   redis_data:
+  minecraft_data:
