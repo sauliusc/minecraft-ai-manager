@@ -1,0 +1,6 @@
+# Exclude everything that isn't needed for the minecraft image build.
+# The api and web images use sub-directory contexts so this only matters
+# for the root-context minecraft build.
+*
+!jars/
+!minecraft/config/
