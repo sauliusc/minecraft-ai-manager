@@ -125,7 +125,7 @@ router.post('/command', async (req: Request, res: Response): Promise<void> => {
   try {
     const output = await withRcon((rcon) => rcon.send(command.trim()));
     res.json({ output: stripAnsi(output) });
-  } catch (err) {
+  } catch {
     res.status(503).json({ error: 'RCON_UNAVAILABLE', message: 'Server is not accepting commands right now' });
   }
 });
