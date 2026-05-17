@@ -61,6 +61,7 @@ jobs:
     name: Deploy
     needs: test
     runs-on: ubuntu-latest
+    if: ${{ secrets.MGMT_VM_HOST != '' }}
     environment: production       # requires manual approval if configured
 
     steps:
@@ -93,6 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     if: >
       github.event_name == 'push' &&
+      secrets.GAME_VM_HOST != '' &&
       contains(toJson(github.event.commits), '"plugins/'))
     steps:
       - uses: actions/checkout@v4
