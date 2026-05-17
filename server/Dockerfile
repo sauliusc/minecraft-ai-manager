@@ -22,10 +22,14 @@ COPY --from=builder /app/node_modules    ./node_modules
 COPY --from=builder /app/prisma          ./prisma
 COPY --from=builder /app/package.json    .
 
+COPY entrypoint.sh      /entrypoint.sh
+COPY scripts/seed-admin.js ./scripts/seed-admin.js
+RUN chmod +x /entrypoint.sh
+
 USER app
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
 
 EXPOSE 3000
-CMD ["node", "dist/index.js"]
+ENTRYPOINT ["/entrypoint.sh"]

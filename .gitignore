@@ -10,7 +10,8 @@ dist/
 .next/
 
 # Environment
-.env
+# Root .env is committed with safe defaults — do NOT ignore it
+# deploymentV2/.env is gitignored separately (contains production secrets)
 .env.local
 .env.*.local
 
