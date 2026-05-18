@@ -55,7 +55,7 @@ broadcastRouter.post('/', authMiddleware, validateBody(createSchema), async (req
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : null,
         status: status as any,
         sentAt,
-        createdBy: user.id,
+        createdBy: user.sub,  // JWT payload uses 'sub', not 'id'
       },
     });
 
