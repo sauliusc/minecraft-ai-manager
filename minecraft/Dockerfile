@@ -16,8 +16,12 @@ ENV EULA=TRUE \
 #   - JustTpa          (Modrinth: just-tpa)
 # Excluded (Forge/Fabric — incompatible with Paper):
 #   BuildCraft, Waystones, Domestication Innovation, Bigger Beacons, Sophisticated Backpacks
-COPY jars/ /config/plugins/
+#
+# NOTE: itzg copies /plugins/ -> /data/plugins/ (where Paper loads plugins from).
+#       /config/ goes to /data/config/ — Paper never looks there for plugin JARs.
+COPY jars/ /plugins/
 
-# Plugin config templates — env vars (${BRIDGE_SECRET} etc.) are substituted
-# by itzg at startup before the server reads them
-COPY minecraft/config/ /config/
+# Plugin config templates land in /data/plugins/ alongside the JARs.
+# REPLACE_ENV_VARIABLES=TRUE with the default CFG_ prefix replaces ${CFG_*}
+# tokens in all files under /data/ before the server starts.
+COPY minecraft/config/plugins/ /plugins/

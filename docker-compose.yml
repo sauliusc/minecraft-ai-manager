@@ -100,6 +100,7 @@ services:
       RCON_PORT:     ${RCON_PORT:-25575}
       RCON_PASSWORD: ${RCON_PASSWORD}
       BRIDGE_SECRET: ${BRIDGE_SECRET}
+      CFG_BRIDGE_SECRET: ${BRIDGE_SECRET}
       # ONLINE_MODE: "false"   # uncomment to allow non-premium accounts
     healthcheck:
       test: ["CMD-SHELL", "mc-monitor status --host localhost --port 25565 || exit 1"]
