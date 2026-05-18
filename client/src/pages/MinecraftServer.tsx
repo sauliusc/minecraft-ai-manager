@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
 
+interface VersionInfo { version: string; gitSha: string; }
+
 interface ServerStatus {
   state: 'running' | 'starting' | 'exited' | 'not_found' | string;
   players: string[];
@@ -53,6 +55,12 @@ export function MinecraftServer() {
   const [commandLog, setCommandLog] = useState<{ cmd: string; out: string }[]>([]);
   const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
+
+  const { data: versionInfo } = useQuery<VersionInfo>({
+    queryKey: ['app-version'],
+    queryFn: () => api.get('/version').then((r) => r.data),
+    staleTime: Infinity,
+  });
 
   const { data: status, isLoading: statusLoading } = useQuery<ServerStatus>({
     queryKey: ['mc-status'],
@@ -105,7 +113,14 @@ export function MinecraftServer() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800">Minecraft Server</h1>
+      <div className="flex items-center gap-3">
+        <h1 className="text-2xl font-bold text-gray-800">Minecraft Server</h1>
+        {versionInfo && (
+          <span className="text-xs font-mono bg-gray-100 text-gray-500 px-2 py-0.5 rounded">
+            CraftControl v{versionInfo.version} · {versionInfo.gitSha}
+          </span>
+        )}
+      </div>
 
       {/* ── Status card ──────────────────────────────────────────────────── */}
       <div className="bg-white rounded-lg shadow p-5 flex flex-wrap gap-8 items-center">

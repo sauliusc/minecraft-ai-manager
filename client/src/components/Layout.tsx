@@ -1,10 +1,17 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../store/auth.js';
 import { api } from '../lib/api.js';
 
 export function Layout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+
+  const { data: versionData } = useQuery<{ version: string; gitSha: string }>({
+    queryKey: ['app-version'],
+    queryFn: () => api.get('/version').then((r) => r.data),
+    staleTime: Infinity,
+  });
 
   const handleLogout = async () => {
     await api.post('/auth/logout').catch(() => {});
@@ -65,6 +72,12 @@ export function Layout() {
           <button onClick={handleLogout} className="mt-1 text-red-400 hover:text-red-300">
             Sign out
           </button>
+          {versionData && (
+            <p className="mt-2 text-gray-600 font-mono">
+              v{versionData.version}
+              <span className="ml-1 text-gray-700">{versionData.gitSha}</span>
+            </p>
+          )}
         </div>
       </aside>
       <main className="flex-1 overflow-auto p-6">

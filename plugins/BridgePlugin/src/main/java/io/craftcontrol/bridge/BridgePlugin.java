@@ -39,7 +39,7 @@ public class BridgePlugin extends JavaPlugin {
             getLogger().severe("Failed to start bridge server: " + e.getMessage());
         }
 
-        getLogger().info("BridgePlugin enabled.");
+        getLogger().info("CraftControl BridgePlugin v" + getDescription().getVersion() + " enabled.");
     }
 
     @Override

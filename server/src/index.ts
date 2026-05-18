@@ -1,4 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+const APP_VERSION: string = pkg.version;
+const GIT_SHA: string = (process.env.GIT_SHA ?? 'dev').slice(0, 7);
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 import { authRouter } from './routes/auth.js';
@@ -50,6 +56,10 @@ app.use(cookieParser());
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/version', (_req, res) => {
+  res.json({ version: APP_VERSION, gitSha: GIT_SHA });
 });
 
 app.use('/api/auth', authRouter);

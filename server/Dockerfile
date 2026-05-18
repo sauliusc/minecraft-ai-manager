@@ -31,5 +31,8 @@ RUN chmod +x /entrypoint.sh
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
   CMD wget -qO- http://localhost:3000/api/health || exit 1
 
+ARG GIT_SHA=dev
+ENV GIT_SHA=$GIT_SHA
+
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]
