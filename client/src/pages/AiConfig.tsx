@@ -5,8 +5,17 @@ import { useAuthStore } from '../store/auth.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+type AiProvider = 'anthropic' | 'openrouter' | 'gemini';
+
 interface AiCfg {
+  provider?: AiProvider;
+  // Anthropic
   api_key?: string;
+  // OpenRouter
+  openrouter_api_key?: string;
+  // Gemini
+  gemini_api_key?: string;
+  // Models (override provider defaults)
   generator_model?: string;
   inference_model?: string;
   challenge_count?: string;
@@ -15,6 +24,30 @@ interface AiCfg {
   enable_rewards?: string;
   enable_moderation?: string;
 }
+
+const PROVIDERS: { value: AiProvider; label: string; placeholder: string }[] = [
+  { value: 'anthropic',  label: 'Anthropic (Claude)',  placeholder: 'sk-ant-…' },
+  { value: 'openrouter', label: 'OpenRouter',          placeholder: 'sk-or-…' },
+  { value: 'gemini',     label: 'Google Gemini',       placeholder: 'AIza…' },
+];
+
+const PROVIDER_KEY_FIELD: Record<AiProvider, keyof AiCfg> = {
+  anthropic:  'api_key',
+  openrouter: 'openrouter_api_key',
+  gemini:     'gemini_api_key',
+};
+
+const PROVIDER_MODEL_HINTS: Record<AiProvider, { generator: string; inference: string }> = {
+  anthropic:  { generator: 'claude-sonnet-4-6',           inference: 'claude-haiku-4-5' },
+  openrouter: { generator: 'anthropic/claude-sonnet-4-6', inference: 'anthropic/claude-haiku-4-5' },
+  gemini:     { generator: 'gemini-2.5-pro',              inference: 'gemini-2.0-flash' },
+};
+
+const PROVIDER_LABELS: Record<AiProvider, string> = {
+  anthropic:  'Claude API',
+  openrouter: 'OpenRouter',
+  gemini:     'Gemini',
+};
 
 interface ChallengeDraft {
   id: string;
@@ -120,19 +153,65 @@ function SettingsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const toggle = (k: keyof AiCfg) => set(k, val(k) === 'false' ? 'true' : 'false');
   const isOn = (k: keyof AiCfg) => val(k) !== 'false';
 
+  const provider: AiProvider = (val('provider') as AiProvider) || 'anthropic';
+  const keyField = PROVIDER_KEY_FIELD[provider];
+  const modelHints = PROVIDER_MODEL_HINTS[provider];
+  const providerInfo = PROVIDERS.find((p) => p.value === provider)!;
+  const keySaved = !!cfg[keyField];
+
   return (
     <div className="space-y-6 max-w-xl">
       <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
-        Settings are stored in the database. The API key is never returned to the browser after saving.
+        Settings are stored in the database. API keys are never returned to the browser after saving.
       </div>
 
       <section className="space-y-3">
-        <h3 className="font-semibold text-gray-700">Anthropic API Key</h3>
+        <h3 className="font-semibold text-gray-700">AI Provider</h3>
+        <div className="grid grid-cols-3 gap-2">
+          {PROVIDERS.map((p) => (
+            <button
+              key={p.value}
+              type="button"
+              disabled={!isSuperAdmin}
+              onClick={() => set('provider', p.value)}
+              className={`px-3 py-2 rounded border text-sm font-medium transition-colors ${
+                provider === p.value
+                  ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                  : 'border-gray-200 text-gray-600 hover:border-gray-300'
+              } disabled:opacity-50 disabled:cursor-not-allowed`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {provider === 'openrouter' && (
+          <p className="text-xs text-gray-500">
+            OpenRouter lets you use any model (Claude, GPT-4o, Gemini, Llama, etc.) through a single API.
+            Get a key at <span className="font-mono">openrouter.ai</span>.
+          </p>
+        )}
+        {provider === 'gemini' && (
+          <p className="text-xs text-gray-500">
+            Uses Google's Gemini API via the OpenAI-compatible endpoint.
+            Get a key at <span className="font-mono">aistudio.google.com</span>.
+          </p>
+        )}
+        {provider === 'anthropic' && (
+          <p className="text-xs text-gray-500">
+            Uses Anthropic's Claude API directly.
+            Get a key at <span className="font-mono">console.anthropic.com</span>.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="font-semibold text-gray-700">{providerInfo.label} API Key</h3>
         <input
           type="password"
-          placeholder={cfg['api_key'] ? 'Key saved — paste new key to replace' : 'sk-ant-…'}
-          value={form['api_key'] ?? ''}
-          onChange={(e) => set('api_key', e.target.value)}
+          placeholder={keySaved ? 'Key saved — paste new key to replace' : providerInfo.placeholder}
+          value={(form[keyField] as string | undefined) ?? ''}
+          onChange={(e) => set(keyField, e.target.value)}
           className="w-full border rounded px-3 py-2 text-sm font-mono"
           disabled={!isSuperAdmin}
         />
@@ -140,6 +219,7 @@ function SettingsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
 
       <section className="space-y-3">
         <h3 className="font-semibold text-gray-700">Models</h3>
+        <p className="text-xs text-gray-400">Leave blank to use provider defaults.</p>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 block mb-1">Generator (complex tasks)</label>
@@ -147,7 +227,7 @@ function SettingsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               className="w-full border rounded px-3 py-2 text-sm"
               value={val('generator_model')}
               onChange={(e) => set('generator_model', e.target.value)}
-              placeholder="claude-sonnet-4-6"
+              placeholder={modelHints.generator}
               disabled={!isSuperAdmin}
             />
           </div>
@@ -157,7 +237,7 @@ function SettingsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               className="w-full border rounded px-3 py-2 text-sm"
               value={val('inference_model')}
               onChange={(e) => set('inference_model', e.target.value)}
-              placeholder="claude-haiku-4-5"
+              placeholder={modelHints.inference}
               disabled={!isSuperAdmin}
             />
           </div>
@@ -622,11 +702,19 @@ export function AiConfig() {
   const isSuperAdmin = user?.role === 'SUPER_ADMIN';
   const [tab, setTab] = useState<Tab>('Settings');
 
+  const { data: configData } = useQuery<{ data: AiCfg }>({
+    queryKey: ['ai-config'],
+    queryFn: () => api.get('/ai/config').then((r) => r.data),
+  });
+  const activeProvider: AiProvider = (configData?.data?.provider as AiProvider) ?? 'anthropic';
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold text-gray-800">AI Features</h1>
-        <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 font-semibold">Claude API</span>
+        <span className="px-2 py-0.5 text-xs rounded-full bg-indigo-100 text-indigo-700 font-semibold">
+          {PROVIDER_LABELS[activeProvider]}
+        </span>
       </div>
 
       {/* Tab bar */}

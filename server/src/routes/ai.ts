@@ -21,10 +21,15 @@ function isSuperAdmin(req: Request): boolean {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
+const MASKED = '••••••••';
+const API_KEY_FIELDS = ['api_key', 'openrouter_api_key', 'gemini_api_key'] as const;
+
 router.get('/config', async (_req: Request, res: Response): Promise<void> => {
   const cfg = await getAiConfig();
-  // Never expose the raw API key value
-  const safe = { ...cfg, api_key: cfg['api_key'] ? '••••••••' : '' };
+  const safe = { ...cfg };
+  for (const field of API_KEY_FIELDS) {
+    safe[field] = cfg[field] ? MASKED : '';
+  }
   res.json({ data: safe });
 });
 
@@ -34,8 +39,9 @@ router.put('/config', async (req: Request, res: Response): Promise<void> => {
     return;
   }
   const updates = req.body as Record<string, string>;
-  // Don't overwrite the key if the masked placeholder is sent back
-  if (updates['api_key'] === '••••••••') delete updates['api_key'];
+  for (const field of API_KEY_FIELDS) {
+    if (updates[field] === MASKED) delete updates[field];
+  }
   await setAiConfig(updates);
   res.json({ ok: true });
 });

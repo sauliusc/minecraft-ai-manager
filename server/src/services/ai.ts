@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -18,19 +19,78 @@ export async function setAiConfig(updates: Record<string, string>): Promise<void
   );
 }
 
-function makeClient(apiKey: string): Anthropic {
-  return new Anthropic({ apiKey });
-}
-
-async function getClient(): Promise<{ client: Anthropic; cfg: Record<string, string> }> {
-  const cfg = await getAiConfig();
-  const apiKey = cfg['api_key'] ?? process.env.ANTHROPIC_API_KEY ?? '';
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
-  return { client: makeClient(apiKey), cfg };
-}
-
 function isEnabled(cfg: Record<string, string>, feature: string): boolean {
   return cfg[`enable_${feature}`] !== 'false';
+}
+
+// ── Provider defaults ──────────────────────────────────────────────────────────
+
+const PROVIDER_DEFAULTS: Record<string, { generator: string; inference: string }> = {
+  anthropic:   { generator: 'claude-sonnet-4-6',            inference: 'claude-haiku-4-5' },
+  openrouter:  { generator: 'anthropic/claude-sonnet-4-6',  inference: 'anthropic/claude-haiku-4-5' },
+  gemini:      { generator: 'gemini-2.5-pro',               inference: 'gemini-2.0-flash' },
+};
+
+function resolveModel(cfg: Record<string, string>, role: 'generator' | 'inference'): string {
+  if (cfg[`${role}_model`]) return cfg[`${role}_model`];
+  const provider = cfg['provider'] ?? 'anthropic';
+  return PROVIDER_DEFAULTS[provider]?.[role] ?? (role === 'generator' ? 'claude-sonnet-4-6' : 'claude-haiku-4-5');
+}
+
+// ── Unified LLM caller ─────────────────────────────────────────────────────────
+
+async function callLLM(
+  cfg: Record<string, string>,
+  opts: { system: string; user: string; model: string; maxTokens: number }
+): Promise<string> {
+  const provider = cfg['provider'] ?? 'anthropic';
+  const { system, user, model, maxTokens } = opts;
+
+  if (provider === 'anthropic') {
+    const apiKey = cfg['api_key'] ?? process.env.ANTHROPIC_API_KEY ?? '';
+    if (!apiKey) throw new Error('Anthropic API key not configured');
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model,
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: user }],
+    });
+    return (response.content[0] as { type: string; text: string }).text.trim();
+  }
+
+  if (provider === 'openrouter') {
+    const apiKey = cfg['openrouter_api_key'] ?? '';
+    if (!apiKey) throw new Error('OpenRouter API key not configured');
+    const client = new OpenAI({ apiKey, baseURL: 'https://openrouter.ai/api/v1' });
+    const response = await client.chat.completions.create({
+      model,
+      max_tokens: maxTokens,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    });
+    return (response.choices[0].message.content ?? '').trim();
+  }
+
+  if (provider === 'gemini') {
+    const apiKey = cfg['gemini_api_key'] ?? '';
+    if (!apiKey) throw new Error('Gemini API key not configured');
+    const client = new OpenAI({
+      apiKey,
+      baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/',
+    });
+    const response = await client.chat.completions.create({
+      model,
+      max_tokens: maxTokens,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    });
+    return (response.choices[0].message.content ?? '').trim();
+  }
+
+  throw new Error(`Unknown AI provider: "${provider}"`);
+}
+
+function stripJsonFences(raw: string): string {
+  return raw.replace(/^```json\n?/, '').replace(/\n?```$/, '');
 }
 
 // ── Challenge Generator ────────────────────────────────────────────────────────
@@ -51,17 +111,19 @@ export async function generateChallengeDrafts(
   existingTitles: string[],
   analyticsSnapshot: string
 ): Promise<{ payload: ChallengeDraftPayload; confidence: number; reasoning: string }[]> {
-  const { client, cfg } = await getClient();
+  const cfg = await getAiConfig();
   if (!isEnabled(cfg, 'challenges')) throw new Error('Challenge generator is disabled');
 
-  const model = cfg['generator_model'] ?? 'claude-sonnet-4-6';
+  const model = resolveModel(cfg, 'generator');
   const count = parseInt(cfg['challenge_count'] ?? '3');
 
-  const systemPrompt = `You are a Minecraft challenge designer for a Paper 1.21 server management system.
+  const raw = await callLLM(cfg, {
+    model,
+    maxTokens: 2000,
+    system: `You are a Minecraft challenge designer for a Paper 1.21 server management system.
 Generate creative, balanced challenges that fit the server's current engagement patterns.
-Always respond with valid JSON only — no markdown, no explanation outside the JSON array.`;
-
-  const userPrompt = `Generate exactly ${count} Minecraft challenge objects as a JSON array.
+Always respond with valid JSON only — no markdown, no explanation outside the JSON array.`,
+    user: `Generate exactly ${count} Minecraft challenge objects as a JSON array.
 
 Challenge types available: BLOCK_BREAK, KILL_MOB, CRAFT_ITEM, TRAVEL, CUSTOM
 Quest categories: DAILY, WEEKLY, SIDE
@@ -97,17 +159,10 @@ Return a JSON array of exactly ${count} objects, each with these fields:
   "activeUntil": ISO string,
   "confidence": 0.0-1.0,
   "reasoning": string (1 sentence why this challenge fits)
-}`;
-
-  const response = await client.messages.create({
-    model,
-    max_tokens: 2000,
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userPrompt }],
+}`,
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text.trim();
-  const parsed = JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+  const parsed = JSON.parse(stripJsonFences(raw));
   const items = Array.isArray(parsed) ? parsed : parsed.challenges ?? [];
 
   return items.map((item: ChallengeDraftPayload & { confidence: number; reasoning: string }) => ({
@@ -149,10 +204,10 @@ export async function runEngagementScan(
     daysSinceReward: number;
   }[]
 ): Promise<EngagementResult[]> {
-  const { client, cfg } = await getClient();
+  const cfg = await getAiConfig();
   if (!isEnabled(cfg, 'engagement')) throw new Error('Engagement analysis is disabled');
 
-  const model = cfg['generator_model'] ?? 'claude-sonnet-4-6';
+  const model = resolveModel(cfg, 'generator');
 
   const playerData = players
     .map(
@@ -164,28 +219,22 @@ export async function runEngagementScan(
     )
     .join('\n');
 
-  const response = await client.messages.create({
+  const raw = await callLLM(cfg, {
     model,
-    max_tokens: 4000,
+    maxTokens: 4000,
     system:
-      'You are a player retention analyst for a Minecraft server. Score each player\'s churn risk 0.0–1.0. ' +
+      "You are a player retention analyst for a Minecraft server. Score each player's churn risk 0.0–1.0. " +
       'Return only a JSON array, no markdown.',
-    messages: [
-      {
-        role: 'user',
-        content: `Score these ${players.length} players for churn risk. For each return:
+    user: `Score these ${players.length} players for churn risk. For each return:
 { "playerUuid": string, "username": string, "riskScore": 0.0-1.0, "reasoning": string (1 sentence), "recommendedAction": string (1 short action) }
 
 Players:
 ${playerData}
 
 Return JSON array only.`,
-      },
-    ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text.trim();
-  const results = JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+  const results = JSON.parse(stripJsonFences(raw));
   return Array.isArray(results) ? results : results.players ?? [];
 }
 
@@ -213,19 +262,16 @@ export async function suggestRewards(
   },
   catalogue: { id: string; name: string; type: string; rarity: string }[]
 ): Promise<RewardSuggestion[]> {
-  const { client, cfg } = await getClient();
+  const cfg = await getAiConfig();
   if (!isEnabled(cfg, 'rewards')) throw new Error('Reward suggestions are disabled');
 
-  const model = cfg['inference_model'] ?? 'claude-haiku-4-5';
+  const model = resolveModel(cfg, 'inference');
 
-  const response = await client.messages.create({
+  const raw = await callLLM(cfg, {
     model,
-    max_tokens: 800,
+    maxTokens: 800,
     system: 'You are a reward recommendation engine for a Minecraft server. Return only JSON, no markdown.',
-    messages: [
-      {
-        role: 'user',
-        content: `Recommend exactly 3 rewards for this player from the catalogue below.
+    user: `Recommend exactly 3 rewards for this player from the catalogue below.
 
 Player: ${player.username} (${player.tier} tier)
 - Streak: ${player.currentStreak} days
@@ -239,12 +285,9 @@ ${catalogue.map((r) => `${r.id} | ${r.name} | ${r.type} | ${r.rarity}`).join('\n
 
 Return JSON array of exactly 3:
 [{ "rewardId": string, "name": string, "type": string, "rarity": string, "reason": string }]`,
-      },
-    ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text.trim();
-  return JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+  return JSON.parse(stripJsonFences(raw));
 }
 
 // ── Chat Moderation Scanner ────────────────────────────────────────────────────
@@ -263,10 +306,10 @@ export interface ChatScanResult {
 export async function scanChatMessages(
   messages: { id: string; playerId: string; username: string; message: string; context: string[] }[]
 ): Promise<ChatScanResult[]> {
-  const { client, cfg } = await getClient();
+  const cfg = await getAiConfig();
   if (!isEnabled(cfg, 'moderation')) throw new Error('Chat moderation scanner is disabled');
 
-  const model = cfg['inference_model'] ?? 'claude-haiku-4-5';
+  const model = resolveModel(cfg, 'inference');
 
   const formatted = messages
     .map(
@@ -276,24 +319,18 @@ export async function scanChatMessages(
     )
     .join('\n');
 
-  const response = await client.messages.create({
+  const raw = await callLLM(cfg, {
     model,
-    max_tokens: 3000,
+    maxTokens: 3000,
     system:
       'You are a Minecraft chat moderation classifier. Categories: CLEAN, MILD_TOXICITY, HATE_SPEECH, PERSONAL_THREAT, SPAM. ' +
       'Return only a JSON array, no markdown.',
-    messages: [
-      {
-        role: 'user',
-        content: `Classify each message. Return JSON array:
+    user: `Classify each message. Return JSON array:
 [{ "logId": string, "playerId": string, "username": string, "message": string, "category": string, "reasoning": string }]
 
 Messages:
 ${formatted}`,
-      },
-    ],
   });
 
-  const raw = (response.content[0] as { type: string; text: string }).text.trim();
-  return JSON.parse(raw.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+  return JSON.parse(stripJsonFences(raw));
 }

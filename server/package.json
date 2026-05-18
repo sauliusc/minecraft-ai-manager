@@ -21,6 +21,7 @@
     "express-rate-limit": "^7.4.0",
     "ioredis": "^5.4.0",
     "jsonwebtoken": "^9.0.2",
+    "openai": "^6.38.0",
     "rcon-client": "^4.2.5",
     "zod": "^3.24.0"
   },
