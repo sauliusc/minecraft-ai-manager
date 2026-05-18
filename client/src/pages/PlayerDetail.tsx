@@ -34,7 +34,7 @@ export function PlayerDetail() {
   const [actionExpiry, setActionExpiry] = useState('');
   const [actionError, setActionError] = useState('');
 
-  const { data: player, isLoading } = useQuery({
+  const { data: player, isLoading, isError } = useQuery({
     queryKey: ['player', id],
     queryFn: () => api.get(`/players/${id}`).then((r) => r.data),
     enabled: !!id,
@@ -99,7 +99,16 @@ export function PlayerDetail() {
   }
 
   if (isLoading) return <div className="text-gray-400 p-8">Loading…</div>;
-  if (!player) return <div className="text-red-500 p-8">Player not found</div>;
+  if (isError || !player) {
+    return (
+      <div className="p-8">
+        <button onClick={() => navigate('/players')} className="text-sm text-blue-600 hover:underline mb-4 block">
+          ← Back to players
+        </button>
+        <p className="text-red-500">Player not found or could not be loaded.</p>
+      </div>
+    );
+  }
 
   return (
     <div>

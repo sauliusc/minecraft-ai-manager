@@ -43,7 +43,18 @@ interface HeatmapData {
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function Heatmap({ data }: { data: HeatmapData }) {
-  const max = Math.max(...data.cells.map((c) => c.count), 1);
+  const maxCount = Math.max(...data.cells.map((c) => c.count), 0);
+  if (maxCount === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-5">
+        <p className="text-xs text-gray-400 mb-3">
+          Activity by hour (UTC) × day of week — last {data.periodDays} days
+        </p>
+        <p className="text-sm text-gray-400">No completion data in this period.</p>
+      </div>
+    );
+  }
+  const max = maxCount;
   const cellMap = new Map(data.cells.map((c) => [`${c.day}:${c.hour}`, c.count]));
 
   return (

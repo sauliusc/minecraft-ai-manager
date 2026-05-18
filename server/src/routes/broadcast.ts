@@ -23,10 +23,11 @@ const updateSchema = z.object({
 });
 
 async function deliverViaRcon(channels: string[], content: string): Promise<void> {
-  const textJson = JSON.stringify({ text: content });
+  const safe = content.replace(/[\r\n]+/g, ' ');
+  const textJson = JSON.stringify({ text: safe });
   await withRcon(async (rcon) => {
     const cmds: string[] = [];
-    if (channels.includes('CHAT')) cmds.push(`say ${content}`);
+    if (channels.includes('CHAT')) cmds.push(`say ${safe}`);
     if (channels.includes('TITLE')) cmds.push(`title @a title ${textJson}`);
     if (channels.includes('ACTION_BAR')) cmds.push(`title @a actionbar ${textJson}`);
     await Promise.all(cmds.map((cmd) => rcon.send(cmd)));

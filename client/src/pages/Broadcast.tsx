@@ -334,7 +334,12 @@ export function Broadcast() {
       {/* Automated Triggers */}
       {isSuperAdmin && (
         <section>
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Automated Triggers</h2>
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-lg font-semibold text-gray-800">Automated Triggers</h2>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">
+              Settings saved but not yet executed — trigger evaluation is under development
+            </span>
+          </div>
           {triggers.isLoading ? (
             <p className="text-gray-400 text-sm">Loading…</p>
           ) : (
