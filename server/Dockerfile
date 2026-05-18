@@ -2,6 +2,8 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
 
+RUN apk add --no-cache openssl
+
 COPY package*.json ./
 COPY prisma ./prisma/
 RUN npm ci
@@ -15,16 +17,17 @@ RUN npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache openssl && \
+    addgroup -S app && adduser -S app -G app
 
 COPY --from=builder /app/dist            ./dist
 COPY --from=builder /app/node_modules    ./node_modules
 COPY --from=builder /app/prisma          ./prisma
 COPY --from=builder /app/package.json    .
 
-COPY entrypoint.sh      /entrypoint.sh
+COPY entrypoint.sh         /entrypoint.sh
 COPY scripts/seed-admin.js ./scripts/seed-admin.js
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /entrypoint.sh && chown -R app:app /app
 
 USER app
 
