@@ -9,7 +9,13 @@ ENV EULA=TRUE \
     RCON_PORT=25575 \
     REPLACE_ENV_VARIABLES=TRUE
 
-# Plugin JARs are pre-built by CI and placed in jars/ before this build runs
+# Plugin JARs placed in jars/ by CI before this build:
+#   - BridgePlugin (Maven, from plugins/)
+#   - ClickVillagers   (Modrinth: clickvillagers)
+#   - Simple Voice Chat (Modrinth: simple-voice-chat, bukkit loader)
+#   - JustTpa          (Modrinth: just-tpa)
+# Excluded (Forge/Fabric — incompatible with Paper):
+#   BuildCraft, Waystones, Domestication Innovation, Bigger Beacons, Sophisticated Backpacks
 COPY jars/ /config/plugins/
 
 # Plugin config templates — env vars (${BRIDGE_SECRET} etc.) are substituted
