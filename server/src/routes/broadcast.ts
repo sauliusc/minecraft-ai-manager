@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
+import { withRcon } from '../lib/rcon.js';
 
 export const broadcastRouter = Router();
 
@@ -20,6 +21,17 @@ const updateSchema = z.object({
   scheduledAt: z.string().datetime().optional(),
   status: z.enum(['SCHEDULED', 'CANCELLED']).optional(),
 });
+
+async function deliverViaRcon(channels: string[], content: string): Promise<void> {
+  const textJson = JSON.stringify({ text: content });
+  await withRcon(async (rcon) => {
+    const cmds: string[] = [];
+    if (channels.includes('CHAT')) cmds.push(`say ${content}`);
+    if (channels.includes('TITLE')) cmds.push(`title @a title ${textJson}`);
+    if (channels.includes('ACTION_BAR')) cmds.push(`title @a actionbar ${textJson}`);
+    await Promise.all(cmds.map((cmd) => rcon.send(cmd)));
+  });
+}
 
 function requireAdmin(req: any, res: any) {
   if (req.user?.role !== 'SUPER_ADMIN') { res.status(403).json({ message: 'Forbidden' }); return false; }
@@ -59,8 +71,10 @@ broadcastRouter.post('/', authMiddleware, validateBody(createSchema), async (req
       },
     });
 
-    // If sending now, the bridge would be called here (fire-and-forget)
-    // Actual in-game delivery is handled by the plugin via polling /api/broadcast/pending
+    // For immediate sends, deliver via RCON (fire-and-forget; DB record is the audit trail)
+    if (!data.scheduledAt) {
+      deliverViaRcon(data.channels, data.content).catch(() => {});
+    }
 
     res.status(201).json(msg);
   } catch (err) { next(err); }

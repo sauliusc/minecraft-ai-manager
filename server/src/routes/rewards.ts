@@ -92,11 +92,11 @@ function requireAdmin(req: Request, res: Response): boolean {
 async function callBridge(path: string, body: object): Promise<boolean> {
   try {
     const url = process.env.MINECRAFT_BRIDGE_URL;
-    const secret = process.env.MINECRAFT_BRIDGE_SECRET;
+    const secret = process.env.BRIDGE_SECRET;
     if (!url || !secret) return false;
     const res = await fetch(`${url}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
+      headers: { 'Content-Type': 'application/json', 'x-bridge-secret': secret },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(3000),
     });

@@ -160,6 +160,8 @@ export function Analytics() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Player Activity</h2>
         {retention.isLoading ? (
           <p className="text-gray-400">Loading…</p>
+        ) : retention.isError ? (
+          <p className="text-red-500 text-sm">Failed to load player activity.</p>
         ) : retention.data ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <StatCard label="Daily Active" value={retention.data.dau} sub="last 24h" />
@@ -201,6 +203,8 @@ export function Analytics() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Engagement Heatmap</h2>
         {heatmap.isLoading ? (
           <p className="text-gray-400">Loading…</p>
+        ) : heatmap.isError ? (
+          <p className="text-red-500 text-sm">Failed to load heatmap data.</p>
         ) : heatmap.data ? (
           <Heatmap data={heatmap.data} />
         ) : null}
@@ -266,6 +270,8 @@ export function Analytics() {
         <h2 className="text-lg font-semibold text-gray-800 mb-4">Economy</h2>
         {economy.isLoading ? (
           <p className="text-gray-400">Loading…</p>
+        ) : economy.isError ? (
+          <p className="text-red-500 text-sm">Failed to load economy data.</p>
         ) : economy.data ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white rounded-lg shadow p-5">

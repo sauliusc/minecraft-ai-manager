@@ -1,26 +1,12 @@
 import { Router, Request, Response } from 'express';
 import Dockerode from 'dockerode';
-import { Rcon } from 'rcon-client';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { withRcon } from '../lib/rcon.js';
 
 const router = Router();
 router.use(authMiddleware);
 
 const docker = new Dockerode({ socketPath: '/var/run/docker.sock' });
-
-const RCON_HOST = process.env.MINECRAFT_HOST ?? 'minecraft';
-const RCON_PORT = parseInt(process.env.RCON_PORT ?? '25575');
-const RCON_PASSWORD = process.env.RCON_PASSWORD ?? '';
-
-async function withRcon<T>(fn: (rcon: Rcon) => Promise<T>): Promise<T> {
-  const rcon = new Rcon({ host: RCON_HOST, port: RCON_PORT, password: RCON_PASSWORD, timeout: 5000 });
-  await rcon.connect();
-  try {
-    return await fn(rcon);
-  } finally {
-    await rcon.end();
-  }
-}
 
 async function getMinecraftContainer() {
   const all = await docker.listContainers({ all: true });
