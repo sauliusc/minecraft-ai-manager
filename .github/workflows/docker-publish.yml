@@ -115,11 +115,47 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
+        run: |
+          # Download Paper server JAR via the downloads API (different host, no 403)
+          BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
+          BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
+          FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
+          URL="https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/${FILENAME}"
+          echo "Downloading Paper 1.21.4 build ${BUILD}..."
+          wget -q "$URL" -O paper-server.jar
+
+          # Install as paper-api in local Maven repo so plugins compile against it
+          mvn install:install-file \
+            -Dfile=paper-server.jar \
+            -DgroupId=io.papermc.paper \
+            -DartifactId=paper-api \
+            -Dversion=1.21.4-R0.1-SNAPSHOT \
+            -Dpackaging=jar \
+            -DgeneratePom=true \
+            --no-transfer-progress -q
+          rm paper-server.jar
+
+          # Redirect the papermc Maven repo to local cache so mvn never hits repo.papermc.io
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'SETTINGS'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <mirrors>
+              <mirror>
+                <id>papermc-local</id>
+                <mirrorOf>papermc</mirrorOf>
+                <url>file://${user.home}/.m2/repository</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          SETTINGS
+          echo "Paper API installed and repo.papermc.io redirected to local cache."
+
       - name: Build plugins
         run: |
           mkdir -p jars
           mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress || \
-            echo "::warning::Plugin Maven build failed (likely repo.papermc.io 403 in CI). Image will be built without plugin JARs."
+            echo "::warning::Plugin Maven build failed. Image will be built without custom plugin JARs."
           find plugins -path '*/target/*-*.jar' \
             ! -name '*-sources.jar' \
             ! -name '*-javadoc.jar' \

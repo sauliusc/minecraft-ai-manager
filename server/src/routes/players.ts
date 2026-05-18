@@ -129,6 +129,26 @@ playersRouter.get('/:id', authMiddleware, async (req: Request, res: Response, ne
   }
 });
 
+// POST /api/players/:id/join — service token auth (returning player join, called by GreeterPlugin)
+playersRouter.post('/:id/join', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = req.params.id as string;
+    const now = new Date();
+    const player = await prisma.player.update({
+      where: { id },
+      data: { lastSeenAt: now, joinCount: { increment: 1 } },
+    });
+    await redis.del(`player:${id}`);
+    res.json(withTier(player));
+  } catch (err: any) {
+    if (err?.code === 'P2025') {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
+      return;
+    }
+    next(err);
+  }
+});
+
 // PATCH /api/players/:id — service token auth
 playersRouter.patch('/:id', serviceTokenMiddleware, validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
