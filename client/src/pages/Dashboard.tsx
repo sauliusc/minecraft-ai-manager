@@ -38,7 +38,7 @@ function StateChip({ state }: { state: string }) {
 }
 
 export function Dashboard() {
-  const { data: status } = useQuery<ServerStatus>({
+  const { data: status, isError: statusError } = useQuery<ServerStatus>({
     queryKey: ['minecraft-status'],
     queryFn: () => api.get('/minecraft/status').then((r) => r.data),
     refetchInterval: 10_000,
@@ -90,6 +90,12 @@ export function Dashboard() {
           value={status?.state === 'running' ? 'Online' : status?.state ?? '—'}
         />
       </div>
+
+      {statusError && (
+        <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">
+          Could not reach the server status API. Check that the API container is healthy.
+        </p>
+      )}
 
       {/* Online players */}
       <div className="bg-white rounded-lg shadow p-4">

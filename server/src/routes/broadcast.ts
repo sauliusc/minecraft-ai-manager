@@ -162,12 +162,12 @@ broadcastRouter.put('/triggers', authMiddleware, validateBody(triggersUpsertSche
             type: entry.type as any,
             enabled: entry.enabled ?? true,
             config: (entry.config ?? {}) as any,
-            updatedBy: user.id,
+            updatedBy: user.sub,
           },
           update: {
             ...(entry.enabled !== undefined ? { enabled: entry.enabled } : {}),
             ...(entry.config !== undefined ? { config: entry.config as any } : {}),
-            updatedBy: user.id,
+            updatedBy: user.sub,
           },
         })
       )

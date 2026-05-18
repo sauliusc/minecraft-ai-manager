@@ -137,7 +137,7 @@ export function Rewards() {
   const [lootTable, setLootTable] = useState<LootEntry[]>([]);
   const [formError, setFormError] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['rewards', page, typeFilter],
     queryFn: () =>
       api
@@ -313,6 +313,10 @@ export function Rewards() {
 
       {isLoading ? (
         <div className="text-gray-400 p-6">Loading…</div>
+      ) : isError ? (
+        <div className="text-red-500 p-6">Failed to load rewards.</div>
+      ) : data?.data?.length === 0 ? (
+        <div className="text-gray-400 p-6">No rewards defined yet.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {data?.data?.map((r: Reward) => (

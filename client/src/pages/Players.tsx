@@ -23,7 +23,7 @@ export function Players() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['players', page, search],
     queryFn: () =>
       api.get('/players', { params: { page, limit: 20, search: search || undefined } }).then((r) => r.data),
@@ -55,6 +55,10 @@ export function Players() {
           <tbody className="divide-y divide-gray-100">
             {isLoading ? (
               <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">Loading…</td></tr>
+            ) : isError ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-red-500">Failed to load players.</td></tr>
+            ) : data?.data?.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No players found.</td></tr>
             ) : data?.data?.map((p: Player) => (
               <tr
                 key={p.id}
