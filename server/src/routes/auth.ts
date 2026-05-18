@@ -43,7 +43,8 @@ authRouter.post('/login', loginLimiter, validateBody(loginSchema), async (req: R
     const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = signAccess(payload);
     const refreshToken = signRefresh(payload);
-    res.cookie(REFRESH_COOKIE, refreshToken, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
+    const isHttps = req.headers['x-forwarded-proto'] === 'https' || req.protocol === 'https';
+    res.cookie(REFRESH_COOKIE, refreshToken, { httpOnly: true, secure: isHttps, sameSite: 'lax' });
     res.json({ accessToken });
   } catch (err) {
     next(err);
