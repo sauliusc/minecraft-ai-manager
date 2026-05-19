@@ -118,13 +118,15 @@ jobs:
 
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
         run: |
+          set -euo pipefail
           # Download Paper server JAR via the downloads API (different host, no 403)
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
           URL="https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/${FILENAME}"
-          echo "Downloading Paper 1.21.4 build ${BUILD}..."
-          wget -q "$URL" -O paper-server.jar
+          echo "Downloading Paper 1.21.4 build ${BUILD} (${FILENAME})..."
+          wget "$URL" -O paper-server.jar
+          echo "Downloaded $(du -sh paper-server.jar | cut -f1) JAR"
 
           # Install as paper-api in local Maven repo so plugins compile against it
           mvn install:install-file \
@@ -134,7 +136,7 @@ jobs:
             -Dversion=1.21.4-R0.1-SNAPSHOT \
             -Dpackaging=jar \
             -DgeneratePom=true \
-            --no-transfer-progress -q
+            --no-transfer-progress
           rm paper-server.jar
 
           # Redirect the papermc Maven repo to local cache so mvn never hits repo.papermc.io
@@ -150,19 +152,21 @@ jobs:
             </mirrors>
           </settings>
           SETTINGS
-          echo "Paper API installed and repo.papermc.io redirected to local cache."
+          echo "Paper API installed at ~/.m2/repository/io/papermc/paper/paper-api/"
 
       - name: Build plugins
         run: |
+          set -euo pipefail
           mkdir -p jars
-          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress || \
-            echo "::warning::Plugin Maven build failed. Image will be built without custom plugin JARs."
+          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress
           find plugins -path '*/target/*-*.jar' \
             ! -name '*-sources.jar' \
             ! -name '*-javadoc.jar' \
             -exec cp {} jars/ \; 2>/dev/null || true
           echo "=== Custom plugin JARs ==="
-          ls -la jars/ || echo "(none built)"
+          ls -la jars/
+          # Require BridgePlugin JAR — if it's missing the image will be broken
+          ls jars/BridgePlugin-*.jar || { echo "::error::BridgePlugin JAR missing"; exit 1; }
 
       - name: Download third-party plugins
         run: bash minecraft/download-plugins.sh jars
