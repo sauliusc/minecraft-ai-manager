@@ -145,26 +145,25 @@ jobs:
           echo "::notice::step=download-bundler size=$(du -sh paperclip.jar | cut -f1)"
 
           STEP="extract-libraries"
-          # Use Python to extract META-INF/libraries/ from the bundler.
-          # unzip glob '*' does NOT cross directory separators, so "META-INF/libraries/*"
-          # only matches one level deep and misses all nested JARs.
-          python3 - << 'PYEOF'
-          import zipfile, os, sys
-          src = 'paperclip.jar'
-          dst = '/tmp/paper-extract'
-          prefix = 'META-INF/libraries/'
-          count = 0
-          with zipfile.ZipFile(src) as z:
-              for name in z.namelist():
-                  if name.startswith(prefix) and not name.endswith('/'):
-                      target = os.path.join(dst, name)
-                      os.makedirs(os.path.dirname(target), exist_ok=True)
-                      with z.open(name) as src_f, open(target, 'wb') as dst_f:
-                          dst_f.write(src_f.read())
-                      count += 1
-          print(f'Extracted {count} files from {src} to {dst}')
-          PYEOF
-          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l)
+          # jar xf with an exact entry name correctly extracts that specific file.
+          # We use 'jar tf | grep' to list all paper-api and net.kyori entries, then
+          # extract each one individually. Avoids unzip glob issues (* doesn't cross /)
+          # and Python heredoc YAML-processing ambiguities.
+          WORKSPACE=$(pwd)
+          mkdir -p /tmp/paper-extract
+          cd /tmp/paper-extract
+          ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
+            | grep -E "META-INF/libraries/.*\.jar$" \
+            | grep -Ev "sources|javadoc" \
+            | grep -E "paper-api|net/kyori" || true)
+          ENTRY_COUNT=$(echo "$ENTRIES" | grep -c "." || echo 0)
+          echo "::notice::step=list-bundler relevant_jars=$ENTRY_COUNT"
+          while IFS= read -r entry; do
+            [ -n "$entry" ] || continue
+            jar xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
+          done <<< "$ENTRIES"
+          cd -
+          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l || echo 0)
           echo "::notice::step=extract-libraries lib_jars=$LIB_COUNT"
 
           STEP="find-paper-api"
