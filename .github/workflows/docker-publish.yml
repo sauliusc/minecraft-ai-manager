@@ -119,30 +119,67 @@ jobs:
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
         run: |
           set -euo pipefail
-          # Clear any stale Maven failure markers from restored cache so the local-install below is seen fresh
-          find ~/.m2/repository/io/papermc -name "*.lastUpdated" -delete 2>/dev/null || true
+          # Clear stale Maven failure markers (Maven 3.9+ uses resolver-status.properties)
+          rm -rf ~/.m2/repository/io/papermc 2>/dev/null || true
 
-          # Download Paper server JAR via the downloads API (different host, no 403)
+          # Download the Paperclip launcher JAR from the downloads API (different host, no 403)
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
           URL="https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/${FILENAME}"
           echo "Downloading Paper 1.21.4 build ${BUILD} (${FILENAME})..."
-          wget "$URL" -O paper-server.jar
-          echo "Downloaded $(du -sh paper-server.jar | cut -f1) JAR"
+          wget "$URL" -O paperclip.jar
+          echo "Downloaded $(du -sh paperclip.jar | cut -f1)"
+
+          # Check whether the downloaded JAR already has org.bukkit classes at the top level.
+          # Paperclip 3.x bundles the actual server inside, so classes are NOT at the top level;
+          # we must run it in patch-only mode to produce a usable compile-time JAR.
+          HAS_BUKKIT=$(python3 -c "
+          import zipfile, sys
+          try:
+              z = zipfile.ZipFile('paperclip.jar')
+              print('yes' if any(n.startswith('org/bukkit') for n in z.namelist()) else 'no')
+          except Exception as e:
+              print('no')
+          ")
+          echo "Paperclip JAR has bukkit classes directly: $HAS_BUKKIT"
+
+          if [ "$HAS_BUKKIT" = "yes" ]; then
+            PAPER_API_JAR=paperclip.jar
+          else
+            echo "Running Paperclip in patch-only mode to produce the actual server JAR..."
+            mkdir -p /tmp/paper-bootstrap
+            cp paperclip.jar /tmp/paper-bootstrap/
+            cd /tmp/paper-bootstrap
+            # -Dpaperclip.patchonly=true makes Paperclip apply patches and exit without starting the server
+            timeout 180 java -Dpaperclip.patchonly=true -jar paperclip.jar 2>&1 || true
+            # Discover the patched JAR (largest new JAR created)
+            PATCHED=$(find /tmp/paper-bootstrap -name "*.jar" ! -name "paperclip.jar" -size +1M \
+              2>/dev/null | xargs ls -t 2>/dev/null | head -1)
+            echo "Patched JAR found: ${PATCHED:-none}"
+            cd -
+            if [ -n "$PATCHED" ]; then
+              PAPER_API_JAR="$PATCHED"
+            else
+              echo "WARNING: patch-only mode produced no output — falling back to paperclip.jar"
+              PAPER_API_JAR=paperclip.jar
+            fi
+          fi
+
+          echo "Using JAR for paper-api: $PAPER_API_JAR ($(du -sh "$PAPER_API_JAR"))"
 
           # Install as paper-api in local Maven repo so plugins compile against it
           mvn install:install-file \
-            -Dfile=paper-server.jar \
+            -Dfile="$PAPER_API_JAR" \
             -DgroupId=io.papermc.paper \
             -DartifactId=paper-api \
             -Dversion=1.21.4-R0.1-SNAPSHOT \
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress
-          rm paper-server.jar
+          rm paperclip.jar
 
-          # Redirect the papermc Maven repo to local cache so mvn never hits repo.papermc.io
+          # Redirect the papermc Maven repo to local so mvn never hits repo.papermc.io
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml << 'SETTINGS'
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
