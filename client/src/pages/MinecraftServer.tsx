@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
@@ -54,7 +54,6 @@ export function MinecraftServer() {
   const [command, setCommand] = useState('');
   const [commandLog, setCommandLog] = useState<{ cmd: string; out: string }[]>([]);
   const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
-  const logRef = useRef<HTMLDivElement>(null);
 
   const { data: versionInfo } = useQuery<VersionInfo>({
     queryKey: ['app-version'],
@@ -74,13 +73,6 @@ export function MinecraftServer() {
     refetchInterval: 5000,
     enabled: status?.state === 'running' || status?.state === 'starting',
   });
-
-  // Auto-scroll console to bottom
-  useEffect(() => {
-    if (logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [logs?.lines]);
 
   const powerMutation = useMutation({
     mutationFn: (action: string) => api.post('/minecraft/power', { action }),
@@ -241,7 +233,6 @@ export function MinecraftServer() {
 
           {/* Log output */}
           <div
-            ref={logRef}
             className="flex-1 overflow-y-auto px-4 py-2 font-mono text-xs space-y-0.5"
             style={{ maxHeight: '340px' }}
           >
