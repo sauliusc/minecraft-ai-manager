@@ -128,7 +128,7 @@ jobs:
         run: |
           set -euo pipefail
           STEP="init"
-          trap 'echo "::error::pre-install failed at step=$STEP exit=$?"' ERR
+          trap 'echo "::error::pre-install failed at step=$STEP"' ERR
 
           STEP="clear-cache"
           rm -rf ~/.m2/repository/io/papermc 2>/dev/null || true
@@ -144,42 +144,57 @@ jobs:
           wget -q "$URL" -O paperclip.jar
           echo "::notice::step=download-bundler size=$(du -sh paperclip.jar | cut -f1)"
 
-          STEP="list-bundler"
-          BUNDLED_API=$(jar tf paperclip.jar 2>/dev/null \
-            | grep -E "paper-api[^/]*\.jar$" | grep -v sources | grep -v javadoc | head -1 || true)
-          echo "::notice::step=list-bundler paper-api-entry=${BUNDLED_API:-NONE}"
-
-          STEP="unzip-libraries"
-          unzip -q paperclip.jar "META-INF/libraries/*" -d /tmp/paper-extract || true
-          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l || echo 0)
-          echo "::notice::step=unzip-libraries lib_count=$LIB_COUNT"
+          STEP="extract-libraries"
+          # Use Python to extract META-INF/libraries/ from the bundler.
+          # unzip glob '*' does NOT cross directory separators, so "META-INF/libraries/*"
+          # only matches one level deep and misses all nested JARs.
+          python3 - << 'PYEOF'
+          import zipfile, os, sys
+          src = 'paperclip.jar'
+          dst = '/tmp/paper-extract'
+          prefix = 'META-INF/libraries/'
+          count = 0
+          with zipfile.ZipFile(src) as z:
+              for name in z.namelist():
+                  if name.startswith(prefix) and not name.endswith('/'):
+                      target = os.path.join(dst, name)
+                      os.makedirs(os.path.dirname(target), exist_ok=True)
+                      with z.open(name) as src_f, open(target, 'wb') as dst_f:
+                          dst_f.write(src_f.read())
+                      count += 1
+          print(f'Extracted {count} files from {src} to {dst}')
+          PYEOF
+          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l)
+          echo "::notice::step=extract-libraries lib_jars=$LIB_COUNT"
 
           STEP="find-paper-api"
           PAPER_API_JAR=$(find /tmp/paper-extract -name "paper-api-*.jar" \
             ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null | head -1 || true)
           echo "::notice::step=find-paper-api jar=${PAPER_API_JAR:-NONE}"
-          [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found"; exit 1; }
+          [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found in bundler"; exit 1; }
 
           STEP="build-uber-jar"
+          # Merge paper-api + all net.kyori (Adventure) classes into one JAR.
+          # Avoids needing transitive POM resolution since the blank generated POM has no deps.
           mkdir -p /tmp/uber-api
           cd /tmp/uber-api
           jar xf "$PAPER_API_JAR"
-          KYORI_COUNT=0
+          KYORI=0
           while IFS= read -r ajar; do
             jar xf "$ajar" 2>/dev/null || true
-            KYORI_COUNT=$((KYORI_COUNT + 1))
+            KYORI=$((KYORI + 1))
           done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
-            ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null || true)
-          echo "::notice::step=build-uber-jar kyori_jars=$KYORI_COUNT"
+            ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
           cd -
           jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
           rm paperclip.jar
+          echo "::notice::step=build-uber-jar kyori_jars=$KYORI size=$(du -sh /tmp/paper-api-uber.jar)"
 
           STEP="verify-uber-jar"
           BUKKIT=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "^org/bukkit" || true)
           CFG=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
           ADV=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "net/kyori/adventure" || true)
-          echo "::notice::step=verify bukkit=$BUKKIT config=$CFG adventure=$ADV size=$(du -sh /tmp/paper-api-uber.jar)"
+          echo "::notice::step=verify bukkit=$BUKKIT config=$CFG adventure=$ADV"
 
           STEP="mvn-install"
           mvn install:install-file \
