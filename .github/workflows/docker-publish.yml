@@ -127,49 +127,61 @@ jobs:
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
         run: |
           set -euo pipefail
+          STEP="init"
+          trap 'echo "::error::pre-install failed at step=$STEP exit=$?"' ERR
+
+          STEP="clear-cache"
           rm -rf ~/.m2/repository/io/papermc 2>/dev/null || true
 
-          # Download the Paper bundler JAR (api.papermc.io works; repo.papermc.io returns 403 on CI)
+          STEP="fetch-build-info"
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
           URL="https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/${FILENAME}"
-          echo "Downloading Paper 1.21.4 build ${BUILD}..."
+          echo "::notice::step=fetch-build-info build=$BUILD filename=$FILENAME"
+
+          STEP="download-bundler"
           wget -q "$URL" -O paperclip.jar
-          echo "Downloaded $(du -sh paperclip.jar | cut -f1)"
+          echo "::notice::step=download-bundler size=$(du -sh paperclip.jar | cut -f1)"
 
-          # Use unzip (supports glob patterns) to extract only META-INF/libraries/ from bundler.
-          # 'jar xf' does NOT support directory-prefix extraction; unzip does.
-          echo "Extracting bundler libraries..."
-          unzip -q paperclip.jar "META-INF/libraries/*" -d /tmp/paper-extract 2>/dev/null || true
-          LIB_COUNT=$(find /tmp/paper-extract/META-INF/libraries -name "*.jar" 2>/dev/null | wc -l)
-          echo "::notice::extracted $LIB_COUNT JARs from bundler"
+          STEP="list-bundler"
+          BUNDLED_API=$(jar tf paperclip.jar 2>/dev/null \
+            | grep -E "paper-api[^/]*\.jar$" | grep -v sources | grep -v javadoc | head -1 || true)
+          echo "::notice::step=list-bundler paper-api-entry=${BUNDLED_API:-NONE}"
 
-          # Find the paper-api JAR in the extracted libraries
-          PAPER_API_JAR=$(find /tmp/paper-extract/META-INF/libraries -name "paper-api-*.jar" \
+          STEP="unzip-libraries"
+          unzip -q paperclip.jar "META-INF/libraries/*" -d /tmp/paper-extract || true
+          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l || echo 0)
+          echo "::notice::step=unzip-libraries lib_count=$LIB_COUNT"
+
+          STEP="find-paper-api"
+          PAPER_API_JAR=$(find /tmp/paper-extract -name "paper-api-*.jar" \
             ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null | head -1 || true)
-          echo "::notice::paper-api JAR: ${PAPER_API_JAR:-none}"
-          [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found in bundler"; exit 1; }
+          echo "::notice::step=find-paper-api jar=${PAPER_API_JAR:-NONE}"
+          [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found"; exit 1; }
 
-          # Build a compile-ready uber-jar: paper-api classes + all net.kyori (Adventure) classes.
-          # The bundler ships JARs without POMs, so a generated blank POM omits Adventure from
-          # the compile classpath. Merging Adventure directly into the installed JAR sidesteps POM.
+          STEP="build-uber-jar"
           mkdir -p /tmp/uber-api
           cd /tmp/uber-api
           jar xf "$PAPER_API_JAR"
+          KYORI_COUNT=0
           while IFS= read -r ajar; do
             jar xf "$ajar" 2>/dev/null || true
-          done < <(find /tmp/paper-extract/META-INF/libraries/net/kyori \
-            -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
+            KYORI_COUNT=$((KYORI_COUNT + 1))
+          done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
+            ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null || true)
+          echo "::notice::step=build-uber-jar kyori_jars=$KYORI_COUNT"
           cd -
           jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
           rm paperclip.jar
 
+          STEP="verify-uber-jar"
           BUKKIT=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "^org/bukkit" || true)
           CFG=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
           ADV=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "net/kyori/adventure" || true)
-          echo "::notice::paper-api-uber: size=$(du -sh /tmp/paper-api-uber.jar) bukkit=$BUKKIT config=$CFG adventure=$ADV"
+          echo "::notice::step=verify bukkit=$BUKKIT config=$CFG adventure=$ADV size=$(du -sh /tmp/paper-api-uber.jar)"
 
+          STEP="mvn-install"
           mvn install:install-file \
             -Dfile="/tmp/paper-api-uber.jar" \
             -DgroupId=io.papermc.paper \
@@ -179,7 +191,7 @@ jobs:
             -DgeneratePom=true \
             --no-transfer-progress
 
-          # Redirect the papermc Maven repo to local so mvn never hits repo.papermc.io
+          STEP="write-settings"
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml << 'SETTINGS'
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
@@ -193,7 +205,7 @@ jobs:
           </settings>
           SETTINGS
           INSTALLED=~/.m2/repository/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar
-          echo "::notice::installed paper-api: $(du -sh $INSTALLED 2>/dev/null || echo MISSING)"
+          echo "::notice::step=done installed=$(du -sh $INSTALLED 2>/dev/null || echo MISSING)"
 
       - name: Build plugins
         run: |
