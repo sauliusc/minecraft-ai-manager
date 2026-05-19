@@ -9,6 +9,14 @@ on:
       - 'plugins/**'
       - 'minecraft/**'
       - '.github/workflows/docker-publish.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'client/**'
+      - 'plugins/**'
+      - 'minecraft/**'
+      - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
 concurrency:
