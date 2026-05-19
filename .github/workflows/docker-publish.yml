@@ -135,45 +135,43 @@ jobs:
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
           URL="https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/${FILENAME}"
           echo "Downloading Paper 1.21.4 build ${BUILD}..."
-          wget "$URL" -O paperclip.jar
+          wget -q "$URL" -O paperclip.jar
           echo "Downloaded $(du -sh paperclip.jar | cut -f1)"
 
-          # Find paper-api JAR inside the bundler's META-INF/libraries/ (Maven-layout, JARs only)
-          BUNDLED_API=$(jar tf paperclip.jar 2>/dev/null \
-            | grep -E "paper-api[^/]*\.jar$" \
-            | grep -v sources | grep -v javadoc \
-            | head -1 || true)
-          echo "::notice::bundled paper-api entry: ${BUNDLED_API:-none}"
-          [ -n "$BUNDLED_API" ] || { echo "::error::paper-api not found in bundler"; exit 1; }
+          # Use unzip (supports glob patterns) to extract only META-INF/libraries/ from bundler.
+          # 'jar xf' does NOT support directory-prefix extraction; unzip does.
+          echo "Extracting bundler libraries..."
+          unzip -q paperclip.jar "META-INF/libraries/*" -d /tmp/paper-extract 2>/dev/null || true
+          LIB_COUNT=$(find /tmp/paper-extract/META-INF/libraries -name "*.jar" 2>/dev/null | wc -l)
+          echo "::notice::extracted $LIB_COUNT JARs from bundler"
 
-          # Extract paper-api JAR + all bundler libraries into a staging dir
-          mkdir -p /tmp/paper-extract
-          cd /tmp/paper-extract
-          jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_API" META-INF/libraries/ 2>/dev/null || true
-          PAPER_API_JAR="/tmp/paper-extract/$BUNDLED_API"
-          cd -
+          # Find the paper-api JAR in the extracted libraries
+          PAPER_API_JAR=$(find /tmp/paper-extract/META-INF/libraries -name "paper-api-*.jar" \
+            ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null | head -1 || true)
+          echo "::notice::paper-api JAR: ${PAPER_API_JAR:-none}"
+          [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found in bundler"; exit 1; }
 
-          # The bundler ships JARs only (no POMs). Build a compile-ready uber-jar by merging
-          # paper-api classes with all net.kyori (Adventure) classes from the bundler, so the
-          # compiler finds Adventure types without needing transitive POM resolution.
+          # Build a compile-ready uber-jar: paper-api classes + all net.kyori (Adventure) classes.
+          # The bundler ships JARs without POMs, so a generated blank POM omits Adventure from
+          # the compile classpath. Merging Adventure directly into the installed JAR sidesteps POM.
           mkdir -p /tmp/uber-api
           cd /tmp/uber-api
           jar xf "$PAPER_API_JAR"
-          find /tmp/paper-extract/META-INF/libraries/net/kyori \
-            -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" \
-            2>/dev/null | while read ajar; do jar xf "$ajar" 2>/dev/null || true; done
+          while IFS= read -r ajar; do
+            jar xf "$ajar" 2>/dev/null || true
+          done < <(find /tmp/paper-extract/META-INF/libraries/net/kyori \
+            -name "*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
           cd -
           jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
           rm paperclip.jar
 
-          PAPER_API_FINAL=/tmp/paper-api-uber.jar
-          BUKKIT_COUNT=$(jar tf "$PAPER_API_FINAL" 2>/dev/null | grep -c "^org/bukkit" || true)
-          HAS_CONFIG=$(jar tf "$PAPER_API_FINAL" 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
-          HAS_ADVENTURE=$(jar tf "$PAPER_API_FINAL" 2>/dev/null | grep -c "net/kyori/adventure" || true)
-          echo "::notice::paper-api-uber: size=$(du -sh $PAPER_API_FINAL) bukkit=$BUKKIT_COUNT config_pkg=$HAS_CONFIG adventure=$HAS_ADVENTURE"
+          BUKKIT=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "^org/bukkit" || true)
+          CFG=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
+          ADV=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "net/kyori/adventure" || true)
+          echo "::notice::paper-api-uber: size=$(du -sh /tmp/paper-api-uber.jar) bukkit=$BUKKIT config=$CFG adventure=$ADV"
 
           mvn install:install-file \
-            -Dfile="$PAPER_API_FINAL" \
+            -Dfile="/tmp/paper-api-uber.jar" \
             -DgroupId=io.papermc.paper \
             -DartifactId=paper-api \
             -Dversion=1.21.4-R0.1-SNAPSHOT \
