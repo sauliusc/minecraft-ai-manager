@@ -168,22 +168,13 @@ jobs:
 
           echo "Using JAR for paper-api: $PAPER_API_JAR ($(du -sh "$PAPER_API_JAR"))"
 
-          # Emit diagnostic annotations so we can inspect JAR structure without log access
-          python3 - "$PAPER_API_JAR" << 'PYEOF'
-import zipfile, sys
-path = sys.argv[1]
-try:
-    z = zipfile.ZipFile(path)
-    names = z.namelist()
-    has_bukkit = any(n.startswith('org/bukkit') for n in names)
-    has_paper  = any(n.startswith('io/papermc') for n in names)
-    inner_jars = [n for n in names if n.endswith('.jar')]
-    print(f"::notice::paper-api JAR valid=True entries={len(names)} has_bukkit={has_bukkit} has_paper={has_paper} inner_jars={len(inner_jars)}")
-    for n in (names[:5] + inner_jars[:5]):
-        print(f"::notice::  entry: {n}")
-except Exception as e:
-    print(f"::error::paper-api JAR invalid: {e}")
-PYEOF
+          # Emit diagnostic notices — readable via GitHub annotations API without raw log access
+          BUKKIT_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^org/bukkit" || true)
+          PAPER_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^io/papermc" || true)
+          INNER_JARS=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep "\.jar$" | head -5 | tr '\n' ',' || true)
+          TOP5=$(jar tf "$PAPER_API_JAR" 2>/dev/null | head -5 | tr '\n' ',' || echo "UNREADABLE")
+          echo "::notice::JAR size=$(du -sh $PAPER_API_JAR) bukkit_entries=$BUKKIT_COUNT paper_entries=$PAPER_COUNT inner_jars=$INNER_JARS"
+          echo "::notice::first-entries: $TOP5"
 
           # Install as paper-api in local Maven repo so plugins compile against it
           mvn install:install-file \
