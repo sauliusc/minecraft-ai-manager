@@ -200,13 +200,21 @@ jobs:
             </mirrors>
           </settings>
           SETTINGS
+          # Emit settings.xml content as annotation for debugging
+          SETTINGS_CONTENT=$(cat ~/.m2/settings.xml | tr '\n' ' ' | head -c 300)
+          echo "::notice::settings.xml: $SETTINGS_CONTENT"
+          # Verify installed paper-api JAR is non-empty
+          INSTALLED=~/.m2/repository/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar
+          INSTALLED_SIZE=$(du -sh "$INSTALLED" 2>/dev/null || echo "MISSING")
+          echo "::notice::installed paper-api: $INSTALLED_SIZE"
           echo "Paper API installed at ~/.m2/repository/io/papermc/paper/paper-api/"
 
       - name: Build plugins
         run: |
           set -euo pipefail
           mkdir -p jars
-          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress
+          # --no-snapshot-updates prevents Maven from re-checking 403 papermc repo for SNAPSHOT freshness
+          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress --no-snapshot-updates
           find plugins -path '*/target/*-*.jar' \
             ! -name '*-sources.jar' \
             ! -name '*-javadoc.jar' \
