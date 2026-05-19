@@ -38,3 +38,4 @@ prisma/migrations/dev.db
 coverage/
 deploymentV2/.env
 deploymentV2/backups/
+settings.local.json
