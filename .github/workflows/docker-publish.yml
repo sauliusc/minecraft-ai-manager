@@ -119,6 +119,9 @@ jobs:
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
         run: |
           set -euo pipefail
+          # Clear any stale Maven failure markers from restored cache so the local-install below is seen fresh
+          find ~/.m2/repository/io/papermc -name "*.lastUpdated" -delete 2>/dev/null || true
+
           # Download Paper server JAR via the downloads API (different host, no 403)
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
