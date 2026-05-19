@@ -122,7 +122,7 @@ jobs:
           # Clear stale Maven failure markers (Maven 3.9+ uses resolver-status.properties)
           rm -rf ~/.m2/repository/io/papermc 2>/dev/null || true
 
-          # Download the Paperclip launcher JAR from the downloads API (different host, no 403)
+          # Download the Paper bundler JAR from the downloads API (different host, no 403)
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
@@ -131,50 +131,52 @@ jobs:
           wget "$URL" -O paperclip.jar
           echo "Downloaded $(du -sh paperclip.jar | cut -f1)"
 
-          # Check whether the downloaded JAR already has org.bukkit classes at the top level.
-          # Paperclip 3.x bundles the actual server inside, so classes are NOT at the top level;
-          # we must run it in patch-only mode to produce a usable compile-time JAR.
-          HAS_BUKKIT=$(python3 -c "
-          import zipfile, sys
-          try:
-              z = zipfile.ZipFile('paperclip.jar')
-              print('yes' if any(n.startswith('org/bukkit') for n in z.namelist()) else 'no')
-          except Exception as e:
-              print('no')
-          ")
-          echo "Paperclip JAR has bukkit classes directly: $HAS_BUKKIT"
+          # Strategy 1: Extract paper-api JAR embedded in the bundler's META-INF/libraries/.
+          # Paper's bundler format (Paperclip 3.x) embeds all Maven dependencies there,
+          # including the compile-time paper-api artifact with the full Bukkit API.
+          BUNDLED_API=$(jar tf paperclip.jar 2>/dev/null \
+            | grep -E "paper-api[^/]*\.jar$" \
+            | grep -v sources | grep -v javadoc \
+            | head -1 || true)
+          echo "::notice::bundled paper-api entry: ${BUNDLED_API:-none}"
 
-          if [ "$HAS_BUKKIT" = "yes" ]; then
-            PAPER_API_JAR=paperclip.jar
+          if [ -n "$BUNDLED_API" ]; then
+            echo "Extracting paper-api from bundler at: $BUNDLED_API"
+            mkdir -p /tmp/paper-extract
+            cd /tmp/paper-extract
+            jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_API"
+            PAPER_API_JAR="/tmp/paper-extract/$BUNDLED_API"
+            cd -
           else
-            echo "Running Paperclip in patch-only mode to produce the actual server JAR..."
+            # Strategy 2: Run Paperclip in accumulate mode — it writes libraries to the cache dir.
+            # The paper-api JAR will appear under cache/io/papermc/paper/paper-api/.
+            echo "paper-api not found directly in bundler; running Paperclip to populate cache..."
             mkdir -p /tmp/paper-bootstrap
             cp paperclip.jar /tmp/paper-bootstrap/
             cd /tmp/paper-bootstrap
-            # -Dpaperclip.patchonly=true makes Paperclip apply patches and exit without starting the server
-            timeout 180 java -Dpaperclip.patchonly=true -jar paperclip.jar 2>&1 || true
-            # Discover the patched JAR (largest new JAR created)
-            PATCHED=$(find /tmp/paper-bootstrap -name "*.jar" ! -name "paperclip.jar" -size +1M \
-              2>/dev/null | xargs ls -t 2>/dev/null | head -1)
-            echo "Patched JAR found: ${PATCHED:-none}"
+            timeout 180 java \
+              -Dpaperclip.patchonly=true \
+              -Dbundlerrepo.target=/tmp/paper-bootstrap/cache \
+              -jar paperclip.jar 2>&1 || true
+            PAPER_API_JAR=$(find /tmp/paper-bootstrap/cache -name "paper-api-*.jar" \
+              ! -name "*-sources.jar" ! -name "*-javadoc.jar" \
+              2>/dev/null | head -1 || true)
+            echo "Cache-extracted paper-api: ${PAPER_API_JAR:-none}"
             cd -
-            if [ -n "$PATCHED" ]; then
-              PAPER_API_JAR="$PATCHED"
-            else
-              echo "WARNING: patch-only mode produced no output — falling back to paperclip.jar"
-              PAPER_API_JAR=paperclip.jar
+
+            if [ -z "$PAPER_API_JAR" ]; then
+              echo "::error::Could not locate paper-api JAR — neither bundled nor cache-extracted"
+              exit 1
             fi
           fi
 
           echo "Using JAR for paper-api: $PAPER_API_JAR ($(du -sh "$PAPER_API_JAR"))"
 
-          # Emit diagnostic notices — readable via GitHub annotations API without raw log access
+          # Verify the JAR has the expected Bukkit API packages
           BUKKIT_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^org/bukkit" || true)
           PAPER_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^io/papermc" || true)
-          INNER_JARS=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep "\.jar$" | head -5 | tr '\n' ',' || true)
-          TOP5=$(jar tf "$PAPER_API_JAR" 2>/dev/null | head -5 | tr '\n' ',' || echo "UNREADABLE")
-          echo "::notice::JAR size=$(du -sh $PAPER_API_JAR) bukkit_entries=$BUKKIT_COUNT paper_entries=$PAPER_COUNT inner_jars=$INNER_JARS"
-          echo "::notice::first-entries: $TOP5"
+          HAS_CONFIG=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
+          echo "::notice::paper-api: size=$(du -sh $PAPER_API_JAR) bukkit_entries=$BUKKIT_COUNT paper_entries=$PAPER_COUNT config_pkg=$HAS_CONFIG"
 
           # Install as paper-api in local Maven repo so plugins compile against it
           mvn install:install-file \
@@ -200,9 +202,6 @@ jobs:
             </mirrors>
           </settings>
           SETTINGS
-          # Emit settings.xml content as annotation for debugging
-          SETTINGS_CONTENT=$(cat ~/.m2/settings.xml | tr '\n' ' ' | head -c 300)
-          echo "::notice::settings.xml: $SETTINGS_CONTENT"
           # Verify installed paper-api JAR is non-empty
           INSTALLED=~/.m2/repository/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar
           INSTALLED_SIZE=$(du -sh "$INSTALLED" 2>/dev/null || echo "MISSING")
