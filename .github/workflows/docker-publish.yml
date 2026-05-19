@@ -213,8 +213,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p jars
-          # --no-snapshot-updates prevents Maven from re-checking 403 papermc repo for SNAPSHOT freshness
-          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress --no-snapshot-updates
+          # Capture Maven output so ERROR lines can be emitted as annotations on failure
+          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress \
+            --no-snapshot-updates 2>&1 | tee /tmp/mvn-build.txt || {
+            grep "^\[ERROR\]" /tmp/mvn-build.txt | head -30 | while IFS= read -r line; do
+              echo "::error::${line:0:250}"
+            done
+            exit 1
+          }
           find plugins -path '*/target/*-*.jar' \
             ! -name '*-sources.jar' \
             ! -name '*-javadoc.jar' \
