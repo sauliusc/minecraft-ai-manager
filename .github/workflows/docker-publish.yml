@@ -141,15 +141,26 @@ jobs:
           echo "::notice::bundled paper-api entry: ${BUNDLED_API:-none}"
 
           if [ -n "$BUNDLED_API" ]; then
-            echo "Extracting paper-api from bundler at: $BUNDLED_API"
+            echo "Extracting paper-api (and all bundled libraries) from bundler..."
             mkdir -p /tmp/paper-extract
             cd /tmp/paper-extract
-            jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_API"
+            # Extract paper-api JAR and its POM (same path, .pom extension)
+            jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_API" 2>/dev/null || true
+            BUNDLED_POM="${BUNDLED_API%.jar}.pom"
+            jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_POM" 2>/dev/null || true
+            # Extract ALL bundler libraries into local Maven repo so transitive deps are available
+            # without hitting any external repos. The bundler META-INF/libraries/ mirrors Maven layout.
+            jar xf "$OLDPWD/paperclip.jar" META-INF/libraries/ 2>/dev/null || true
+            if [ -d META-INF/libraries ]; then
+              cp -r META-INF/libraries/. ~/.m2/repository/
+              LIB_COUNT=$(find META-INF/libraries -name '*.jar' | wc -l)
+              echo "::notice::copied $LIB_COUNT bundler JARs into local Maven repo"
+            fi
             PAPER_API_JAR="/tmp/paper-extract/$BUNDLED_API"
+            PAPER_API_POM="/tmp/paper-extract/$BUNDLED_POM"
             cd -
           else
-            # Strategy 2: Run Paperclip in accumulate mode — it writes libraries to the cache dir.
-            # The paper-api JAR will appear under cache/io/papermc/paper/paper-api/.
+            # Strategy 2: Run Paperclip to populate its library cache, then mirror the cache.
             echo "paper-api not found directly in bundler; running Paperclip to populate cache..."
             mkdir -p /tmp/paper-bootstrap
             cp paperclip.jar /tmp/paper-bootstrap/
@@ -158,9 +169,13 @@ jobs:
               -Dpaperclip.patchonly=true \
               -Dbundlerrepo.target=/tmp/paper-bootstrap/cache \
               -jar paperclip.jar 2>&1 || true
-            PAPER_API_JAR=$(find /tmp/paper-bootstrap/cache -name "paper-api-*.jar" \
-              ! -name "*-sources.jar" ! -name "*-javadoc.jar" \
+            if [ -d /tmp/paper-bootstrap/cache ]; then
+              cp -r /tmp/paper-bootstrap/cache/. ~/.m2/repository/ 2>/dev/null || true
+            fi
+            PAPER_API_JAR=$(find /tmp/paper-bootstrap/cache ~/.m2/repository \
+              -name "paper-api-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" \
               2>/dev/null | head -1 || true)
+            PAPER_API_POM="${PAPER_API_JAR%.jar}.pom"
             echo "Cache-extracted paper-api: ${PAPER_API_JAR:-none}"
             cd -
 
@@ -174,19 +189,27 @@ jobs:
 
           # Verify the JAR has the expected Bukkit API packages
           BUKKIT_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^org/bukkit" || true)
-          PAPER_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^io/papermc" || true)
           HAS_CONFIG=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
-          echo "::notice::paper-api: size=$(du -sh $PAPER_API_JAR) bukkit_entries=$BUKKIT_COUNT paper_entries=$PAPER_COUNT config_pkg=$HAS_CONFIG"
+          HAS_ADVENTURE=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "net/kyori/adventure" || true)
+          echo "::notice::paper-api: size=$(du -sh $PAPER_API_JAR) bukkit=$BUKKIT_COUNT config_pkg=$HAS_CONFIG adventure=$HAS_ADVENTURE pom=$([ -f "$PAPER_API_POM" ] && echo yes || echo no)"
 
-          # Install as paper-api in local Maven repo so plugins compile against it
-          mvn install:install-file \
-            -Dfile="$PAPER_API_JAR" \
-            -DgroupId=io.papermc.paper \
-            -DartifactId=paper-api \
-            -Dversion=1.21.4-R0.1-SNAPSHOT \
-            -Dpackaging=jar \
-            -DgeneratePom=true \
-            --no-transfer-progress
+          # Install using the real POM (carries transitive dep declarations) if available,
+          # otherwise fall back to generating a minimal POM.
+          if [ -f "$PAPER_API_POM" ]; then
+            mvn install:install-file \
+              -Dfile="$PAPER_API_JAR" \
+              -DpomFile="$PAPER_API_POM" \
+              --no-transfer-progress
+          else
+            mvn install:install-file \
+              -Dfile="$PAPER_API_JAR" \
+              -DgroupId=io.papermc.paper \
+              -DartifactId=paper-api \
+              -Dversion=1.21.4-R0.1-SNAPSHOT \
+              -Dpackaging=jar \
+              -DgeneratePom=true \
+              --no-transfer-progress
+          fi
           rm paperclip.jar
 
           # Redirect the papermc Maven repo to local so mvn never hits repo.papermc.io
