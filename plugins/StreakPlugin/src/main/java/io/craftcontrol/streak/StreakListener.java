@@ -171,7 +171,13 @@ public class StreakListener implements Listener {
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
                     BridgePlugin.getInstance().getApiClient()
                         .post("/economy/plugin/credit", coinJson, new Callback() {
-                            @Override public void onResponse(Call call, Response response) { response.close(); }
+                            @Override public void onResponse(Call call, Response response) {
+                                if (!response.isSuccessful()) {
+                                    log.warning("Failed to credit coins for streak milestone day " + streak
+                                            + " (player " + uuid + "): HTTP " + response.code());
+                                }
+                                response.close();
+                            }
                             @Override public void onFailure(Call call, IOException e) {
                                 log.warning("Failed to credit coins for streak milestone: " + e.getMessage());
                             }
@@ -187,7 +193,13 @@ public class StreakListener implements Listener {
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
                     BridgePlugin.getInstance().getApiClient()
                         .post("/rewards/grant", rewardJson, new Callback() {
-                            @Override public void onResponse(Call call, Response response) { response.close(); }
+                            @Override public void onResponse(Call call, Response response) {
+                                if (!response.isSuccessful()) {
+                                    log.warning("Failed to grant reward '" + rewardId + "' for streak milestone day " + streak
+                                            + " (player " + uuid + "): HTTP " + response.code());
+                                }
+                                response.close();
+                            }
                             @Override public void onFailure(Call call, IOException e) {
                                 log.warning("Failed to grant reward for streak milestone: " + e.getMessage());
                             }

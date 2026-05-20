@@ -8,6 +8,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Logger;
 
 /**
  * Async HTTP client for outbound calls to the CraftControl web API.
@@ -21,13 +22,14 @@ public class ApiClient {
     private final String baseUrl;
     private final String serviceToken;
 
-    public ApiClient(String baseUrl, String serviceToken, long timeoutMs, int retryMax, long retryBackoffMs) {
+    public ApiClient(String baseUrl, String serviceToken, long timeoutMs, int retryMax, long retryBackoffMs, Logger logger) {
         this.baseUrl = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
         this.serviceToken = serviceToken;
         this.http = new OkHttpClient.Builder()
                 .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
                 .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
                 .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .addInterceptor(new LoggingInterceptor(logger))
                 .addInterceptor(new RetryInterceptor(retryMax, retryBackoffMs))
                 .build();
     }
