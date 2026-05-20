@@ -78,7 +78,7 @@ class ChallengeTrackerTest {
 
     @Test
     void blockBreak_onlyMatchesCorrectMaterial() {
-        ActiveChallenge oakChallenge = new ActiveChallenge("ch-oak", "BLOCK_BREAK", "OAK_LOG", "", 10, 0);
+        ActiveChallenge oakChallenge = new ActiveChallenge("ch-oak", "BLOCK_BREAK", "OAK_LOG", "", 10, 0, "", "");
         when(manager.getActive()).thenReturn(List.of(oakChallenge));
 
         // No BridgePlugin in tests — ChallengeTracker.checkCompletion() will just no-op
@@ -94,7 +94,7 @@ class ChallengeTrackerTest {
 
     @Test
     void craftItem_matchingMaterial_buffersProgress() {
-        ActiveChallenge ch = new ActiveChallenge("ch-craft", "CRAFT_ITEM", "DIAMOND_SWORD", "", 5, 0);
+        ActiveChallenge ch = new ActiveChallenge("ch-craft", "CRAFT_ITEM", "DIAMOND_SWORD", "", 5, 0, "", "");
         when(manager.getActive()).thenReturn(List.of(ch));
 
         ChallengeTracker tracker = new ChallengeTracker(manager, repo,
@@ -127,7 +127,7 @@ class ChallengeTrackerTest {
 
     @Test
     void craftItem_nonMatchingMaterial_ignored() {
-        ActiveChallenge ch = new ActiveChallenge("ch-craft", "CRAFT_ITEM", "DIAMOND_SWORD", "", 5, 0);
+        ActiveChallenge ch = new ActiveChallenge("ch-craft", "CRAFT_ITEM", "DIAMOND_SWORD", "", 5, 0, "", "");
         when(manager.getActive()).thenReturn(List.of(ch));
 
         ChallengeTracker tracker = new ChallengeTracker(manager, repo,
@@ -160,7 +160,7 @@ class ChallengeTrackerTest {
 
     @Test
     void playerMove_accumulatesDistance() {
-        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100);
+        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100, "", "");
         when(manager.getActive()).thenReturn(List.of(ch));
 
         ChallengeTracker tracker = new ChallengeTracker(manager, repo,
@@ -195,7 +195,7 @@ class ChallengeTrackerTest {
 
     @Test
     void playerMove_onlyHeadRotation_ignored() {
-        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100);
+        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100, "", "");
         when(manager.getActive()).thenReturn(List.of(ch));
 
         ChallengeTracker tracker = new ChallengeTracker(manager, repo,
@@ -223,7 +223,7 @@ class ChallengeTrackerTest {
 
     @Test
     void playerMove_insideVehicle_ignored() {
-        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100);
+        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100, "", "");
         when(manager.getActive()).thenReturn(List.of(ch));
 
         ChallengeTracker tracker = new ChallengeTracker(manager, repo,
@@ -250,7 +250,7 @@ class ChallengeTrackerTest {
 
     @Test
     void playerMove_flying_ignored() {
-        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100);
+        ActiveChallenge ch = new ActiveChallenge("ch-travel", "TRAVEL", "", "", 1, 100, "", "");
         when(manager.getActive()).thenReturn(List.of(ch));
 
         ChallengeTracker tracker = new ChallengeTracker(manager, repo,
