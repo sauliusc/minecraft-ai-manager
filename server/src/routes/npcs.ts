@@ -32,7 +32,7 @@ function requireSuperAdmin(req: any, res: any): boolean {
 // NOTE: must be defined before /:id to avoid route conflict
 npcsRouter.get('/sync', async (req, res, next) => {
   try {
-    const serviceToken = process.env.SERVICE_TOKEN;
+    const serviceToken = process.env.BRIDGE_SECRET;
     if (req.headers.authorization !== 'Bearer ' + serviceToken) {
       res.status(403).json({ error: 'FORBIDDEN', message: 'Invalid service token' });
       return;
