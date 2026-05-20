@@ -358,6 +358,7 @@ jobs:
           find plugins -path '*/target/*-*.jar' \
             ! -name '*-sources.jar' \
             ! -name '*-javadoc.jar' \
+            ! -name 'original-*' \
             -exec cp {} jars/ \; 2>/dev/null || true
           echo "=== Custom plugin JARs ==="
           ls -la jars/
