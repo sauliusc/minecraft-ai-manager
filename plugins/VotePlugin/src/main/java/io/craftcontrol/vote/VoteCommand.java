@@ -155,14 +155,17 @@ public class VoteCommand implements CommandExecutor {
 
     private void deliverStreakMilestone(Player player, int streak) {
         for (var m : plugin.getConfig().getMapList("vote_streak_milestones")) {
-            int day = ((Number) m.getOrDefault("day", 0)).intValue();
+            Object dayObj = m.get("day");
+            int day = dayObj instanceof Number n ? n.intValue() : 0;
             if (day != streak) continue;
 
-            String msg = (String) m.getOrDefault("message", "");
+            Object msgObj = m.get("message");
+            String msg = msgObj != null ? msgObj.toString() : "";
             if (!msg.isEmpty()) player.sendMessage(Component.text(msg, NamedTextColor.GOLD));
             player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
 
-            int bonusCoins = ((Number) m.getOrDefault("coins", 0)).intValue();
+            Object coinsObj = m.get("coins");
+            int bonusCoins = coinsObj instanceof Number n ? n.intValue() : 0;
             if (bonusCoins > 0) {
                 String uuid = player.getUniqueId().toString();
                 String json = String.format(
