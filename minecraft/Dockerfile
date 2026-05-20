@@ -25,3 +25,7 @@ COPY jars/ /plugins/
 # REPLACE_ENV_VARIABLES=TRUE with the default CFG_ prefix replaces ${CFG_*}
 # tokens in all files under /data/ before the server starts.
 COPY minecraft/config/plugins/ /plugins/
+
+COPY minecraft/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
