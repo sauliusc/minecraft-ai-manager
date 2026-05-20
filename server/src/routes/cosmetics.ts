@@ -22,7 +22,7 @@ const titleSchema = z.object({
 // GET /api/cosmetics/titles — service token OR JWT (plugin + dashboard)
 cosmeticsRouter.get('/titles', async (req, res, next) => {
   const authHeader = req.headers.authorization ?? '';
-  const isServiceToken = authHeader.startsWith('Bearer ') && authHeader.slice(7) === process.env.SERVICE_TOKEN;
+  const isServiceToken = authHeader.startsWith('Bearer ') && authHeader.slice(7) === process.env.BRIDGE_SECRET;
   if (isServiceToken) {
     try {
       const titles = await prisma.cosmeticTitle.findMany({ orderBy: { name: 'asc' } });
