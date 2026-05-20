@@ -8,7 +8,7 @@ description: Clan system for CraftControl
 commands:
   clan:
     description: Clan management commands
-    usage: /clan <create|invite|join|leave|home|sethome|chat|info|war> [args]
+    usage: /clan <create|invite|accept|deny|join|leave|members|kick|promote|demote|disband|list|home|sethome|chat|info|war> [args]
     permission: craftcontrol.clan
     permission-message: No permission.
 permissions:
