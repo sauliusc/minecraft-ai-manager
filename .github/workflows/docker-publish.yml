@@ -154,8 +154,7 @@ jobs:
           cd /tmp/paper-extract
           ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
             | grep -E "META-INF/libraries/.*\.jar$" \
-            | grep -Ev "sources|javadoc" \
-            | grep -E "paper-api|net/kyori" || true)
+            | grep -Ev "sources|javadoc" || true)
           ENTRY_COUNT=$(echo "$ENTRIES" | grep -c "." || echo 0)
           echo "::notice::step=list-bundler relevant_jars=$ENTRY_COUNT"
           while IFS= read -r entry; do
