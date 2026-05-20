@@ -298,6 +298,11 @@ router.post('/moderation/scan', async (req: Request, res: Response): Promise<voi
       take: limit,
     });
 
+    if (logs.length === 0) {
+      res.json({ data: { results: [] } });
+      return;
+    }
+
     // Build per-player context (last 3 messages before this one)
     const byPlayer: Record<string, string[]> = {};
     const inputs = logs.map((log) => {
