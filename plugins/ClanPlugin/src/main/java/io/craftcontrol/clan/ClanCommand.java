@@ -1,6 +1,7 @@
 package io.craftcontrol.clan;
 
 import com.google.gson.*;
+import com.google.gson.JsonParser;
 import io.craftcontrol.bridge.ApiClient;
 import io.craftcontrol.bridge.BridgePlugin;
 import io.craftcontrol.clan.model.ClanData;
@@ -88,6 +89,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans", gson.toJson(createBody), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -97,7 +99,7 @@ public class ClanCommand implements CommandExecutor {
                             player.sendMessage(Component.text("Insufficient Coins (requires " +
                                 plugin.getConfig().getInt("clan.creation_cost", 500) + ").", NamedTextColor.RED));
                         } else {
-                            player.sendMessage(Component.text("Failed to create clan.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to create clan: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
@@ -131,6 +133,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/invites", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -141,11 +144,14 @@ public class ClanCommand implements CommandExecutor {
                             target.sendMessage(Component.text("You've been invited to clan [" + clanTag + "] " + clanName + "!", NamedTextColor.AQUA));
                             target.sendMessage(Component.text("  /clan accept " + clanTag + "  or  /clan deny " + clanTag, NamedTextColor.YELLOW));
                         } else {
-                            player.sendMessage(Component.text("Failed to send invite.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to send invite: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -178,6 +184,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/members", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -188,11 +195,14 @@ public class ClanCommand implements CommandExecutor {
                             manager.removePendingInvite(uuid, clanId);
                             player.sendMessage(Component.text("Invite expired or no longer valid.", NamedTextColor.RED));
                         } else {
-                            player.sendMessage(Component.text("Failed to join clan.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to join clan: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -227,6 +237,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/members", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -236,11 +247,14 @@ public class ClanCommand implements CommandExecutor {
                         } else if (r.code() == 403) {
                             player.sendMessage(Component.text("No invite or clan is not public.", NamedTextColor.RED));
                         } else {
-                            player.sendMessage(Component.text("Failed to join.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to join: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -258,17 +272,21 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/leave", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
                             manager.invalidate(uuid);
                             player.sendMessage(Component.text("You left the clan.", NamedTextColor.YELLOW));
                         } else {
-                            player.sendMessage(Component.text("Failed to leave.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to leave: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -329,6 +347,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clan.id() + "/kick", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -339,11 +358,14 @@ public class ClanCommand implements CommandExecutor {
                             if (onlineTarget != null)
                                 onlineTarget.sendMessage(Component.text("You were kicked from clan [" + clan.tag() + "].", NamedTextColor.RED));
                         } else {
-                            player.sendMessage(Component.text("Failed to kick player.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to kick player: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -384,6 +406,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.patch("/clans/" + clan.id() + "/members/" + targetId, gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -392,11 +415,14 @@ public class ClanCommand implements CommandExecutor {
                             if (onlineTarget != null)
                                 onlineTarget.sendMessage(Component.text("Your clan role was changed to " + newRole + ".", NamedTextColor.AQUA));
                         } else {
-                            player.sendMessage(Component.text("Failed to change role.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to change role: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -429,6 +455,7 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clan.id() + "/disband", "{}", new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
@@ -442,11 +469,14 @@ public class ClanCommand implements CommandExecutor {
                             }
                             player.sendMessage(Component.text("Clan disbanded.", NamedTextColor.YELLOW));
                         } else {
-                            player.sendMessage(Component.text("Failed to disband clan.", NamedTextColor.RED));
+                            player.sendMessage(Component.text("Failed to disband clan: " + extractMessage(err), NamedTextColor.RED));
                         }
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -510,13 +540,17 @@ public class ClanCommand implements CommandExecutor {
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clan.id() + "/home", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
+                    String err = readErrorBody(r);
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) player.sendMessage(Component.text("Clan home set!", NamedTextColor.GREEN));
-                        else player.sendMessage(Component.text("Failed to set home.", NamedTextColor.RED));
+                        else player.sendMessage(Component.text("Failed to set home: " + extractMessage(err), NamedTextColor.RED));
                     });
                 }
-                @Override public void onFailure(Call call, IOException e) {}
+                @Override public void onFailure(Call call, IOException e) {
+                    plugin.getServer().getScheduler().runTask(plugin, () ->
+                        player.sendMessage(Component.text("Service unavailable.", NamedTextColor.RED)));
+                }
             })
         );
     }
@@ -630,5 +664,23 @@ public class ClanCommand implements CommandExecutor {
         if (online != null) return online;
         OfflinePlayer off = plugin.getServer().getOfflinePlayer(name);
         return off.hasPlayedBefore() ? off : null;
+    }
+
+    /** Extract the "message" field from an API JSON error body, or return the raw snippet. */
+    private static String extractMessage(String body) {
+        if (body == null || body.isBlank()) return "server error";
+        try {
+            JsonObject obj = JsonParser.parseString(body).getAsJsonObject();
+            return obj.has("message") ? obj.get("message").getAsString()
+                                      : body.substring(0, Math.min(120, body.length()));
+        } catch (Exception e) {
+            return body.substring(0, Math.min(120, body.length()));
+        }
+    }
+
+    /** Read error body before closing the response, for use in error callbacks. */
+    private static String readErrorBody(Response r) {
+        if (r.isSuccessful() || r.body() == null) return "";
+        try { return r.body().string(); } catch (IOException e) { return ""; }
     }
 }

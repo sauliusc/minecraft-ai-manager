@@ -24,7 +24,8 @@ public class BridgePlugin extends JavaPlugin {
                 cfg.getString("api.service_token", ""),
                 cfg.getLong("api.timeout_ms", 5000L),
                 cfg.getInt("api.retry_max", 3),
-                cfg.getLong("api.retry_backoff_ms", 500L)
+                cfg.getLong("api.retry_backoff_ms", 500L),
+                getLogger()
         );
 
         String bind = cfg.getString("bridge.bind", "0.0.0.0");

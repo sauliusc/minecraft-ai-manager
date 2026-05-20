@@ -44,7 +44,11 @@ public class NpcManager {
                 plugin.getLogger().warning("NPC sync failed: " + e.getMessage());
             }
             @Override public void onResponse(Call call, Response response) throws IOException {
-                if (!response.isSuccessful()) { response.close(); return; }
+                if (!response.isSuccessful()) {
+                    plugin.getLogger().warning("NPC sync returned HTTP " + response.code());
+                    response.close();
+                    return;
+                }
                 String body = response.body().string();
                 List<NpcDefinition> defs = gson.fromJson(body,
                     new TypeToken<List<NpcDefinition>>(){}.getType());
@@ -116,9 +120,13 @@ public class NpcManager {
         String body = "{\"questId\":\"" + questId + "\"}";
         api.post("/npcs/" + npcId + "/relationship/" + playerUuid.toString() + "/quest-complete", body, new Callback() {
             @Override public void onFailure(Call call, IOException e) {
-                plugin.getLogger().warning("Failed to record quest complete: " + e.getMessage());
+                plugin.getLogger().warning("Failed to record quest complete for player " + playerUuid + ": " + e.getMessage());
             }
-            @Override public void onResponse(Call call, Response response) throws IOException {
+            @Override public void onResponse(Call call, Response response) {
+                if (!response.isSuccessful()) {
+                    plugin.getLogger().warning("Quest complete record returned HTTP " + response.code()
+                            + " for player " + playerUuid + " / npc " + npcId);
+                }
                 response.close();
             }
         });

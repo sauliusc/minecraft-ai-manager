@@ -28,18 +28,22 @@ public class EconomyManager {
             @Override
             public void onResponse(Call call, Response response) {
                 try (response) {
-                    if (!response.isSuccessful() || response.body() == null) return;
+                    if (!response.isSuccessful()) {
+                        log.warning("Failed to fetch balance for " + playerId + ": HTTP " + response.code());
+                        return;
+                    }
+                    if (response.body() == null) return;
                     JsonObject o = gson.fromJson(response.body().string(), JsonObject.class);
                     long coins = o.has("coins") ? o.get("coins").getAsLong() : 0;
                     long crystals = o.has("crystals") ? o.get("crystals").getAsLong() : 0;
                     cache.put(playerId, new long[]{coins, crystals});
                 } catch (IOException e) {
-                    log.warning("Failed to parse balance: " + e.getMessage());
+                    log.warning("Failed to parse balance for " + playerId + ": " + e.getMessage());
                 }
             }
             @Override
             public void onFailure(Call call, IOException e) {
-                log.fine("Failed to fetch balance for " + playerId + ": " + e.getMessage());
+                log.warning("Failed to fetch balance for " + playerId + ": " + e.getMessage());
             }
         });
     }
@@ -52,13 +56,18 @@ public class EconomyManager {
         api.post("/economy/transfer", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
+                String body = "";
+                if (!response.isSuccessful() && response.body() != null) {
+                    try { body = response.body().string(); } catch (IOException ignored) {}
+                }
                 response.close();
                 if (response.isSuccessful()) {
                     cache.remove(fromId);
                     cache.remove(toId);
                     onSuccess.run();
                 } else {
-                    onError.accept("Transfer failed (server error " + response.code() + ")");
+                    String msg = extractMessage(body);
+                    onError.accept("Transfer failed: " + msg);
                 }
             }
             @Override
@@ -69,4 +78,15 @@ public class EconomyManager {
     }
 
     public void invalidate(String playerId) { cache.remove(playerId); }
+
+    private static String extractMessage(String body) {
+        if (body == null || body.isBlank()) return "server error";
+        try {
+            JsonObject obj = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            return obj.has("message") ? obj.get("message").getAsString()
+                                      : body.substring(0, Math.min(120, body.length()));
+        } catch (Exception e) {
+            return body.substring(0, Math.min(120, body.length()));
+        }
+    }
 }

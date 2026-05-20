@@ -32,7 +32,8 @@ class ApiClientTest {
                 "test-token",
                 2000L,
                 2,
-                10L
+                10L,
+                java.util.logging.Logger.getLogger("ApiClientTest")
         );
     }
 
