@@ -35,7 +35,7 @@ public class RewardDelivery {
             String mat = (String) cfg.getOrDefault("material", "DIAMOND");
             int amount = ((Number) cfg.getOrDefault("amount", 1)).intValue();
             ItemStack item = new ItemStack(Material.valueOf(mat), amount);
-            Map<ItemStack, Integer> overflow = player.getInventory().addItem(item);
+            Map<Integer, ItemStack> overflow = player.getInventory().addItem(item);
             overflow.values().forEach(i -> player.getWorld().dropItemNaturally(player.getLocation(), i));
         } catch (Exception e) {
             log.warning("Failed to deliver ITEM reward: " + e.getMessage());
@@ -78,7 +78,7 @@ public class RewardDelivery {
             }
             case "RARE" -> {
                 player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_HARP, 1.0f, 1.5f);
-                player.getWorld().spawnParticle(Particle.SPELL_WITCH, player.getLocation().add(0, 1, 0), 20, 0.3, 0.3, 0.3, 0.1);
+                player.getWorld().spawnParticle(Particle.WITCH, player.getLocation().add(0, 1, 0), 20, 0.3, 0.3, 0.3, 0.1);
             }
             default -> player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1.0f, 1.0f);
         }
