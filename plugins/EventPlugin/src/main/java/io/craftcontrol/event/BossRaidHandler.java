@@ -181,7 +181,7 @@ public class BossRaidHandler {
         }
 
         List<Map.Entry<UUID, Double>> sorted = new ArrayList<>(tracker.entrySet());
-        sorted.sort(Comparator.<Map.Entry<UUID, Double>>comparingByValue().reversed());
+        sorted.sort(Map.Entry.<UUID, Double>comparingByValue().reversed());
 
         String firstId = plugin.getConfig().getString("boss_raid.rewards.first_place_id", "boss_raid_first");
         String secondId = plugin.getConfig().getString("boss_raid.rewards.second_place_id", "boss_raid_second");
@@ -225,7 +225,7 @@ public class BossRaidHandler {
                 Firework fw = world.spawn(loc, Firework.class);
                 FireworkMeta meta = fw.getFireworkMeta();
                 meta.addEffect(FireworkEffect.builder()
-                        .withColor(Color.GOLD, Color.RED)
+                        .withColor(Color.ORANGE, Color.RED)
                         .with(FireworkEffect.Type.BURST)
                         .trail(true)
                         .build());
