@@ -4,3 +4,4 @@
 *
 !jars/
 !minecraft/config/
+!minecraft/entrypoint.sh
