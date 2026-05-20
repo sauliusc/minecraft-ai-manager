@@ -57,17 +57,17 @@ public class PayCommand implements CommandExecutor {
                 targetUuid.toString(),
                 amount,
                 () -> plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    Player sender = Bukkit.getPlayer(senderUuid);
+                    Player senderPlayer = Bukkit.getPlayer(senderUuid);
                     Player receiver = Bukkit.getPlayer(targetUuid);
-                    if (sender != null)
-                        sender.sendMessage(Component.text("Sent " + amount + " Coins to " + targetName + ".", NamedTextColor.GREEN));
+                    if (senderPlayer != null)
+                        senderPlayer.sendMessage(Component.text("Sent " + amount + " Coins to " + targetName + ".", NamedTextColor.GREEN));
                     if (receiver != null)
                         receiver.sendMessage(Component.text("You received " + amount + " Coins from " + senderName + "!", NamedTextColor.GREEN));
                 }),
                 err -> plugin.getServer().getScheduler().runTask(plugin, () -> {
-                    Player sender = Bukkit.getPlayer(senderUuid);
-                    if (sender != null)
-                        sender.sendMessage(Component.text(err, NamedTextColor.RED));
+                    Player senderPlayer = Bukkit.getPlayer(senderUuid);
+                    if (senderPlayer != null)
+                        senderPlayer.sendMessage(Component.text(err, NamedTextColor.RED));
                 })
             )
         );

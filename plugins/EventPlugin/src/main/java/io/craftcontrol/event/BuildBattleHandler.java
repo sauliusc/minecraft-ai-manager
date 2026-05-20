@@ -229,7 +229,7 @@ public class BuildBattleHandler {
             double avg = count > 0 ? (double) total / count : 0.0;
             averages.add(Map.entry(uid, avg));
         }
-        averages.sort(Comparator.<Map.Entry<UUID, Double>>comparingByValue().reversed());
+        averages.sort(Map.Entry.<UUID, Double>comparingByValue().reversed());
 
         Bukkit.broadcastMessage("§6§l====[ Build Battle Results ]====");
         String[] medals = {"§6§l1st", "§7§l2nd", "§c§l3rd"};

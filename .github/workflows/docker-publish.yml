@@ -127,100 +127,84 @@ jobs:
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
         run: |
           set -euo pipefail
-          # Clear stale Maven failure markers (Maven 3.9+ uses resolver-status.properties)
+          STEP="init"
+          trap 'echo "::error::pre-install failed at step=$STEP"' ERR
+
+          STEP="clear-cache"
           rm -rf ~/.m2/repository/io/papermc 2>/dev/null || true
 
-          # Download the Paper bundler JAR from the downloads API (different host, no 403)
+          STEP="fetch-build-info"
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
           URL="https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds/${BUILD}/downloads/${FILENAME}"
-          echo "Downloading Paper 1.21.4 build ${BUILD} (${FILENAME})..."
-          wget "$URL" -O paperclip.jar
-          echo "Downloaded $(du -sh paperclip.jar | cut -f1)"
+          echo "::notice::step=fetch-build-info build=$BUILD filename=$FILENAME"
 
-          # Strategy 1: Extract paper-api JAR embedded in the bundler's META-INF/libraries/.
-          # Paper's bundler format (Paperclip 3.x) embeds all Maven dependencies there,
-          # including the compile-time paper-api artifact with the full Bukkit API.
-          BUNDLED_API=$(jar tf paperclip.jar 2>/dev/null \
-            | grep -E "paper-api[^/]*\.jar$" \
-            | grep -v sources | grep -v javadoc \
-            | head -1 || true)
-          echo "::notice::bundled paper-api entry: ${BUNDLED_API:-none}"
+          STEP="download-bundler"
+          wget -q "$URL" -O paperclip.jar
+          echo "::notice::step=download-bundler size=$(du -sh paperclip.jar | cut -f1)"
 
-          if [ -n "$BUNDLED_API" ]; then
-            echo "Extracting paper-api (and all bundled libraries) from bundler..."
-            mkdir -p /tmp/paper-extract
-            cd /tmp/paper-extract
-            # Extract paper-api JAR and its POM (same path, .pom extension)
-            jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_API" 2>/dev/null || true
-            BUNDLED_POM="${BUNDLED_API%.jar}.pom"
-            jar xf "$OLDPWD/paperclip.jar" "$BUNDLED_POM" 2>/dev/null || true
-            # Extract ALL bundler libraries into local Maven repo so transitive deps are available
-            # without hitting any external repos. The bundler META-INF/libraries/ mirrors Maven layout.
-            jar xf "$OLDPWD/paperclip.jar" META-INF/libraries/ 2>/dev/null || true
-            if [ -d META-INF/libraries ]; then
-              cp -r META-INF/libraries/. ~/.m2/repository/
-              LIB_COUNT=$(find META-INF/libraries -name '*.jar' | wc -l)
-              echo "::notice::copied $LIB_COUNT bundler JARs into local Maven repo"
-            fi
-            PAPER_API_JAR="/tmp/paper-extract/$BUNDLED_API"
-            PAPER_API_POM="/tmp/paper-extract/$BUNDLED_POM"
-            cd -
-          else
-            # Strategy 2: Run Paperclip to populate its library cache, then mirror the cache.
-            echo "paper-api not found directly in bundler; running Paperclip to populate cache..."
-            mkdir -p /tmp/paper-bootstrap
-            cp paperclip.jar /tmp/paper-bootstrap/
-            cd /tmp/paper-bootstrap
-            timeout 180 java \
-              -Dpaperclip.patchonly=true \
-              -Dbundlerrepo.target=/tmp/paper-bootstrap/cache \
-              -jar paperclip.jar 2>&1 || true
-            if [ -d /tmp/paper-bootstrap/cache ]; then
-              cp -r /tmp/paper-bootstrap/cache/. ~/.m2/repository/ 2>/dev/null || true
-            fi
-            PAPER_API_JAR=$(find /tmp/paper-bootstrap/cache ~/.m2/repository \
-              -name "paper-api-*.jar" ! -name "*-sources.jar" ! -name "*-javadoc.jar" \
-              2>/dev/null | head -1 || true)
-            PAPER_API_POM="${PAPER_API_JAR%.jar}.pom"
-            echo "Cache-extracted paper-api: ${PAPER_API_JAR:-none}"
-            cd -
+          STEP="extract-libraries"
+          # jar xf with an exact entry name correctly extracts that specific file.
+          # We use 'jar tf | grep' to list all paper-api and net.kyori entries, then
+          # extract each one individually. Avoids unzip glob issues (* doesn't cross /)
+          # and Python heredoc YAML-processing ambiguities.
+          WORKSPACE=$(pwd)
+          mkdir -p /tmp/paper-extract
+          cd /tmp/paper-extract
+          ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
+            | grep -E "META-INF/libraries/.*\.jar$" \
+            | grep -Ev "sources|javadoc" || true)
+          ENTRY_COUNT=$(echo "$ENTRIES" | grep -c "." || echo 0)
+          echo "::notice::step=list-bundler relevant_jars=$ENTRY_COUNT"
+          while IFS= read -r entry; do
+            [ -n "$entry" ] || continue
+            jar xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
+          done <<< "$ENTRIES"
+          cd -
+          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l || echo 0)
+          echo "::notice::step=extract-libraries lib_jars=$LIB_COUNT"
 
-            if [ -z "$PAPER_API_JAR" ]; then
-              echo "::error::Could not locate paper-api JAR — neither bundled nor cache-extracted"
-              exit 1
-            fi
-          fi
+          STEP="find-paper-api"
+          PAPER_API_JAR=$(find /tmp/paper-extract -name "paper-api-*.jar" \
+            ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null | head -1 || true)
+          echo "::notice::step=find-paper-api jar=${PAPER_API_JAR:-NONE}"
+          [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found in bundler"; exit 1; }
 
-          echo "Using JAR for paper-api: $PAPER_API_JAR ($(du -sh "$PAPER_API_JAR"))"
-
-          # Verify the JAR has the expected Bukkit API packages
-          BUKKIT_COUNT=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "^org/bukkit" || true)
-          HAS_CONFIG=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
-          HAS_ADVENTURE=$(jar tf "$PAPER_API_JAR" 2>/dev/null | grep -c "net/kyori/adventure" || true)
-          echo "::notice::paper-api: size=$(du -sh $PAPER_API_JAR) bukkit=$BUKKIT_COUNT config_pkg=$HAS_CONFIG adventure=$HAS_ADVENTURE pom=$([ -f "$PAPER_API_POM" ] && echo yes || echo no)"
-
-          # Install using the real POM (carries transitive dep declarations) if available,
-          # otherwise fall back to generating a minimal POM.
-          if [ -f "$PAPER_API_POM" ]; then
-            mvn install:install-file \
-              -Dfile="$PAPER_API_JAR" \
-              -DpomFile="$PAPER_API_POM" \
-              --no-transfer-progress
-          else
-            mvn install:install-file \
-              -Dfile="$PAPER_API_JAR" \
-              -DgroupId=io.papermc.paper \
-              -DartifactId=paper-api \
-              -Dversion=1.21.4-R0.1-SNAPSHOT \
-              -Dpackaging=jar \
-              -DgeneratePom=true \
-              --no-transfer-progress
-          fi
+          STEP="build-uber-jar"
+          # Merge paper-api + all net.kyori (Adventure) classes into one JAR.
+          # Avoids needing transitive POM resolution since the blank generated POM has no deps.
+          mkdir -p /tmp/uber-api
+          cd /tmp/uber-api
+          jar xf "$PAPER_API_JAR"
+          KYORI=0
+          while IFS= read -r ajar; do
+            jar xf "$ajar" 2>/dev/null || true
+            KYORI=$((KYORI + 1))
+          done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
+            ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
+          cd -
+          jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
           rm paperclip.jar
+          echo "::notice::step=build-uber-jar kyori_jars=$KYORI size=$(du -sh /tmp/paper-api-uber.jar)"
 
-          # Redirect the papermc Maven repo to local so mvn never hits repo.papermc.io
+          STEP="verify-uber-jar"
+          BUKKIT=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "^org/bukkit" || true)
+          CFG=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
+          ADV=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "net/kyori/adventure" || true)
+          echo "::notice::step=verify bukkit=$BUKKIT config=$CFG adventure=$ADV"
+
+          STEP="mvn-install"
+          mvn install:install-file \
+            -Dfile="/tmp/paper-api-uber.jar" \
+            -DgroupId=io.papermc.paper \
+            -DartifactId=paper-api \
+            -Dversion=1.21.4-R0.1-SNAPSHOT \
+            -Dpackaging=jar \
+            -DgeneratePom=true \
+            --no-transfer-progress
+
+          STEP="write-settings"
           mkdir -p ~/.m2
           cat > ~/.m2/settings.xml << 'SETTINGS'
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
@@ -230,14 +214,134 @@ jobs:
                 <mirrorOf>papermc</mirrorOf>
                 <url>file://${user.home}/.m2/repository</url>
               </mirror>
+              <mirror>
+                <id>spigotmc-local</id>
+                <mirrorOf>spigotmc-snapshots</mirrorOf>
+                <url>file://${user.home}/.m2/repository</url>
+              </mirror>
             </mirrors>
           </settings>
           SETTINGS
-          # Verify installed paper-api JAR is non-empty
           INSTALLED=~/.m2/repository/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar
-          INSTALLED_SIZE=$(du -sh "$INSTALLED" 2>/dev/null || echo "MISSING")
-          echo "::notice::installed paper-api: $INSTALLED_SIZE"
-          echo "Paper API installed at ~/.m2/repository/io/papermc/paper/paper-api/"
+          echo "::notice::step=done installed=$(du -sh $INSTALLED 2>/dev/null || echo MISSING)"
+
+      - name: Pre-install BungeeCord Chat stubs (not in Paper bundler)
+        run: |
+          set -euo pipefail
+          # bungeecord-chat:1.21.4-R0.1-SNAPSHOT is Paper's private build at repo.papermc.io
+          # (blocked on GHA runners) and is absent from the Paperclip bundler libraries.
+          # paper-api method signatures reference these types, so the compiler needs them.
+          # We create minimal compile-only stubs; they are 'provided' scope and never
+          # shipped in plugin JARs.
+          rm -rf ~/.m2/repository/net/md_5/bungee/bungeecord-chat 2>/dev/null || true
+
+          mkdir -p /tmp/bungee-src/net/md_5/bungee/api/chat \
+                   /tmp/bungee-src/net/md_5/bungee/api \
+                   /tmp/bungee-src/net/md_5/bungee/chat \
+                   /tmp/bungee-classes
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/ChatColor.java << 'JAVASRC'
+          package net.md_5.bungee.api;
+          public enum ChatColor {
+              BLACK, DARK_BLUE, DARK_GREEN, DARK_AQUA, DARK_RED, DARK_PURPLE,
+              GOLD, GRAY, DARK_GRAY, BLUE, GREEN, AQUA, RED, LIGHT_PURPLE,
+              YELLOW, WHITE, MAGIC, BOLD, STRIKETHROUGH, UNDERLINE, ITALIC, RESET;
+              public static ChatColor of(String s) { return WHITE; }
+              public static String stripColor(String in) { return in; }
+              public static String translateAlternateColorCodes(char c, String s) { return s; }
+              public char getChar() { return '\0'; }
+              public boolean isColor() { return true; }
+              public boolean isFormat() { return false; }
+              public String getName() { return name().toLowerCase(); }
+          }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/ChatMessageType.java << 'JAVASRC'
+          package net.md_5.bungee.api;
+          public enum ChatMessageType { CHAT, SYSTEM, ACTION_BAR }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/chat/BaseComponent.java << 'JAVASRC'
+          package net.md_5.bungee.api.chat;
+          import java.util.List;
+          public abstract class BaseComponent implements java.io.Serializable, Cloneable {
+              public abstract BaseComponent duplicate();
+              public String toLegacyText() { return ""; }
+              public String toPlainText() { return ""; }
+              public List<BaseComponent> getExtra() { return null; }
+              public void addExtra(BaseComponent component) {}
+              public void addExtra(String text) {}
+              public boolean hasFormatting() { return false; }
+          }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/chat/TextComponent.java << 'JAVASRC'
+          package net.md_5.bungee.api.chat;
+          public class TextComponent extends BaseComponent {
+              public TextComponent() {}
+              public TextComponent(String text) {}
+              public TextComponent(BaseComponent... extra) {}
+              @Override public BaseComponent duplicate() { return new TextComponent(); }
+          }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/chat/ClickEvent.java << 'JAVASRC'
+          package net.md_5.bungee.api.chat;
+          import java.io.Serializable;
+          public final class ClickEvent implements Serializable {
+              public ClickEvent(Action a, String v) {}
+              public enum Action { OPEN_URL, OPEN_FILE, RUN_COMMAND, SUGGEST_COMMAND, CHANGE_PAGE, COPY_TO_CLIPBOARD }
+          }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/chat/HoverEvent.java << 'JAVASRC'
+          package net.md_5.bungee.api.chat;
+          import java.io.Serializable;
+          public final class HoverEvent implements Serializable {
+              public HoverEvent(Action a, BaseComponent... v) {}
+              public enum Action { SHOW_TEXT, SHOW_ACHIEVEMENT, SHOW_ITEM, SHOW_ENTITY }
+          }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/api/chat/ComponentBuilder.java << 'JAVASRC'
+          package net.md_5.bungee.api.chat;
+          public final class ComponentBuilder {
+              public ComponentBuilder(String text) {}
+              public ComponentBuilder(BaseComponent orig) {}
+              public ComponentBuilder append(String text) { return this; }
+              public ComponentBuilder append(BaseComponent component) { return this; }
+              public BaseComponent[] create() { return null; }
+              public enum FormatRetention { NONE, ALL, FORMATTING, EVENTS }
+          }
+          JAVASRC
+
+          cat > /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java << 'JAVASRC'
+          package net.md_5.bungee.chat;
+          public class ComponentSerializer {
+              public static net.md_5.bungee.api.chat.BaseComponent[] parse(String j) { return null; }
+              public static String toString(net.md_5.bungee.api.chat.BaseComponent... c) { return ""; }
+          }
+          JAVASRC
+
+          javac -d /tmp/bungee-classes \
+            /tmp/bungee-src/net/md_5/bungee/api/ChatColor.java \
+            /tmp/bungee-src/net/md_5/bungee/api/ChatMessageType.java \
+            /tmp/bungee-src/net/md_5/bungee/api/chat/BaseComponent.java \
+            /tmp/bungee-src/net/md_5/bungee/api/chat/ClickEvent.java \
+            /tmp/bungee-src/net/md_5/bungee/api/chat/HoverEvent.java \
+            /tmp/bungee-src/net/md_5/bungee/api/chat/TextComponent.java \
+            /tmp/bungee-src/net/md_5/bungee/api/chat/ComponentBuilder.java \
+            /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java
+          jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
+          echo "::notice::step=bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
+          mvn install:install-file \
+            -Dfile="/tmp/bungeecord-chat-stub.jar" \
+            -DgroupId=net.md_5.bungee \
+            -DartifactId=bungeecord-chat \
+            -Dversion=1.21.4-R0.1-SNAPSHOT \
+            -Dpackaging=jar \
+            -DgeneratePom=true \
+            --no-transfer-progress
 
       - name: Build plugins
         run: |

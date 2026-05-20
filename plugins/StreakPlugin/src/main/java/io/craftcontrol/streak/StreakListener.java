@@ -133,11 +133,13 @@ public class StreakListener implements Listener {
         String uuid = player.getUniqueId().toString();
 
         for (var m : plugin.getConfig().getMapList("milestones")) {
-            int day = ((Number) m.getOrDefault("day", 0)).intValue();
+            Object dayObj = m.get("day");
+            int day = dayObj instanceof Number n ? n.intValue() : 0;
             if (day != streak) continue;
 
             // Message
-            String msg = (String) m.getOrDefault("message", "");
+            Object msgObj = m.get("message");
+            String msg = msgObj != null ? msgObj.toString() : "";
             if (!msg.isEmpty()) {
                 player.sendMessage(mm.deserialize(msg));
             }
@@ -160,7 +162,8 @@ public class StreakListener implements Listener {
             player.playSound(player.getLocation(), org.bukkit.Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
 
             // Coin grant via economy API
-            int coins = ((Number) m.getOrDefault("coins", 0)).intValue();
+            Object coinsObj = m.get("coins");
+            int coins = coinsObj instanceof Number n ? n.intValue() : 0;
             if (coins > 0) {
                 String coinJson = String.format(
                     "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"streak_milestone_day_%d\"}",
