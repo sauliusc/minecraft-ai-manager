@@ -394,6 +394,105 @@ clansRouter.post('/:id/xp', serviceTokenMiddleware, validateBody(addXpSchema), a
   }
 });
 
+const kickSchema = z.object({
+  playerId: z.string().min(1),
+  kickerId: z.string().min(1),
+});
+
+// POST /api/clans/:id/kick — service token (leader/officer only)
+clansRouter.post('/:id/kick', serviceTokenMiddleware, validateBody(kickSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { playerId, kickerId } = req.body as z.infer<typeof kickSchema>;
+
+    const kicker = await prisma.clanMember.findFirst({
+      where: { clanId: id, playerId: kickerId, role: { in: ['LEADER', 'OFFICER'] } },
+    });
+    if (!kicker) {
+      res.status(403).json({ error: 'FORBIDDEN', message: 'Only leader/officer can kick members', statusCode: 403 });
+      return;
+    }
+
+    const target = await prisma.clanMember.findFirst({ where: { clanId: id, playerId } });
+    if (!target) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Player not in this clan', statusCode: 404 });
+      return;
+    }
+
+    if (target.role === 'LEADER') {
+      res.status(403).json({ error: 'FORBIDDEN', message: 'Cannot kick the clan leader', statusCode: 403 });
+      return;
+    }
+
+    // Officers can only kick regular members
+    if (kicker.role === 'OFFICER' && target.role === 'OFFICER') {
+      res.status(403).json({ error: 'FORBIDDEN', message: 'Officers cannot kick other officers', statusCode: 403 });
+      return;
+    }
+
+    await prisma.clanMember.delete({ where: { id: target.id } });
+    res.json({ kicked: true, playerId });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const roleChangeSchema = z.object({
+  role: z.enum(['OFFICER', 'MEMBER']),
+});
+
+// PATCH /api/clans/:id/members/:memberId — service token (leader only)
+clansRouter.patch('/:id/members/:memberId', serviceTokenMiddleware, validateBody(roleChangeSchema), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id, memberId } = req.params as { id: string; memberId: string };
+    const { role } = req.body as z.infer<typeof roleChangeSchema>;
+
+    const clan = await prisma.clan.findUnique({ where: { id }, select: { leaderId: true } });
+    if (!clan) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Clan not found', statusCode: 404 });
+      return;
+    }
+
+    // memberId in the URL is the playerId of the member being changed
+    const member = await prisma.clanMember.findFirst({ where: { clanId: id, playerId: memberId } });
+    if (!member) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Member not found in clan', statusCode: 404 });
+      return;
+    }
+
+    if (member.playerId === clan.leaderId) {
+      res.status(403).json({ error: 'FORBIDDEN', message: 'Cannot change the role of the clan leader', statusCode: 403 });
+      return;
+    }
+
+    const updated = await prisma.clanMember.update({
+      where: { id: member.id },
+      data: { role },
+    });
+    res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/clans/:id/disband — service token (leader only, enforced in plugin)
+clansRouter.post('/:id/disband', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params as { id: string };
+
+    const clan = await prisma.clan.findUnique({ where: { id }, select: { id: true } });
+    if (!clan) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Clan not found', statusCode: 404 });
+      return;
+    }
+
+    await prisma.clan.delete({ where: { id } });
+    res.json({ disbanded: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/clans — JWT (list clans, admin)
 clansRouter.get('/', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {

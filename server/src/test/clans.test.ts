@@ -835,6 +835,227 @@ describe('DELETE /api/clans/:id', () => {
 });
 
 // ---------------------------------------------------------------------------
+// POST /api/clans/:id/kick
+// ---------------------------------------------------------------------------
+
+describe('POST /api/clans/:id/kick', () => {
+  it('leader kicks a regular member', async () => {
+    vi.mocked(prisma.clanMember.findFirst)
+      .mockResolvedValueOnce(mockMemberLeader as any)  // kicker check
+      .mockResolvedValueOnce(mockMemberRegular as any); // target check
+    vi.mocked(prisma.clanMember.delete).mockResolvedValueOnce(mockMemberRegular as any);
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-3', kickerId: 'player-1' });
+    expect(res.status).toBe(200);
+    expect(res.body.kicked).toBe(true);
+    expect(res.body.playerId).toBe('player-3');
+    expect(prisma.clanMember.delete).toHaveBeenCalledWith({ where: { id: 'member-3' } });
+  });
+
+  it('officer kicks a regular member', async () => {
+    vi.mocked(prisma.clanMember.findFirst)
+      .mockResolvedValueOnce(mockMemberOfficer as any)
+      .mockResolvedValueOnce(mockMemberRegular as any);
+    vi.mocked(prisma.clanMember.delete).mockResolvedValueOnce(mockMemberRegular as any);
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-3', kickerId: 'player-2' });
+    expect(res.status).toBe(200);
+    expect(res.body.kicked).toBe(true);
+  });
+
+  it('returns 403 when kicker is not leader/officer', async () => {
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValueOnce(null);
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-3', kickerId: 'player-3' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('FORBIDDEN');
+  });
+
+  it('returns 404 when target is not in clan', async () => {
+    vi.mocked(prisma.clanMember.findFirst)
+      .mockResolvedValueOnce(mockMemberLeader as any)
+      .mockResolvedValueOnce(null);
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'outsider', kickerId: 'player-1' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NOT_FOUND');
+  });
+
+  it('returns 403 when trying to kick the clan leader', async () => {
+    vi.mocked(prisma.clanMember.findFirst)
+      .mockResolvedValueOnce(mockMemberOfficer as any)
+      .mockResolvedValueOnce(mockMemberLeader as any);
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-1', kickerId: 'player-2' });
+    expect(res.status).toBe(403);
+    expect(res.body.message).toMatch(/leader/i);
+  });
+
+  it('returns 403 when officer tries to kick another officer', async () => {
+    const secondOfficer = { id: 'member-5', clanId: 'clan-1', playerId: 'player-5', role: 'OFFICER' };
+    vi.mocked(prisma.clanMember.findFirst)
+      .mockResolvedValueOnce(mockMemberOfficer as any)
+      .mockResolvedValueOnce(secondOfficer as any);
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-5', kickerId: 'player-2' });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 for missing body fields', async () => {
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ kickerId: 'player-1' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 with JWT token', async () => {
+    const res = await request(app)
+      .post('/api/clans/clan-1/kick')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ playerId: 'player-3', kickerId: 'player-1' });
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PATCH /api/clans/:id/members/:memberId
+// ---------------------------------------------------------------------------
+
+describe('PATCH /api/clans/:id/members/:memberId', () => {
+  const updatedOfficer = { ...mockMemberRegular, role: 'OFFICER' };
+  const updatedMember = { ...mockMemberOfficer, role: 'MEMBER' };
+
+  it('promotes a member to officer', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce({ leaderId: 'player-1' } as any);
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValueOnce(mockMemberRegular as any);
+    vi.mocked(prisma.clanMember.update).mockResolvedValueOnce(updatedOfficer as any);
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/player-3')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ role: 'OFFICER' });
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe('OFFICER');
+    expect(prisma.clanMember.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { role: 'OFFICER' } })
+    );
+  });
+
+  it('demotes an officer to member', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce({ leaderId: 'player-1' } as any);
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValueOnce(mockMemberOfficer as any);
+    vi.mocked(prisma.clanMember.update).mockResolvedValueOnce(updatedMember as any);
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/player-2')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ role: 'MEMBER' });
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe('MEMBER');
+  });
+
+  it('returns 404 when clan does not exist', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce(null);
+    const res = await request(app)
+      .patch('/api/clans/unknown-clan/members/player-3')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ role: 'OFFICER' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NOT_FOUND');
+  });
+
+  it('returns 404 when member is not in the clan', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce({ leaderId: 'player-1' } as any);
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValueOnce(null);
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/outsider')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ role: 'OFFICER' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NOT_FOUND');
+  });
+
+  it('returns 403 when trying to change the leader role', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce({ leaderId: 'player-1' } as any);
+    vi.mocked(prisma.clanMember.findFirst).mockResolvedValueOnce(mockMemberLeader as any);
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/player-1')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ role: 'OFFICER' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('FORBIDDEN');
+  });
+
+  it('returns 400 for invalid role value', async () => {
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/player-3')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ role: 'LEADER' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for missing role field', async () => {
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/player-3')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 403 with JWT token', async () => {
+    const res = await request(app)
+      .patch('/api/clans/clan-1/members/player-3')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ role: 'OFFICER' });
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// POST /api/clans/:id/disband
+// ---------------------------------------------------------------------------
+
+describe('POST /api/clans/:id/disband', () => {
+  it('disbands clan with service token', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce({ id: 'clan-1' } as any);
+    vi.mocked(prisma.clan.delete).mockResolvedValueOnce(mockClan as any);
+    const res = await request(app)
+      .post('/api/clans/clan-1/disband')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body.disbanded).toBe(true);
+    expect(prisma.clan.delete).toHaveBeenCalledWith({ where: { id: 'clan-1' } });
+  });
+
+  it('returns 404 when clan does not exist', async () => {
+    vi.mocked(prisma.clan.findUnique).mockResolvedValueOnce(null);
+    const res = await request(app)
+      .post('/api/clans/unknown-id/disband')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`);
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('NOT_FOUND');
+  });
+
+  it('returns 403 with JWT token', async () => {
+    const res = await request(app)
+      .post('/api/clans/clan-1/disband')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // POST /api/clans/wars
 // ---------------------------------------------------------------------------
 
