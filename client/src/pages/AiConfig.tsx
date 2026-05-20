@@ -159,8 +159,73 @@ function SettingsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const providerInfo = PROVIDERS.find((p) => p.value === provider)!;
   const keySaved = !!cfg[keyField];
 
+  // Stored (server-side) provider — not the in-flight form value
+  const storedProvider: AiProvider = (cfg.provider as AiProvider) ?? 'anthropic';
+  const storedKeyField = PROVIDER_KEY_FIELD[storedProvider];
+  const storedModelHints = PROVIDER_MODEL_HINTS[storedProvider];
+  const storedKeySet = !!cfg[storedKeyField];
+  const storedGeneratorModel = cfg.generator_model || storedModelHints.generator + ' (default)';
+  const storedInferenceModel = cfg.inference_model || storedModelHints.inference + ' (default)';
+
+  const FEATURE_LABELS: [keyof AiCfg, string][] = [
+    ['enable_challenges', 'Challenges'],
+    ['enable_engagement', 'Engagement'],
+    ['enable_rewards', 'Rewards'],
+    ['enable_moderation', 'Moderation'],
+  ];
+
   return (
     <div className="space-y-6 max-w-xl">
+      {/* ── Current configuration summary ── */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="bg-gray-50 border-b border-gray-200 px-4 py-2 flex items-center justify-between">
+          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Current configuration</span>
+          {!data && <span className="text-xs text-gray-400">Loading…</span>}
+        </div>
+        <div className="divide-y divide-gray-100">
+          <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+            <span className="text-gray-500">Provider</span>
+            <span className="font-medium text-gray-800">
+              {PROVIDERS.find((p) => p.value === storedProvider)?.label ?? storedProvider}
+            </span>
+          </div>
+          <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+            <span className="text-gray-500">API Key</span>
+            {storedKeySet ? (
+              <span className="flex items-center gap-1 text-green-700 font-medium">
+                <span>✓</span> Configured
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-red-600 font-medium">
+                <span>✗</span> Not set
+              </span>
+            )}
+          </div>
+          <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+            <span className="text-gray-500">Generator model</span>
+            <span className="font-mono text-xs text-gray-700">{storedGeneratorModel}</span>
+          </div>
+          <div className="px-4 py-2.5 flex items-center justify-between text-sm">
+            <span className="text-gray-500">Inference model</span>
+            <span className="font-mono text-xs text-gray-700">{storedInferenceModel}</span>
+          </div>
+          <div className="px-4 py-2.5 flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-gray-500 mr-1">Features</span>
+            {FEATURE_LABELS.map(([k, label]) => {
+              const on = cfg[k] !== 'false';
+              return (
+                <span
+                  key={k}
+                  className={`px-2 py-0.5 rounded-full text-xs font-medium ${on ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}
+                >
+                  {on ? '✓' : '✗'} {label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="bg-blue-50 border border-blue-200 rounded p-3 text-sm text-blue-800">
         Settings are stored in the database. API keys are never returned to the browser after saving.
       </div>
