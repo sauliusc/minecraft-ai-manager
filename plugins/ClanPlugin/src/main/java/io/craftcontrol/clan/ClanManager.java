@@ -8,6 +8,7 @@ import okhttp3.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Logger;
 
 public class ClanManager {
@@ -21,6 +22,10 @@ public class ClanManager {
     private final ConcurrentHashMap<String, Long> homeCooldowns = new ConcurrentHashMap<>();
     // playerId -> clan chat toggle
     private final Set<String> clanChatEnabled = ConcurrentHashMap.newKeySet();
+    // playerId -> pending invites: each entry is String[]{clanId, clanTag, clanName}
+    private final ConcurrentHashMap<String, List<String[]>> pendingInvites = new ConcurrentHashMap<>();
+    // players who have typed /clan disband and are awaiting confirmation
+    private final Set<String> disbandConfirmsPending = ConcurrentHashMap.newKeySet();
 
     public ClanManager(Logger log) { this.log = log; }
 
@@ -85,5 +90,52 @@ public class ClanManager {
     public void invalidate(String playerId) {
         String clanId = playerClanMap.remove(playerId);
         if (clanId != null) clanCache.remove(clanId);
+    }
+
+    // ── Pending invites ───────────────────────────────────────────────────────
+
+    public void addPendingInvite(String playerId, String clanId, String clanTag, String clanName) {
+        pendingInvites.computeIfAbsent(playerId, k -> new CopyOnWriteArrayList<>())
+                .add(new String[]{clanId, clanTag, clanName});
+    }
+
+    /** Returns all pending invites for the player; never null. */
+    public List<String[]> getPendingInvites(String playerId) {
+        List<String[]> list = pendingInvites.get(playerId);
+        return list == null ? Collections.emptyList() : Collections.unmodifiableList(list);
+    }
+
+    /** Find a pending invite by clan tag or name (case-insensitive). */
+    public String[] getPendingInvite(String playerId, String clanTagOrName) {
+        List<String[]> list = pendingInvites.get(playerId);
+        if (list == null) return null;
+        return list.stream()
+                .filter(inv -> inv[1].equalsIgnoreCase(clanTagOrName) || inv[2].equalsIgnoreCase(clanTagOrName))
+                .findFirst().orElse(null);
+    }
+
+    public String[] getFirstPendingInvite(String playerId) {
+        List<String[]> list = pendingInvites.get(playerId);
+        return (list == null || list.isEmpty()) ? null : list.get(0);
+    }
+
+    public void removePendingInvite(String playerId, String clanId) {
+        List<String[]> list = pendingInvites.get(playerId);
+        if (list != null) list.removeIf(inv -> inv[0].equals(clanId));
+    }
+
+    public void clearPendingInvites(String playerId) {
+        pendingInvites.remove(playerId);
+    }
+
+    // ── Disband confirmation ──────────────────────────────────────────────────
+
+    public void requestDisband(String playerId) {
+        disbandConfirmsPending.add(playerId);
+    }
+
+    /** Returns true and removes the pending flag if a confirmation was outstanding. */
+    public boolean checkAndConsumeDisband(String playerId) {
+        return disbandConfirmsPending.remove(playerId);
     }
 }
