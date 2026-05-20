@@ -176,12 +176,16 @@ public class PlayerJoinListener implements Listener {
     private void updatePlayerRecord(Player player) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String uuid = player.getUniqueId().toString();
-        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\"}";
-        api.post("/players/" + uuid + "/join", json, new Callback() {
+        // Use the same upsert endpoint as first-join so players are created if their
+        // initial registration failed (e.g. server downtime or misconfigured secret).
+        String json = "{\"id\":\"" + player.getUniqueId() + "\",\"username\":\"" + player.getName() + "\"}";
+        api.post("/players", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 response.close();
+                if (!response.isSuccessful()) {
+                    plugin.getLogger().warning("Failed to update player " + player.getName() + ": HTTP " + response.code());
+                }
             }
             @Override
             public void onFailure(Call call, IOException e) {
