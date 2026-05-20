@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CraftControl — The Server Worth Playing</title>
+<meta name="description" content="Custom quests, clan wars, boss raids, 7 rank tiers, mystery boxes, and more. Join CraftControl — Paper 1.21.4.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & base ──────────────────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: #08090f;
+  color: #c8d4e0;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+a { color: inherit; text-decoration: none; }
+
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root {
+  --gold: #FFB700;
+  --gold-dim: #cc9200;
+  --cyan: #00D9FF;
+  --purple: #A78BFF;
+  --red: #ff4444;
+  --bg: #08090f;
+  --bg2: #0d0f1a;
+  --bg3: #111525;
+  --border: rgba(255,255,255,0.07);
+  --border-gold: rgba(255,183,0,0.25);
+  --border-cyan: rgba(0,217,255,0.25);
+  --border-purple: rgba(167,139,255,0.25);
+  --text-dim: #667788;
+  --text-mid: #8899bb;
+  --mono: 'Share Tech Mono', monospace;
+  --head: 'Bebas Neue', sans-serif;
+}
+
+/* ── Reusable ──────────────────────────────────────────────────── */
+.mono { font-family: var(--mono); }
+.container { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+.section { padding: 100px 0; }
+.section-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 4px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-family: var(--head);
+  font-size: clamp(48px, 6vw, 72px);
+  line-height: 0.95;
+  color: #fff;
+  letter-spacing: 2px;
+  margin-bottom: 18px;
+}
+.section-sub {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--text-mid);
+  max-width: 540px;
+  line-height: 1.6;
+  margin-bottom: 48px;
+}
+
+/* ── Grid background ───────────────────────────────────────────── */
+.grid-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,210,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,210,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* ── Animations ────────────────────────────────────────────────── */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.35; transform: scale(0.65); }
+}
+@keyframes shimmer {
+  0%   { left: -100%; }
+  100% { left: 150%; }
+}
+@keyframes ring-spin { to { transform: rotate(360deg); } }
+@keyframes float-up {
+  0%   { transform: translateY(0); opacity: 0; }
+  10%  { opacity: 0.7; }
+  90%  { opacity: 0.2; }
+  100% { transform: translateY(-600px); opacity: 0; }
+}
+@keyframes legendary-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,183,0,0.2); }
+  50%       { box-shadow: 0 0 22px rgba(255,183,0,0.55); }
+}
+@keyframes bar-sweep {
+  0%, 100% { opacity: 0.4; }
+  50%       { opacity: 1; }
+}
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Navbar ────────────────────────────────────────────────────── */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: rgba(8,9,15,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  height: 58px;
+}
+.nav-logo {
+  font-family: var(--head);
+  font-size: 26px;
+  letter-spacing: 3px;
+  color: #fff;
+}
+.nav-logo span { color: var(--gold); }
+.nav-ip {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  display: flex; align-items: center; gap: 8px;
+}
+.nav-ip .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #22cc66;
+  box-shadow: 0 0 6px #22cc66;
+  animation: pulse-dot 2s infinite;
+}
+.nav-join {
+  background: var(--gold);
+  color: #08090f;
+  font-family: var(--head);
+  font-size: 16px;
+  letter-spacing: 2px;
+  padding: 8px 24px;
+  clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+  transition: background 0.15s;
+}
+.nav-join:hover { background: #ffc82a; }
+
+/* ── Hero ──────────────────────────────────────────────────────── */
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex; align-items: center;
+  overflow: hidden;
+  padding-top: 58px;
+}
+.hero-glow-left {
+  position: absolute; left: -200px; top: -100px;
+  width: 700px; height: 700px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,217,255,0.06) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-glow-right {
+  position: absolute; right: -100px; top: 50%;
+  transform: translateY(-50%);
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255,183,0,0.09) 0%, transparent 65%);
+  pointer-events: none;
+}
+.hero-inner {
+  position: relative; z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 60px;
+  align-items: center;
+  padding: 80px 0;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  background: rgba(0,217,255,0.08);
+  border: 1px solid var(--border-cyan);
+  padding: 6px 16px;
+  margin-bottom: 24px;
+}
+.hero-eyebrow::before {
+  content: '';
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--cyan);
+  animation: pulse-dot 2s infinite;
+}
+.hero-eyebrow span {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 3px;
+  color: var(--cyan);
+  text-transform: uppercase;
+}
+.hero h1 {
+  font-family: var(--head);
+  font-size: clamp(72px, 9vw, 110px);
+  line-height: 0.88;
+  color: #fff;
+  letter-spacing: 2px;
+  margin-bottom: 24px;
+}
+.hero h1 .gold { color: var(--gold); }
+.hero h1 .dim  { color: #6677aa; }
+.hero-sub {
+  font-size: 18px; font-weight: 500;
+  color: var(--text-mid);
+  max-width: 480px;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+.hero-tags {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 36px;
+}
+.hero-tag {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 14px; font-weight: 600;
+  color: #aabbcc; letter-spacing: 0.4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+}
+.hero-cta {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.btn-primary {
+  background: var(--gold);
+  color: #08090f;
+  font-family: var(--head);
+  font-size: 22px;
+  letter-spacing: 2px;
+  padding: 13px 40px;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  transition: background 0.15s;
+  display: inline-block;
+}
+.btn-primary:hover { background: #ffc82a; }
+.hero-ip {
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+}
+
+/* Rank ladder card */
+.rank-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 24px 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  position: relative;
+}
+.rank-card-title {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 3px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.rank-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.rank-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.rank-bar-wrap {
+  flex: 1; height: 3px; background: rgba(255,255,255,0.08);
+  overflow: hidden;
+}
+.rank-bar-fill { height: 100%; }
+.rank-name {
+  font-family: var(--head);
+  font-size: 18px; letter-spacing: 1.5px;
+  min-width: 110px; text-align: right;
+}
+.rank-xp {
+  font-family: var(--mono);
+  font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.5px;
+  min-width: 42px;
+}
+
+/* ── Features ──────────────────────────────────────────────────── */
+.features-section { background: var(--bg2); position: relative; }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.feature-card {
+  background: var(--bg2);
+  padding: 32px 28px;
+  position: relative;
+  overflow: hidden;
+  transition: background 0.2s;
+}
+.feature-card:hover { background: var(--bg3); }
+.feature-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.feature-card:hover::before { opacity: 1; }
+.feature-card.c  ::before { background: var(--cyan); }
+.feature-card.g  ::before { background: var(--gold); }
+.feature-card.p  ::before { background: var(--purple); }
+.feature-card.r  ::before { background: var(--red); }
+.feature-icon { font-size: 36px; margin-bottom: 16px; display: block; }
+.feature-name {
+  font-family: var(--head);
+  font-size: 26px; letter-spacing: 1.5px;
+  color: #fff; margin-bottom: 8px;
+}
+.feature-desc {
+  font-size: 14px; color: var(--text-mid);
+  line-height: 1.6;
+}
+
+/* ── Clans ─────────────────────────────────────────────────────── */
+.clans-section { position: relative; overflow: hidden; }
+.hex-bg {
+  position: absolute; inset: 0; pointer-events: none;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='52' viewBox='0 0 60 52' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolygon points='30,2 58,17 58,35 30,50 2,35 2,17' fill='none' stroke='rgba(100,80,200,0.2)' stroke-width='0.5'/%3E%3C/svg%3E");
+  background-size: 60px 52px;
+}
+.clans-glow {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: 700px; height: 700px;
+  background: radial-gradient(circle, rgba(130,80,255,0.12) 0%, transparent 65%);
+  pointer-events: none;
+}
+.clans-inner {
+  position: relative; z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+.clan-shield-wrap {
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.clan-ring-svg {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  animation: ring-spin 14s linear infinite;
+}
+.clan-shield-box {
+  width: 160px; height: 160px;
+  background: linear-gradient(135deg, #2a1a5e, #130a30);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+  border: 2px solid rgba(167,139,255,0.35);
+  position: relative; z-index: 1;
+  font-size: 60px;
+}
+.clan-ring-outer {
+  width: 280px; height: 280px;
+  position: relative;
+}
+.clans-perks {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  margin-top: 32px;
+}
+.perk-card {
+  background: rgba(120,90,255,0.07);
+  border: 1px solid rgba(120,90,255,0.18);
+  padding: 16px;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.perk-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+.perk-title {
+  font-size: 14px; font-weight: 700;
+  color: #c4b8ff; letter-spacing: 0.8px;
+  margin-bottom: 4px;
+}
+.perk-desc { font-size: 13px; color: var(--text-dim); line-height: 1.45; }
+.btn-outline-purple {
+  display: inline-block;
+  border: 2px solid var(--purple);
+  color: var(--purple);
+  font-family: var(--head);
+  font-size: 22px;
+  letter-spacing: 3px;
+  padding: 13px 44px;
+  position: relative; overflow: hidden;
+  transition: color 0.2s, background 0.2s;
+  margin-top: 28px;
+}
+.btn-outline-purple::after {
+  content: '';
+  position: absolute; left: -100%; top: 0; bottom: 0; width: 60%;
+  background: linear-gradient(90deg, transparent, rgba(167,139,255,0.12), transparent);
+  animation: shimmer 3s infinite;
+}
+.btn-outline-purple:hover { background: rgba(167,139,255,0.1); }
+
+/* ── Event / Raid ──────────────────────────────────────────────── */
+.event-section { position: relative; overflow: hidden; background: #04070a; }
+.particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.particle {
+  position: absolute; width: 2px; height: 2px; border-radius: 50%;
+  background: var(--gold); animation: float-up linear infinite; opacity: 0;
+}
+.event-inner {
+  position: relative; z-index: 2;
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 80px; align-items: center;
+}
+.mystery-circle-wrap {
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 0;
+}
+.mystery-circle {
+  width: 260px; height: 260px; border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #1a0a2e, #04070a);
+  border: 1px solid rgba(255,183,0,0.18);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.mystery-circle::before {
+  content: '';
+  position: absolute; inset: -10px; border-radius: 50%;
+  border: 1px dashed rgba(255,183,0,0.14);
+  animation: ring-spin 20s linear infinite reverse;
+}
+.mystery-circle::after {
+  content: '';
+  position: absolute; inset: -24px; border-radius: 50%;
+  border: 1px dashed rgba(255,183,0,0.07);
+  animation: ring-spin 34s linear infinite;
+}
+.mystery-icon { font-size: 100px; filter: drop-shadow(0 0 24px rgba(255,183,0,0.4)); }
+.event-tag {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 4px;
+  color: rgba(255,183,0,0.5);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+.event-section h2 .stroke {
+  -webkit-text-stroke: 1.5px var(--gold);
+  color: transparent;
+}
+.loot-grid {
+  display: flex; gap: 14px; flex-wrap: wrap;
+  margin: 28px 0;
+}
+.loot-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.loot-box {
+  width: 68px; height: 68px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 30px; border: 1px solid;
+}
+.loot-box.common   { border-color: rgba(150,170,200,0.28); background: rgba(150,170,200,0.04); }
+.loot-box.rare     { border-color: rgba(80,140,255,0.38);  background: rgba(80,140,255,0.06);  }
+.loot-box.epic     { border-color: rgba(160,100,255,0.45); background: rgba(160,100,255,0.07); }
+.loot-box.legendary{ border-color: rgba(255,183,0,0.55); background: rgba(255,183,0,0.09); animation: legendary-pulse 2s infinite; }
+.loot-rarity { font-family: var(--mono); font-size: 9px; letter-spacing: 1px; text-transform: uppercase; }
+.loot-rarity.common    { color: #8899aa; }
+.loot-rarity.rare      { color: #5090ff; }
+.loot-rarity.epic      { color: #b060ff; }
+.loot-rarity.legendary { color: var(--gold); }
+.event-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border: 1px solid rgba(255,183,0,0.12);
+  margin-bottom: 28px;
+}
+.stat-block {
+  padding: 16px 12px; text-align: center;
+  border-right: 1px solid rgba(255,183,0,0.12);
+}
+.stat-block:last-child { border-right: none; }
+.stat-val {
+  font-family: var(--head);
+  font-size: 36px; color: var(--gold); letter-spacing: 1px;
+  display: block;
+}
+.stat-label { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; text-transform: uppercase; }
+.btn-gold-full {
+  display: block;
+  background: var(--gold);
+  color: #04070a;
+  font-family: var(--head);
+  font-size: 24px; letter-spacing: 3px;
+  padding: 15px 0; text-align: center;
+  transition: background 0.15s;
+}
+.btn-gold-full:hover { background: #ffc82a; }
+.bottom-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: linear-gradient(90deg, transparent, var(--gold), #ff8800, var(--gold), transparent);
+  animation: bar-sweep 4s ease-in-out infinite;
+}
+
+/* ── How to join ───────────────────────────────────────────────── */
+.join-section { background: var(--bg2); text-align: center; }
+.ip-display {
+  display: inline-flex; align-items: center; gap: 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border-gold);
+  padding: 20px 40px;
+  margin: 32px auto;
+}
+.ip-label { font-family: var(--mono); font-size: 11px; letter-spacing: 3px; color: var(--text-dim); text-transform: uppercase; }
+.ip-value { font-family: var(--mono); font-size: 26px; color: var(--gold); letter-spacing: 2px; }
+.steps {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1px; background: var(--border);
+  border: 1px solid var(--border);
+  max-width: 900px; margin: 0 auto 48px;
+  text-align: left;
+}
+.step { background: var(--bg2); padding: 28px 24px; }
+.step-num {
+  font-family: var(--head); font-size: 48px; color: rgba(255,183,0,0.18);
+  line-height: 1; margin-bottom: 10px;
+}
+.step-title { font-size: 16px; font-weight: 700; color: #ccc; margin-bottom: 6px; }
+.step-desc  { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+.version-chips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.chip {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 1.5px;
+  color: var(--text-dim);
+  background: var(--bg3); border: 1px solid var(--border);
+  padding: 5px 14px;
+}
+
+/* ── Footer ────────────────────────────────────────────────────── */
+footer {
+  background: #04050a;
+  border-top: 1px solid var(--border);
+  padding: 36px 0;
+  text-align: center;
+}
+.footer-logo {
+  font-family: var(--head); font-size: 28px; letter-spacing: 3px;
+  color: rgba(255,255,255,0.4); margin-bottom: 8px;
+}
+.footer-logo span { color: rgba(255,183,0,0.4); }
+.footer-note { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; color: #2a3344; }
+
+/* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .hero-inner, .clans-inner, .event-inner { grid-template-columns: 1fr; gap: 40px; }
+  .rank-card { display: none; }
+  .clan-ring-outer { width: 200px; height: 200px; }
+  .clan-shield-box { width: 110px; height: 110px; font-size: 42px; }
+  .clans-perks { grid-template-columns: 1fr; }
+  .mystery-circle { width: 180px; height: 180px; }
+  .mystery-icon { font-size: 70px; }
+  .mystery-circle-wrap { order: -1; }
+}
+@media (max-width: 600px) {
+  .section { padding: 64px 0; }
+  .nav-ip { display: none; }
+  .hero h1 { font-size: 64px; }
+  .ip-display { flex-direction: column; gap: 6px; padding: 16px 24px; }
+  .ip-value { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────────────── -->
+<nav>
+  <div class="container nav-inner">
+    <div class="nav-logo">CRAFT<span>CONTROL</span></div>
+    <div class="nav-ip">
+      <div class="dot"></div>
+      <span>play.yourserver.net</span>
+    </div>
+    <a href="#join" class="nav-join">JOIN NOW</a>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="grid-bg"></div>
+  <div class="hero-glow-left"></div>
+  <div class="hero-glow-right"></div>
+  <div class="container">
+    <div class="hero-inner">
+      <div class="hero-left">
+        <div class="hero-eyebrow"><span>Now Open — Season 1 · Paper 1.21.4</span></div>
+        <h1>
+          PLAY.<br>
+          <span class="gold">RISE.</span><br>
+          <span class="dim">BECOME</span> LEGEND.
+        </h1>
+        <p class="hero-sub">
+          Custom quests. Epic boss raids. Build your clan.
+          Earn ranks nobody else has. This isn't just a server — it's a world.
+        </p>
+        <div class="hero-tags">
+          <div class="hero-tag">⚔️ Daily Quests</div>
+          <div class="hero-tag">🏰 Clans &amp; Wars</div>
+          <div class="hero-tag">🎁 Mystery Boxes</div>
+          <div class="hero-tag">👑 7 Rank Tiers</div>
+          <div class="hero-tag">🐉 Boss Raids</div>
+          <div class="hero-tag">🌟 Cosmetics</div>
+          <div class="hero-tag">💰 Economy</div>
+          <div class="hero-tag">🎤 Voice Chat</div>
+        </div>
+        <div class="hero-cta">
+          <a href="#join" class="btn-primary">JOIN THE SERVER</a>
+          <span class="hero-ip mono">play.yourserver.net</span>
+        </div>
+      </div>
+
+      <!-- Rank ladder -->
+      <div class="rank-card">
+        <p class="rank-card-title">Rank Progression</p>
+
+        <div class="rank-row">
+          <span class="rank-xp">0 XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:#223;"></div></div>
+          <span class="rank-name" style="color:#556677;">NEWCOMER</span>
+          <div class="rank-dot" style="background:#334;border:1px solid #556;"></div>
+        </div>
+        <div class="rank-row">
+          <span class="rank-xp">1K XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:#2a5a3a;"></div></div>
+          <span class="rank-name" style="color:#88ccaa;">ADVENTURER</span>
+          <div class="rank-dot" style="background:#2a8a5a;"></div>
+        </div>
+        <div class="rank-row">
+          <span class="rank-xp">5K XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:#1a4a7a;"></div></div>
+          <span class="rank-name" style="color:#77aabb;">KNIGHT</span>
+          <div class="rank-dot" style="background:#2a7acc;"></div>
+        </div>
+        <div class="rank-row">
+          <span class="rank-xp">15K XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:#3a2a6a;"></div></div>
+          <span class="rank-name" style="color:#aa88ff;">CHAMPION</span>
+          <div class="rank-dot" style="background:#8844ff;"></div>
+        </div>
+        <div class="rank-row">
+          <span class="rank-xp">35K XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:#5a4a00;"></div></div>
+          <span class="rank-name" style="color:#FFB700;">VETERAN ⭐</span>
+          <div class="rank-dot" style="background:#FFB700;"></div>
+        </div>
+        <div class="rank-row">
+          <span class="rank-xp">75K XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:#7a5000;"></div></div>
+          <span class="rank-name" style="color:#FFD000;">LEGEND 👑</span>
+          <div class="rank-dot" style="background:#FFD000;box-shadow:0 0 8px #FFB700;"></div>
+        </div>
+        <div class="rank-row">
+          <span class="rank-xp">150K XP</span>
+          <div class="rank-bar-wrap"><div class="rank-bar-fill" style="width:100%;background:linear-gradient(90deg,#3a7aff,#00d9ff);"></div></div>
+          <span class="rank-name" style="background:linear-gradient(90deg,#aaccff,#00d9ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">MYTHIC ⚡</span>
+          <div class="rank-dot" style="background:#00d9ff;box-shadow:0 0 10px #00d9ff;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Features ─────────────────────────────────────────────────── -->
+<section class="section features-section">
+  <div class="grid-bg"></div>
+  <div class="container">
+    <p class="section-label">What's waiting for you</p>
+    <h2 class="section-title">EVERYTHING<br>YOU NEED.</h2>
+    <p class="section-sub">
+      Every system on the server is purpose-built — no bloat, no pay-to-win.
+      Just well-crafted mechanics that reward time and skill.
+    </p>
+    <div class="features-grid">
+      <div class="feature-card c">
+        <span class="feature-icon">⚔️</span>
+        <div class="feature-name">DAILY QUESTS</div>
+        <p class="feature-desc">Fresh objectives every day. Solo challenges, exploration puzzles, and combat missions with XP &amp; coin rewards.</p>
+      </div>
+      <div class="feature-card g">
+        <span class="feature-icon">🐉</span>
+        <div class="feature-name">BOSS RAIDS</div>
+        <p class="feature-desc">Server-wide boss events with custom mechanics. Team up with strangers or bring your clan. Loot is rare and earned.</p>
+      </div>
+      <div class="feature-card p">
+        <span class="feature-icon">🏰</span>
+        <div class="feature-name">CLAN SYSTEM</div>
+        <p class="feature-desc">Create or join a clan, declare wars, compete for territory, and climb the weekly leaderboard together.</p>
+      </div>
+      <div class="feature-card r">
+        <span class="feature-icon">🎁</span>
+        <div class="feature-name">MYSTERY BOXES</div>
+        <p class="feature-desc">Earned in-game through quests and milestones. Guaranteed drops with four rarity tiers up to Legendary.</p>
+      </div>
+      <div class="feature-card g">
+        <span class="feature-icon">💰</span>
+        <div class="feature-name">ECONOMY</div>
+        <p class="feature-desc">Player-driven market with /pay, shop, and auction systems. Earn coins through play — no real-money shortcuts.</p>
+      </div>
+      <div class="feature-card c">
+        <span class="feature-icon">🌟</span>
+        <div class="feature-name">COSMETICS</div>
+        <p class="feature-desc">Unlockable skins, trails, and hats that express your rank and history. Flex without affecting gameplay balance.</p>
+      </div>
+      <div class="feature-card p">
+        <span class="feature-icon">🎤</span>
+        <div class="feature-name">VOICE CHAT</div>
+        <p class="feature-desc">Proximity voice chat built in via Simple Voice Chat. Talk to players near you in-game — no Discord bridging needed.</p>
+      </div>
+      <div class="feature-card r">
+        <span class="feature-icon">📅</span>
+        <div class="feature-name">LIVE EVENTS</div>
+        <p class="feature-desc">Scheduled server-wide events with unique rules and rewards. Build battles, race challenges, and seasonal specials.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Clans ────────────────────────────────────────────────────── -->
+<section class="section clans-section">
+  <div class="hex-bg"></div>
+  <div class="clans-glow"></div>
+  <div class="container">
+    <div class="clans-inner">
+      <div>
+        <p class="section-label">Strength in numbers</p>
+        <h2 class="section-title" style="color:#fff;">YOUR CLAN.<br><span style="color:#A78BFF;">YOUR LEGEND.</span></h2>
+        <p class="section-sub" style="color:var(--text-mid);">
+          Create a crew. Declare war. Climb the leaderboard together.
+          Notoriety is earned, not given — and your tag follows you everywhere.
+        </p>
+        <div class="clans-perks">
+          <div class="perk-card">
+            <div class="perk-icon">⚔️</div>
+            <div>
+              <div class="perk-title">Clan Wars</div>
+              <p class="perk-desc">Challenge rivals. Territory control, kill counts, resource races.</p>
+            </div>
+          </div>
+          <div class="perk-card">
+            <div class="perk-icon">🏆</div>
+            <div>
+              <div class="perk-title">Clan of the Week</div>
+              <p class="perk-desc">Top clan gets featured at spawn. Bragging rights included.</p>
+            </div>
+          </div>
+          <div class="perk-card">
+            <div class="perk-icon">🌟</div>
+            <div>
+              <div class="perk-title">Clan XP &amp; Levels</div>
+              <p class="perk-desc">Level up to unlock exclusive perks and clan cosmetics.</p>
+            </div>
+          </div>
+          <div class="perk-card">
+            <div class="perk-icon">🎯</div>
+            <div>
+              <div class="perk-title">Clan Quests</div>
+              <p class="perk-desc">Group missions only your crew can complete. Rewards for all.</p>
+            </div>
+          </div>
+        </div>
+        <a href="#join" class="btn-outline-purple">FORM YOUR CLAN</a>
+      </div>
+
+      <div class="clan-shield-wrap">
+        <div class="clan-ring-outer">
+          <svg class="clan-ring-svg" viewBox="0 0 280 280" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="140" cy="140" r="136" fill="none" stroke="rgba(167,139,255,0.28)" stroke-width="0.5" stroke-dasharray="4 8"/>
+            <circle cx="140" cy="140" r="115" fill="none" stroke="rgba(167,139,255,0.14)" stroke-width="0.5" stroke-dasharray="2 18"/>
+            <polygon points="140,4 145,9 140,14 135,9"  fill="rgba(167,139,255,0.6)"/>
+            <polygon points="140,266 145,271 140,276 135,271" fill="rgba(167,139,255,0.6)"/>
+            <polygon points="4,140 9,145 14,140 9,135" fill="rgba(167,139,255,0.6)"/>
+            <polygon points="266,140 271,145 276,140 271,135" fill="rgba(167,139,255,0.6)"/>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+            <div class="clan-shield-box">🏰</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Event ────────────────────────────────────────────────────── -->
+<section class="section event-section">
+  <div class="particles" aria-hidden="true">
+    <div class="particle" style="left:8%;animation-duration:8s;animation-delay:0s;width:3px;height:3px;"></div>
+    <div class="particle" style="left:22%;animation-duration:11s;animation-delay:2s;"></div>
+    <div class="particle" style="left:38%;animation-duration:7s;animation-delay:1s;background:#A78BFF;"></div>
+    <div class="particle" style="left:55%;animation-duration:9s;animation-delay:3s;width:3px;height:3px;"></div>
+    <div class="particle" style="left:68%;animation-duration:13s;animation-delay:0.5s;background:#00D9FF;"></div>
+    <div class="particle" style="left:82%;animation-duration:10s;animation-delay:4s;"></div>
+    <div class="particle" style="left:91%;animation-duration:8s;animation-delay:1.5s;"></div>
+  </div>
+  <div class="container">
+    <div class="event-inner">
+      <div>
+        <div class="event-tag">⬡ Server-Wide Event · Live Now ⬡</div>
+        <h2 class="section-title">THE<br>DRAGON<br><span class="stroke">RETURNS</span></h2>
+        <p class="section-sub" style="font-style:italic;color:var(--text-mid);">
+          "Something stirred in the Dark Mountains last night.
+          The lore fragments are scattered. The clock is ticking."
+          Will you answer the call?
+        </p>
+        <div class="loot-grid">
+          <div class="loot-item">
+            <div class="loot-box common">🗡️</div>
+            <span class="loot-rarity common">Common</span>
+          </div>
+          <div class="loot-item">
+            <div class="loot-box rare">💎</div>
+            <span class="loot-rarity rare">Rare</span>
+          </div>
+          <div class="loot-item">
+            <div class="loot-box epic">🔮</div>
+            <span class="loot-rarity epic">Epic</span>
+          </div>
+          <div class="loot-item">
+            <div class="loot-box legendary">👑</div>
+            <span class="loot-rarity legendary">Legendary</span>
+          </div>
+        </div>
+        <div class="event-stats">
+          <div class="stat-block">
+            <span class="stat-val">2</span>
+            <span class="stat-label">Weeks</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-val">4</span>
+            <span class="stat-label">Reward Tiers</span>
+          </div>
+          <div class="stat-block">
+            <span class="stat-val">1</span>
+            <span class="stat-label">Grand Winner</span>
+          </div>
+        </div>
+        <a href="#join" class="btn-gold-full">JOIN THE RAID</a>
+      </div>
+      <div class="mystery-circle-wrap">
+        <div class="mystery-circle">
+          <div class="mystery-icon">🐉</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom-bar"></div>
+</section>
+
+<!-- ── How to join ──────────────────────────────────────────────── -->
+<section id="join" class="section join-section">
+  <div class="container" style="text-align:center;">
+    <p class="section-label">Ready to play?</p>
+    <h2 class="section-title">HOW TO JOIN</h2>
+    <p class="section-sub" style="margin:0 auto 0; text-align:center;">
+      Three steps. Thirty seconds. No mods required.
+    </p>
+
+    <div class="ip-display">
+      <div>
+        <div class="ip-label">Server Address</div>
+        <div class="ip-value">play.yourserver.net</div>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">Launch Minecraft</div>
+        <p class="step-desc">Java Edition 1.21.4 or later. The server runs Paper — no client-side mods needed to connect.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">Add the Server</div>
+        <p class="step-desc">Multiplayer → Add Server → paste <strong style="color:#ccc;font-family:var(--mono);">play.yourserver.net</strong> → Done.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">Start Playing</div>
+        <p class="step-desc">Pick up your starter kit, read the board at spawn, and jump into your first quest.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-title">Optional: Voice</div>
+        <p class="step-desc">Install the <strong style="color:#ccc;">Simple Voice Chat</strong> mod on your client for proximity voice chat in-game.</p>
+      </div>
+    </div>
+
+    <div class="version-chips">
+      <div class="chip">JAVA EDITION</div>
+      <div class="chip">PAPER 1.21.4</div>
+      <div class="chip">16 PLUGINS</div>
+      <div class="chip">4 GB RAM</div>
+      <div class="chip">VOICE CHAT</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ───────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">CRAFT<span>CONTROL</span></div>
+  <p class="footer-note">Not affiliated with Mojang Studios · Paper 1.21.4 · Season 1</p>
+</footer>
+
+</body>
+</html>
