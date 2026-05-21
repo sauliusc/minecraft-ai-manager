@@ -555,7 +555,46 @@ footer {
 .footer-logo span { color: rgba(255,183,0,0.4); }
 .footer-note { font-family: var(--mono); font-size: 11px; letter-spacing: 1px; color: #2a3344; }
 
+/* ── Plugins ───────────────────────────────────────────────────── */
+.plugins-section { background: var(--bg); }
+.plugin-group-label {
+  font-family: var(--mono);
+  font-size: 11px; letter-spacing: 4px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  border-left: 2px solid var(--cyan);
+  padding-left: 12px;
+}
+.plugin-group-label.third { border-left-color: var(--gold); margin-top: 40px; }
+.plugins-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.plugin-item {
+  background: var(--bg2);
+  padding: 18px 20px;
+  display: flex; gap: 14px; align-items: flex-start;
+  transition: background 0.15s;
+}
+.plugin-item:hover { background: var(--bg3); }
+.plugin-icon { font-size: 22px; flex-shrink: 0; margin-top: 2px; }
+.plugin-name {
+  font-family: var(--mono);
+  font-size: 12px; letter-spacing: 2px;
+  color: #aabbcc;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.plugin-desc { font-size: 13px; color: var(--text-dim); line-height: 1.45; }
+
 /* ── Responsive ────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .plugins-two-col { grid-template-columns: 1fr; }
+}
 @media (max-width: 900px) {
   .hero-inner, .clans-inner, .event-inner { grid-template-columns: 1fr; gap: 40px; }
   .rank-card { display: none; }
@@ -724,6 +763,90 @@ footer {
         <span class="feature-icon">📅</span>
         <div class="feature-name">LIVE EVENTS</div>
         <p class="feature-desc">Scheduled server-wide events with unique rules and rewards. Build battles, race challenges, and seasonal specials.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Plugins ───────────────────────────────────────────────────── -->
+<section class="section plugins-section">
+  <div class="container">
+    <p class="section-label">Under the hood</p>
+    <h2 class="section-title">16 PLUGINS.<br><span style="color:var(--cyan);">ALL CUSTOM.</span></h2>
+    <p class="section-sub">
+      Every mechanic is driven by plugins written specifically for this server.
+      No off-the-shelf bloat — tight, purpose-built code connected to the CraftControl web panel.
+    </p>
+
+    <p class="plugin-group-label">Custom Plugins &mdash; 13</p>
+    <div class="plugins-two-col">
+      <div class="plugin-item">
+        <span class="plugin-icon">🔗</span>
+        <div><div class="plugin-name">BridgePlugin</div><p class="plugin-desc">HTTP gateway between the Minecraft server and the CraftControl web API — player tracking, economy sync, and analytics.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">⚔️</span>
+        <div><div class="plugin-name">ChallengePlugin</div><p class="plugin-desc">Tracks in-game challenge progress and reports completions to the web API for XP and reward dispatch.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🏰</span>
+        <div><div class="plugin-name">ClanPlugin</div><p class="plugin-desc">Full clan lifecycle — create, join, accept, kick, promote, demote, disband, and list with war support.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🌟</span>
+        <div><div class="plugin-name">CosmeticsPlugin</div><p class="plugin-desc">Unlockable titles, chat colors, particles, pets, and trails that flex your rank and history.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">💰</span>
+        <div><div class="plugin-name">EconomyPlugin</div><p class="plugin-desc">Dual-currency economy with /pay, balance checks, and a player-driven market. No real-money shortcuts.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🐉</span>
+        <div><div class="plugin-name">EventPlugin</div><p class="plugin-desc">Boss Raids, Treasure Hunts, and Build Battles — server-wide events with custom mechanics and tiered loot.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">👋</span>
+        <div><div class="plugin-name">GreeterPlugin</div><p class="plugin-desc">Personalised welcome messages and starter rewards for first-time and returning players.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🛡️</span>
+        <div><div class="plugin-name">ModerationPlugin</div><p class="plugin-desc">Staff tools for chat scanning, player reports, warnings, and bans — surfaced in the web panel.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🧙</span>
+        <div><div class="plugin-name">NpcPlugin</div><p class="plugin-desc">Guide and quest-giver NPCs with multi-tier dialogue trees — no mods required on the client side.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">📜</span>
+        <div><div class="plugin-name">QuestPlugin</div><p class="plugin-desc">Quest assignment, progress tracking, and completion — daily and weekly objectives with XP and coin payouts.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🎁</span>
+        <div><div class="plugin-name">RewardPlugin</div><p class="plugin-desc">Delivers mystery-box loot and milestone rewards directly to players — four rarity tiers up to Legendary.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🔥</span>
+        <div><div class="plugin-name">StreakPlugin</div><p class="plugin-desc">Daily login streak tracking with escalating bonus rewards for consistent players.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🗳️</span>
+        <div><div class="plugin-name">VotePlugin</div><p class="plugin-desc">Shows voting-site links and automatically grants coin rewards when a player's vote is confirmed.</p></div>
+      </div>
+    </div>
+
+    <p class="plugin-group-label third">Community Plugins &mdash; 3</p>
+    <div class="plugins-two-col">
+      <div class="plugin-item">
+        <span class="plugin-icon">🏪</span>
+        <div><div class="plugin-name">ClickVillagers</div><p class="plugin-desc">Right-click any villager to open the trade UI directly — no lengthy conversation screens.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">🎤</span>
+        <div><div class="plugin-name">Simple Voice Chat</div><p class="plugin-desc">Proximity-based in-game voice communication. Talk to nearby players without leaving the game.</p></div>
+      </div>
+      <div class="plugin-item">
+        <span class="plugin-icon">✈️</span>
+        <div><div class="plugin-name">JustTpa</div><p class="plugin-desc">/tpa and /tpahere teleport requests between players — fast travel with mutual consent.</p></div>
       </div>
     </div>
   </div>
