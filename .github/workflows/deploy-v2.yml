@@ -67,16 +67,19 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     environment: production       # requires manual approval if configured
+    outputs:
+      deployed: ${{ steps.ssh.outcome == 'success' }}
 
     steps:
       - name: Deploy via SSH
+        id: ssh
+        if: ${{ secrets.MGMT_VM_HOST != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host:        ${{ secrets.MGMT_VM_HOST }}
           username:    ${{ secrets.MGMT_VM_SSH_USER }}
           key:         ${{ secrets.MGMT_VM_SSH_KEY }}
           port:        ${{ secrets.MGMT_VM_SSH_PORT || 22 }}
-          script_stop: true         # abort on first error
           script: |
             set -euo pipefail
 
@@ -97,7 +100,7 @@ jobs:
     name: Validate Minecraft startup
     needs: deploy
     runs-on: [self-hosted, ct102]
-    if: ${{ always() && needs.deploy.result != 'skipped' }}
+    if: ${{ always() && needs.deploy.outputs.deployed == 'true' }}
     timeout-minutes: 5
 
     steps:
@@ -159,6 +162,7 @@ jobs:
         run: mvn -f plugins/pom.xml clean package -DskipTests -q
 
       - name: Upload JARs to game server
+        if: ${{ secrets.GAME_VM_HOST != '' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host:     ${{ secrets.GAME_VM_HOST }}
@@ -169,6 +173,7 @@ jobs:
           strip_components: 3     # removes plugins/PluginName/target/ prefix
 
       - name: Restart Minecraft via DiscoPanel
+        if: ${{ secrets.GAME_VM_HOST != '' }}
         run: |
           curl -s -f -X POST \
             -H "Authorization: Bearer ${{ secrets.DISCOPANEL_API_TOKEN }}" \
