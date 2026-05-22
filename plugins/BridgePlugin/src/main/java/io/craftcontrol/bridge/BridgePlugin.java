@@ -19,9 +19,14 @@ public class BridgePlugin extends JavaPlugin {
 
         FileConfiguration cfg = getConfig();
 
+        String serviceToken = System.getenv("BRIDGE_SECRET");
+        if (serviceToken == null || serviceToken.isEmpty()) {
+            serviceToken = cfg.getString("api.service_token", "");
+        }
+
         apiClient = new ApiClient(
                 cfg.getString("api.base_url", "http://10.10.10.20:3000/api"),
-                cfg.getString("api.service_token", ""),
+                serviceToken,
                 cfg.getLong("api.timeout_ms", 5000L),
                 cfg.getInt("api.retry_max", 3),
                 cfg.getLong("api.retry_backoff_ms", 500L),
@@ -30,7 +35,10 @@ public class BridgePlugin extends JavaPlugin {
 
         String bind = cfg.getString("bridge.bind", "0.0.0.0");
         int port = cfg.getInt("bridge.port", 25580);
-        String secret = cfg.getString("bridge.secret", "");
+        String secret = System.getenv("BRIDGE_SECRET");
+        if (secret == null || secret.isEmpty()) {
+            secret = cfg.getString("bridge.secret", "");
+        }
 
         bridgeServer = new BridgeServer(bind, port, secret, this);
         try {
