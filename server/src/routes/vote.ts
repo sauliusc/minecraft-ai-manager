@@ -31,7 +31,7 @@ voteRouter.get('/stats', serviceTokenMiddleware, async (_req, res, next) => {
 // POST /api/vote/webhook — service token (voting site posts here after a vote)
 voteRouter.post('/webhook', serviceTokenMiddleware, validateBody(webhookSchema), async (req, res, next) => {
   try {
-    const { playerIgN, site, uuid } = req.body as z.infer<typeof webhookSchema>;
+    const { playerIgN, site } = req.body as z.infer<typeof webhookSchema>;
 
     // Deduplicate: one vote per player per site per hour
     const dedupKey = `vote:dedup:${playerIgN.toLowerCase()}:${site}`;
