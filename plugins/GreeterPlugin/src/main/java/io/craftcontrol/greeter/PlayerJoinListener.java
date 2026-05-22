@@ -157,7 +157,7 @@ public class PlayerJoinListener implements Listener {
     private void postPlayerRecord(Player player) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = "{\"id\":\"" + player.getUniqueId() + "\",\"username\":\"" + player.getName() + "\"}";
+        String json = "{\"username\":\"" + player.getName().replace("\"", "\\\"") + "\"}";
         api.post("/players", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
@@ -178,7 +178,8 @@ public class PlayerJoinListener implements Listener {
         if (api == null) return;
         // Use the same upsert endpoint as first-join so players are created if their
         // initial registration failed (e.g. server downtime or misconfigured secret).
-        String json = "{\"id\":\"" + player.getUniqueId() + "\",\"username\":\"" + player.getName() + "\"}";
+        String name = player.getName().replace("\"", "\\\"");
+        String json = "{\"username\":\"" + name + "\"}";
         api.post("/players", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
