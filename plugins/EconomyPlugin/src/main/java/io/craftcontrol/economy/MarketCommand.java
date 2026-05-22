@@ -64,7 +64,7 @@ public class MarketCommand implements CommandExecutor {
         if (api == null) { player.sendMessage(Component.text("Market service unavailable.", NamedTextColor.RED)); return; }
 
         JsonObject listBody = new JsonObject();
-        listBody.addProperty("sellerId", player.getUniqueId().toString());
+        listBody.addProperty("sellerId", player.getName());
         listBody.addProperty("material", material);
         listBody.addProperty("amount", amount);
         listBody.addProperty("price", price);
@@ -135,7 +135,7 @@ public class MarketCommand implements CommandExecutor {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) { player.sendMessage(Component.text("Market unavailable.", NamedTextColor.RED)); return; }
         JsonObject buyBody = new JsonObject();
-        buyBody.addProperty("buyerId", player.getUniqueId().toString());
+        buyBody.addProperty("buyerId", player.getName());
         String json = gson.toJson(buyBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/economy/market/listings/" + listingId + "/buy", json, new Callback() {

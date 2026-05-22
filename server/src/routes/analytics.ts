@@ -96,10 +96,10 @@ analyticsRouter.get('/economy', authMiddleware, async (_req, res, next) => {
     // Enrich with player usernames
     const playerIds = topGrantees.map((g) => g.playerId);
     const players = await prisma.player.findMany({
-      where: { id: { in: playerIds } },
-      select: { id: true, username: true },
+      where: { username: { in: playerIds } },
+      select: { username: true },
     });
-    const playerMap = Object.fromEntries(players.map((p) => [p.id, p.username]));
+    const playerMap = Object.fromEntries(players.map((p) => [p.username, p.username]));
 
     // Enrich with reward names
     const rewardIds = rewardCounts.map((r) => r.rewardId);
@@ -135,7 +135,7 @@ analyticsRouter.get('/churn-risk', authMiddleware, async (_req, res, next) => {
       where: {
         lastSeenAt: { gte: fourWeeksAgo, lt: twoWeeksAgo },
       },
-      select: { id: true, username: true, lastSeenAt: true, joinCount: true },
+      select: { username: true, lastSeenAt: true, joinCount: true },
       orderBy: { lastSeenAt: 'asc' },
       take: 50,
     });

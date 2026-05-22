@@ -14,7 +14,6 @@ const webhookSchema = z.object({
 });
 
 const claimSchema = z.object({
-  uuid: z.string().min(1),
   playerName: z.string().min(1),
 });
 
@@ -32,7 +31,7 @@ voteRouter.get('/stats', serviceTokenMiddleware, async (_req, res, next) => {
 // POST /api/vote/webhook — service token (voting site posts here after a vote)
 voteRouter.post('/webhook', serviceTokenMiddleware, validateBody(webhookSchema), async (req, res, next) => {
   try {
-    const { playerIgN, site, uuid } = req.body as z.infer<typeof webhookSchema>;
+    const { playerIgN, site } = req.body as z.infer<typeof webhookSchema>;
 
     // Deduplicate: one vote per player per site per hour
     const dedupKey = `vote:dedup:${playerIgN.toLowerCase()}:${site}`;
@@ -43,18 +42,18 @@ voteRouter.post('/webhook', serviceTokenMiddleware, validateBody(webhookSchema),
     }
 
     const vote = await prisma.pendingVote.create({
-      data: { playerId: uuid ?? playerIgN, playerIgN, site },
+      data: { playerId: playerIgN, playerIgN, site },
     });
     res.status(201).json(vote);
   } catch (err) { next(err); }
 });
 
-// GET /api/vote/pending/:uuid — service token (plugin checks on join)
-voteRouter.get('/pending/:uuid', serviceTokenMiddleware, async (req, res, next) => {
+// GET /api/vote/pending/:playerName — service token (plugin checks on join)
+voteRouter.get('/pending/:playerName', serviceTokenMiddleware, async (req, res, next) => {
   try {
-    const { uuid } = req.params as { uuid: string };
+    const { playerName } = req.params as { playerName: string };
     const pending = await prisma.pendingVote.findFirst({
-      where: { playerId: uuid, claimed: false },
+      where: { playerId: playerName, claimed: false },
       orderBy: { createdAt: 'asc' },
     });
     if (!pending) {
@@ -68,10 +67,10 @@ voteRouter.get('/pending/:uuid', serviceTokenMiddleware, async (req, res, next) 
 // POST /api/vote/claim — service token (player uses /voteclaim)
 voteRouter.post('/claim', serviceTokenMiddleware, validateBody(claimSchema), async (req, res, next) => {
   try {
-    const { uuid } = req.body as z.infer<typeof claimSchema>;
+    const { playerName } = req.body as z.infer<typeof claimSchema>;
 
     // Dedup: prevent double-claim within 5s
-    const lockKey = `vote:claim:${uuid}`;
+    const lockKey = `vote:claim:${playerName}`;
     const locked = await redis.set(lockKey, '1', 'EX', 5, 'NX');
     if (locked === null) {
       res.status(409).json({ error: 'CONFLICT', message: 'Claim already in progress' });
@@ -79,7 +78,7 @@ voteRouter.post('/claim', serviceTokenMiddleware, validateBody(claimSchema), asy
     }
 
     const vote = await prisma.pendingVote.findFirst({
-      where: { playerId: uuid, claimed: false },
+      where: { playerId: playerName, claimed: false },
       orderBy: { createdAt: 'asc' },
     });
     if (!vote) {

@@ -33,11 +33,11 @@ public class ModerationManager {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
         JsonObject blockBody = new JsonObject();
-        blockBody.addProperty("blockerId", blocker.getUniqueId().toString());
-        blockBody.addProperty("blockedId", target.getUniqueId().toString());
+        blockBody.addProperty("blockerId", blocker.getName());
+        blockBody.addProperty("blockedId", target.getName());
         String json = gson.toJson(blockBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/block", json, new Callback() {
+            api.post("/moderation/block", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })
@@ -49,7 +49,7 @@ public class ModerationManager {
         if (set != null) set.remove(target.getUniqueId());
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String path = "/api/moderation/block?blockerId=" + blocker.getUniqueId() + "&blockedId=" + target.getUniqueId();
+        String path = "/moderation/block?blockerId=" + blocker.getName() + "&blockedId=" + target.getName();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             Request request = new Request.Builder()
                 .url(api.getBaseUrl() + path)
@@ -80,7 +80,7 @@ public class ModerationManager {
         safechatBody.addProperty("safechat", enabled);
         String json = gson.toJson(safechatBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.patch("/api/players/" + player.getUniqueId(), json, new Callback() {
+            api.patch("/players/" + player.getName(), json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })
@@ -149,14 +149,14 @@ public class ModerationManager {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
         JsonObject body = new JsonObject();
-        body.addProperty("executorId", executor.getUniqueId().toString());
-        body.addProperty("targetId", target.getUniqueId().toString());
+        body.addProperty("executorId", executor.getName());
+        body.addProperty("targetId", target.getName());
         body.addProperty("type", type);
         if (duration != null) body.addProperty("duration", duration);
         if (reason != null) body.addProperty("reason", reason);
         String json = gson.toJson(body);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/actions", json, new Callback() {
+            api.post("/moderation/actions", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })
@@ -167,14 +167,14 @@ public class ModerationManager {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
         JsonObject body = new JsonObject();
-        body.addProperty("executorId", executor.getUniqueId().toString());
+        body.addProperty("executorId", executor.getName());
         body.addProperty("targetName", targetName);
         body.addProperty("type", type);
         if (duration != null) body.addProperty("duration", duration);
         if (reason != null) body.addProperty("reason", reason);
         String json = gson.toJson(body);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/actions", json, new Callback() {
+            api.post("/moderation/actions", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })

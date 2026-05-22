@@ -14,12 +14,12 @@ public class QuestListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        String uuid = event.getPlayer().getUniqueId().toString();
+        String uuid = event.getPlayer().getName();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> repo.fetchQuests(uuid));
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        repo.invalidate(event.getPlayer().getUniqueId().toString());
+        repo.invalidate(event.getPlayer().getName());
     }
 }

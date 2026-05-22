@@ -14,7 +14,7 @@ public class EconomyListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        String uuid = event.getPlayer().getUniqueId().toString();
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> economy.fetchBalance(uuid));
+        String playerName = event.getPlayer().getName();
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> economy.fetchBalance(playerName));
     }
 }

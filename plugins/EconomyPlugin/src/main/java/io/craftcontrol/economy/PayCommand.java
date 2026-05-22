@@ -38,12 +38,12 @@ public class PayCommand implements CommandExecutor {
             player.sendMessage(Component.text("Amount must be a positive number.", NamedTextColor.RED));
             return true;
         }
-        long[] bal = economy.getBalance(player.getUniqueId().toString());
+        long[] bal = economy.getBalance(player.getName());
         if (bal[0] < amount) {
             player.sendMessage(Component.text("Insufficient Coins.", NamedTextColor.RED));
             return true;
         }
-        // Capture UUIDs and names before going async — Player references can become invalid
+        // Capture names before going async — Player references can become invalid
         // if either participant disconnects before the async callback fires.
         final java.util.UUID senderUuid = player.getUniqueId();
         final java.util.UUID targetUuid = target.getUniqueId();
@@ -53,8 +53,8 @@ public class PayCommand implements CommandExecutor {
         player.sendMessage(Component.text("Processing transfer…", NamedTextColor.GRAY));
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             economy.transferCoins(
-                senderUuid.toString(),
-                targetUuid.toString(),
+                senderName,
+                targetName,
                 amount,
                 () -> plugin.getServer().getScheduler().runTask(plugin, () -> {
                     Player senderPlayer = Bukkit.getPlayer(senderUuid);

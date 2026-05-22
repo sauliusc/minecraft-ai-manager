@@ -25,7 +25,7 @@ public class RewardListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        String playerId = player.getUniqueId().toString();
+        String playerId = player.getName();
 
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;

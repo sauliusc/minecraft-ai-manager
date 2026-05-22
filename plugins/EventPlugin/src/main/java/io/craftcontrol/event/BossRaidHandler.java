@@ -202,9 +202,11 @@ public class BossRaidHandler {
         plugin.getEventManager().completeEvent(eventId);
     }
 
-    private void grantReward(UUID playerId, String rewardId, String eventId) {
+    private void grantReward(UUID playerUuid, String rewardId, String eventId) {
+        org.bukkit.entity.Player onlinePlayer = plugin.getServer().getPlayer(playerUuid);
+        String playerId = onlinePlayer != null ? onlinePlayer.getName() : playerUuid.toString();
         String json = "{\"playerId\":\"" + playerId + "\",\"rewardId\":\"" + rewardId + "\",\"eventId\":\"" + eventId + "\"}";
-        BridgePlugin.getInstance().getApiClient().post("/api/rewards/grant", json, new Callback() {
+        BridgePlugin.getInstance().getApiClient().post("/rewards/grant", json, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 log.warning("Failed to grant reward " + rewardId + " to " + playerId + ": " + e.getMessage());

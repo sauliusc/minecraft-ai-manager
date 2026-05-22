@@ -12,32 +12,31 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 public class CosmeticsManager {
     private final Logger log;
     private final Gson gson = new Gson();
-    private final ConcurrentHashMap<UUID, CosmeticsProfile> cache = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, CosmeticsProfile> cache = new ConcurrentHashMap<>();
 
     public CosmeticsManager(Logger log) {
         this.log = log;
     }
 
-    public CosmeticsProfile getProfile(UUID uuid) {
-        return cache.computeIfAbsent(uuid, k -> new CosmeticsProfile());
+    public CosmeticsProfile getProfile(String playerName) {
+        return cache.computeIfAbsent(playerName, k -> new CosmeticsProfile());
     }
 
-    public void loadProfile(UUID uuid) {
+    public void loadProfile(String playerName) {
         ApiClient api = api();
         if (api == null) return;
-        api.get("/api/cosmetics/" + uuid + "/equipped", new Callback() {
+        api.get("/cosmetics/" + playerName + "/equipped", new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 try (response) {
                     if (!response.isSuccessful() || response.body() == null) {
-                        cache.put(uuid, new CosmeticsProfile());
+                        cache.put(playerName, new CosmeticsProfile());
                         return;
                     }
                     JsonObject o = gson.fromJson(response.body().string(), JsonObject.class);
@@ -48,25 +47,25 @@ public class CosmeticsManager {
                         o.has("petType") && !o.get("petType").isJsonNull() ? o.get("petType").getAsString() : null,
                         o.has("trailType") && !o.get("trailType").isJsonNull() ? o.get("trailType").getAsString() : null
                     );
-                    cache.put(uuid, profile);
+                    cache.put(playerName, profile);
                 } catch (IOException e) {
-                    log.warning("Failed to parse cosmetics profile for " + uuid + ": " + e.getMessage());
-                    cache.put(uuid, new CosmeticsProfile());
+                    log.warning("Failed to parse cosmetics profile for " + playerName + ": " + e.getMessage());
+                    cache.put(playerName, new CosmeticsProfile());
                 }
             }
 
             @Override
             public void onFailure(Call call, IOException e) {
-                log.fine("Failed to fetch cosmetics profile for " + uuid);
-                cache.put(uuid, new CosmeticsProfile());
+                log.fine("Failed to fetch cosmetics profile for " + playerName);
+                cache.put(playerName, new CosmeticsProfile());
             }
         });
     }
 
-    public void saveProfile(UUID uuid) {
+    public void saveProfile(String playerName) {
         ApiClient api = api();
         if (api == null) return;
-        CosmeticsProfile profile = cache.get(uuid);
+        CosmeticsProfile profile = cache.get(playerName);
         if (profile == null) return;
         JsonObject body = new JsonObject();
         if (profile.getTitleId() != null) body.addProperty("titleId", profile.getTitleId());
@@ -79,19 +78,19 @@ public class CosmeticsManager {
         else body.add("petType", JsonNull.INSTANCE);
         if (profile.getTrailType() != null) body.addProperty("trailType", profile.getTrailType());
         else body.add("trailType", JsonNull.INSTANCE);
-        api.patch("/api/cosmetics/" + uuid + "/equipped", gson.toJson(body), new Callback() {
+        api.patch("/cosmetics/" + playerName + "/equipped", gson.toJson(body), new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 try (response) {
                     if (!response.isSuccessful()) {
-                        log.warning("Failed to save cosmetics for " + uuid + ": " + response.code());
+                        log.warning("Failed to save cosmetics for " + playerName + ": " + response.code());
                     }
                 }
             }
 
             @Override
             public void onFailure(Call call, IOException e) {
-                log.warning("Failed to save cosmetics for " + uuid + ": " + e.getMessage());
+                log.warning("Failed to save cosmetics for " + playerName + ": " + e.getMessage());
             }
         });
     }
@@ -99,7 +98,7 @@ public class CosmeticsManager {
     public void fetchTitles(Callback callback) {
         ApiClient api = api();
         if (api == null) return;
-        api.get("/api/cosmetics/titles", callback);
+        api.get("/cosmetics/titles", callback);
     }
 
     public List<String> parseTitleIds(String json) {
@@ -116,8 +115,8 @@ public class CosmeticsManager {
         }
     }
 
-    public void unloadProfile(UUID uuid) {
-        cache.remove(uuid);
+    public void unloadProfile(String playerName) {
+        cache.remove(playerName);
     }
 
     private ApiClient api() {

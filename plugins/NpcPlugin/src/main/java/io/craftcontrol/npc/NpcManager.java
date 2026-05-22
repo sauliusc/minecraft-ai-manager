@@ -112,20 +112,20 @@ public class NpcManager {
         return entityIdToNpc.get(entityId);
     }
 
-    public void getRelationship(UUID playerUuid, String npcId, okhttp3.Callback callback) {
-        api.get("/npcs/" + npcId + "/relationship/" + playerUuid.toString(), callback);
+    public void getRelationship(String playerName, String npcId, okhttp3.Callback callback) {
+        api.get("/npcs/" + npcId + "/relationship/" + playerName, callback);
     }
 
-    public void recordQuestComplete(UUID playerUuid, String npcId, String questId) {
+    public void recordQuestComplete(String playerName, String npcId, String questId) {
         String body = "{\"questId\":\"" + questId + "\"}";
-        api.post("/npcs/" + npcId + "/relationship/" + playerUuid.toString() + "/quest-complete", body, new Callback() {
+        api.post("/npcs/" + npcId + "/relationship/" + playerName + "/quest-complete", body, new Callback() {
             @Override public void onFailure(Call call, IOException e) {
-                plugin.getLogger().warning("Failed to record quest complete for player " + playerUuid + ": " + e.getMessage());
+                plugin.getLogger().warning("Failed to record quest complete for player " + playerName + ": " + e.getMessage());
             }
             @Override public void onResponse(Call call, Response response) {
                 if (!response.isSuccessful()) {
                     plugin.getLogger().warning("Quest complete record returned HTTP " + response.code()
-                            + " for player " + playerUuid + " / npc " + npcId);
+                            + " for player " + playerName + " / npc " + npcId);
                 }
                 response.close();
             }

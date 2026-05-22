@@ -91,6 +91,54 @@ jobs:
             echo "✓ Deployment finished"
 
   # ────────────────────────────────────────────────────────────────────────────
+  # Validate Minecraft startup on the self-hosted runner inside CT102
+  # Runs after deploy so docker compose is already up-to-date
+  # ────────────────────────────────────────────────────────────────────────────
+  validate:
+    name: Validate Minecraft startup
+    needs: deploy
+    runs-on: [self-hosted, ct102]
+    if: ${{ always() && needs.deploy.result != 'skipped' }}
+    timeout-minutes: 5
+
+    steps:
+      - name: Wait for Paper + plugins to initialise
+        run: sleep 90
+
+      - name: Capture startup logs
+        working-directory: /opt/craftcontrol
+        run: |
+          docker compose logs --no-color --tail 300 minecraft > /tmp/mc-startup.log
+          cat /tmp/mc-startup.log
+
+      - name: Parse and annotate errors
+        run: |
+          WARNS=$(grep -E "\[WARN\]" /tmp/mc-startup.log || true)
+          ERRORS=$(grep -E "\[ERROR\]|\[FATAL\]" /tmp/mc-startup.log || true)
+
+          while IFS= read -r line; do
+            [ -n "$line" ] && echo "::warning::$line"
+          done <<< "$WARNS"
+
+          if [ -n "$ERRORS" ]; then
+            while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error::$line"
+            done <<< "$ERRORS"
+            echo "❌ Errors found in Minecraft startup logs — see annotations above."
+            exit 1
+          fi
+
+          echo "✅ No errors in Minecraft startup logs."
+
+      - name: Upload full log as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: minecraft-startup-log
+          path: /tmp/mc-startup.log
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────────────────────
   # Build & deploy Minecraft plugins (only when plugins/ changes)
   # ────────────────────────────────────────────────────────────────────────────
   deploy-plugins:

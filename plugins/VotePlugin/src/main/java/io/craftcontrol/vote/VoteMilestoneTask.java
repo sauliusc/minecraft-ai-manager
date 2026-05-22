@@ -36,7 +36,7 @@ public class VoteMilestoneTask extends BukkitRunnable {
         int threshold = plugin.getConfig().getInt("weekly_vote_threshold", 0);
         if (threshold <= 0) return;
 
-        BridgePlugin.getInstance().getApiClient().get("/api/vote/stats", new Callback() {
+        BridgePlugin.getInstance().getApiClient().get("/vote/stats", new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 plugin.getLogger().warning("Failed to fetch vote stats: " + e.getMessage());

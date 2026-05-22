@@ -68,7 +68,7 @@ public class ClanCommand implements CommandExecutor {
             player.sendMessage(Component.text("Usage: /clan create <name> <tag>", NamedTextColor.RED));
             return;
         }
-        if (manager.isInClan(player.getUniqueId().toString())) {
+        if (manager.isInClan(player.getName())) {
             player.sendMessage(Component.text("You are already in a clan.", NamedTextColor.RED));
             return;
         }
@@ -84,7 +84,7 @@ public class ClanCommand implements CommandExecutor {
         JsonObject createBody = new JsonObject();
         createBody.addProperty("name", name);
         createBody.addProperty("tag", tag);
-        createBody.addProperty("leaderId", player.getUniqueId().toString());
+        createBody.addProperty("leaderId", player.getName());
         player.sendMessage(Component.text("Creating clan…", NamedTextColor.GRAY));
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans", gson.toJson(createBody), new Callback() {
@@ -93,7 +93,7 @@ public class ClanCommand implements CommandExecutor {
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
-                            manager.fetchClan(player.getUniqueId().toString());
+                            manager.fetchClan(player.getName());
                             player.sendMessage(Component.text("Clan [" + tag + "] " + name + " created!", NamedTextColor.GREEN));
                         } else if (r.code() == 402) {
                             player.sendMessage(Component.text("Insufficient Coins (requires " +
@@ -115,11 +115,11 @@ public class ClanCommand implements CommandExecutor {
 
     private void handleInvite(Player player, String[] args) {
         if (args.length < 2) { player.sendMessage(Component.text("Usage: /clan invite <player>", NamedTextColor.RED)); return; }
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         if (!manager.isInClan(uuid)) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[1]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
-        if (manager.isInClan(target.getUniqueId().toString())) {
+        if (manager.isInClan(target.getName())) {
             player.sendMessage(Component.text(target.getName() + " is already in a clan.", NamedTextColor.RED)); return;
         }
         String clanId = manager.getClanId(uuid);
@@ -129,7 +129,7 @@ public class ClanCommand implements CommandExecutor {
         JsonObject body = new JsonObject();
         body.addProperty("clanId", clanId);
         body.addProperty("inviterId", uuid);
-        body.addProperty("inviteeId", target.getUniqueId().toString());
+        body.addProperty("inviteeId", target.getName());
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/invites", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
@@ -139,7 +139,7 @@ public class ClanCommand implements CommandExecutor {
                         if (r.isSuccessful()) {
                             String clanTag  = clan != null ? clan.tag()  : clanId.substring(0, 6);
                             String clanName = clan != null ? clan.name() : "Unknown";
-                            manager.addPendingInvite(target.getUniqueId().toString(), clanId, clanTag, clanName);
+                            manager.addPendingInvite(target.getName(), clanId, clanTag, clanName);
                             player.sendMessage(Component.text("Invite sent to " + target.getName() + ".", NamedTextColor.GREEN));
                             target.sendMessage(Component.text("You've been invited to clan [" + clanTag + "] " + clanName + "!", NamedTextColor.AQUA));
                             target.sendMessage(Component.text("  /clan accept " + clanTag + "  or  /clan deny " + clanTag, NamedTextColor.YELLOW));
@@ -159,7 +159,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan accept [tag] ────────────────────────────────────────────────────
 
     private void handleAccept(Player player, String[] args) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         if (manager.isInClan(uuid)) { player.sendMessage(Component.text("Leave your current clan first.", NamedTextColor.RED)); return; }
         String[] invite = args.length >= 2
                 ? manager.getPendingInvite(uuid, args[1])
@@ -210,7 +210,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan deny [tag] ──────────────────────────────────────────────────────
 
     private void handleDeny(Player player, String[] args) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         String[] invite = args.length >= 2
                 ? manager.getPendingInvite(uuid, args[1])
                 : manager.getFirstPendingInvite(uuid);
@@ -226,14 +226,14 @@ public class ClanCommand implements CommandExecutor {
 
     private void handleJoin(Player player, String[] args) {
         if (args.length < 2) { player.sendMessage(Component.text("Usage: /clan join <clan-id>", NamedTextColor.RED)); return; }
-        if (manager.isInClan(player.getUniqueId().toString())) {
+        if (manager.isInClan(player.getName())) {
             player.sendMessage(Component.text("Leave your current clan first.", NamedTextColor.RED)); return;
         }
         String clanId = args[1];
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
         JsonObject body = new JsonObject();
-        body.addProperty("playerId", player.getUniqueId().toString());
+        body.addProperty("playerId", player.getName());
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
             api.post("/clans/" + clanId + "/members", gson.toJson(body), new Callback() {
                 @Override public void onResponse(Call call, Response r) {
@@ -241,8 +241,8 @@ public class ClanCommand implements CommandExecutor {
                     r.close();
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
                         if (r.isSuccessful()) {
-                            manager.clearPendingInvites(player.getUniqueId().toString());
-                            manager.fetchClan(player.getUniqueId().toString());
+                            manager.clearPendingInvites(player.getName());
+                            manager.fetchClan(player.getName());
                             player.sendMessage(Component.text("Joined clan!", NamedTextColor.GREEN));
                         } else if (r.code() == 403) {
                             player.sendMessage(Component.text("No invite or clan is not public.", NamedTextColor.RED));
@@ -262,7 +262,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan leave ───────────────────────────────────────────────────────────
 
     private void handleLeave(Player player) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         if (!manager.isInClan(uuid)) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         String clanId = manager.getClanId(uuid);
         ApiClient api = BridgePlugin.getInstance().getApiClient();
@@ -294,7 +294,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan members ─────────────────────────────────────────────────────────
 
     private void handleMembers(Player player) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         ClanData clan = manager.getClanByPlayer(uuid);
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         player.sendMessage(Component.text("══ [" + clan.tag() + "] " + clan.name() + " — Members ══", NamedTextColor.GOLD));
@@ -325,7 +325,7 @@ public class ClanCommand implements CommandExecutor {
 
     private void handleKick(Player player, String[] args) {
         if (args.length < 2) { player.sendMessage(Component.text("Usage: /clan kick <player>", NamedTextColor.RED)); return; }
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         ClanData clan = manager.getClanByPlayer(uuid);
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         if (!clan.leaderId().equals(uuid)) {
@@ -333,7 +333,7 @@ public class ClanCommand implements CommandExecutor {
         }
         OfflinePlayer target = resolveOfflinePlayer(args[1]);
         if (target == null) { player.sendMessage(Component.text("Player not found.", NamedTextColor.RED)); return; }
-        String targetId = target.getUniqueId().toString();
+        String targetId = target.getName();
         if (targetId.equals(uuid)) { player.sendMessage(Component.text("You cannot kick yourself.", NamedTextColor.RED)); return; }
         if (!clan.memberIds().contains(targetId)) {
             player.sendMessage(Component.text(args[1] + " is not in your clan.", NamedTextColor.RED)); return;
@@ -385,7 +385,7 @@ public class ClanCommand implements CommandExecutor {
     }
 
     private void handleRoleChange(Player player, String targetName, String newRole) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         ClanData clan = manager.getClanByPlayer(uuid);
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         if (!clan.leaderId().equals(uuid)) {
@@ -393,7 +393,7 @@ public class ClanCommand implements CommandExecutor {
         }
         OfflinePlayer target = resolveOfflinePlayer(targetName);
         if (target == null) { player.sendMessage(Component.text("Player not found.", NamedTextColor.RED)); return; }
-        String targetId = target.getUniqueId().toString();
+        String targetId = target.getName();
         if (!clan.memberIds().contains(targetId)) {
             player.sendMessage(Component.text(targetName + " is not in your clan.", NamedTextColor.RED)); return;
         }
@@ -430,7 +430,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan disband [confirm] ───────────────────────────────────────────────
 
     private void handleDisband(Player player, String[] args) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         ClanData clan = manager.getClanByPlayer(uuid);
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         if (!clan.leaderId().equals(uuid)) {
@@ -484,7 +484,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan home ────────────────────────────────────────────────────────────
 
     private void handleHome(Player player) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         ClanData clan = manager.getClanByPlayer(uuid);
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         if (manager.isHomeCoolingDown(uuid)) {
@@ -523,7 +523,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan sethome ─────────────────────────────────────────────────────────
 
     private void handleSetHome(Player player) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         ClanData clan = manager.getClanByPlayer(uuid);
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         if (!clan.leaderId().equals(uuid)) {
@@ -558,7 +558,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan chat ────────────────────────────────────────────────────────────
 
     private void handleChat(Player player) {
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         if (!manager.isInClan(uuid)) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         manager.toggleClanChat(uuid);
         boolean on = manager.isClanChatEnabled(uuid);
@@ -568,7 +568,7 @@ public class ClanCommand implements CommandExecutor {
     // ── /clan info ────────────────────────────────────────────────────────────
 
     private void handleInfo(Player player) {
-        ClanData clan = manager.getClanByPlayer(player.getUniqueId().toString());
+        ClanData clan = manager.getClanByPlayer(player.getName());
         if (clan == null) { player.sendMessage(Component.text("You are not in a clan.", NamedTextColor.RED)); return; }
         player.sendMessage(Component.text("═══ Clan Info ═══", NamedTextColor.GOLD));
         player.sendMessage(Component.text("Name: " + clan.name() + " [" + clan.tag() + "]", NamedTextColor.WHITE));
@@ -624,7 +624,7 @@ public class ClanCommand implements CommandExecutor {
             if (args.length < 3) {
                 player.sendMessage(Component.text("Usage: /clan war challenge <clan-id> [TERRITORY_CONTROL|RESOURCE_RACE|KILL_COUNT]", NamedTextColor.RED)); return;
             }
-            String uuid = player.getUniqueId().toString();
+            String uuid = player.getName();
             if (!manager.isInClan(uuid)) { player.sendMessage(Component.text("Not in a clan.", NamedTextColor.RED)); return; }
             String myClanId = manager.getClanId(uuid);
             String targetClanId = args[2];
@@ -642,7 +642,7 @@ public class ClanCommand implements CommandExecutor {
             wm.challengeClan(myClanId, targetClanId, type, duration, target, mat, player.getLocation(), radius);
             player.sendMessage(Component.text("War challenge sent! Type: " + type.name(), NamedTextColor.GOLD));
         } else if ("status".equalsIgnoreCase(args[1])) {
-            String clanId = manager.getClanId(player.getUniqueId().toString());
+            String clanId = manager.getClanId(player.getName());
             if (clanId == null) { player.sendMessage(Component.text("Not in a clan.", NamedTextColor.RED)); return; }
             ActiveWar war = plugin.getWarManager().getWarForClan(clanId);
             if (war == null) { player.sendMessage(Component.text("No active war.", NamedTextColor.YELLOW)); return; }

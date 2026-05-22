@@ -47,11 +47,12 @@ public class StreakListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        String uuid = player.getUniqueId().toString();
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> processStreak(player, uuid));
+        String playerName = player.getName();
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> processStreak(player, playerName));
     }
 
-    private synchronized void processStreak(Player player, String uuid) {
+    private synchronized void processStreak(Player player, String playerName) {
+        String uuid = playerName;
         long now = System.currentTimeMillis();
         long lastLogin = streaksData.getLong(uuid + ".lastLogin", 0L);
         int currentStreak = streaksData.getInt(uuid + ".current", 0);
@@ -130,7 +131,7 @@ public class StreakListener implements Listener {
 
     private void deliverMilestoneIfAny(Player player, int streak, int longest) {
         MiniMessage mm = MiniMessage.miniMessage();
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
 
         for (var m : plugin.getConfig().getMapList("milestones")) {
             Object dayObj = m.get("day");

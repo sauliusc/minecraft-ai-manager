@@ -50,7 +50,7 @@ public class ChallengesCommand implements CommandExecutor {
         player.sendMessage(Component.text(
             "═══ Active Challenges — Page " + page + "/" + totalPages + " ═══", NamedTextColor.GOLD));
         for (ActiveChallenge ch : pageItems) {
-            int current = repo.getProgress(ch.id(), player.getUniqueId().toString());
+            int current = repo.getProgress(ch.id(), player.getName());
             int pct = ch.targetCount() > 0 ? Math.min(100, current * 100 / ch.targetCount()) : 0;
             String bar = buildProgressBar(pct, 10);
             player.sendMessage(Component.text("▶ " + ch.title(), NamedTextColor.AQUA));

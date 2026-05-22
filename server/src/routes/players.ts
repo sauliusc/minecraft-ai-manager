@@ -10,7 +10,6 @@ export const playersRouter = Router();
 const CACHE_TTL = 300; // 5 minutes
 
 const registerSchema = z.object({
-  id: z.string().uuid(),
   username: z.string().min(1).max(16),
 });
 
@@ -37,15 +36,15 @@ function withTier<T extends { joinCount: number }>(player: T) {
 // POST /api/players — service token auth (called by GreeterPlugin)
 playersRouter.post('/', serviceTokenMiddleware, validateBody(registerSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id, username } = req.body as z.infer<typeof registerSchema>;
+    const { username } = req.body as z.infer<typeof registerSchema>;
     const now = new Date();
     const player = await prisma.player.upsert({
-      where: { id },
-      update: { username, lastSeenAt: now, joinCount: { increment: 1 } },
-      create: { id, username, firstJoinAt: now, lastSeenAt: now, joinCount: 1 },
+      where: { username },
+      update: { lastSeenAt: now, joinCount: { increment: 1 } },
+      create: { username, firstJoinAt: now, lastSeenAt: now, joinCount: 1 },
     });
     // Invalidate cache on upsert
-    await redis.del(`player:${id}`);
+    await redis.del(`player:${username}`);
     res.status(200).json(withTier(player));
   } catch (err) {
     next(err);
@@ -91,18 +90,18 @@ playersRouter.get('/', authMiddleware, async (req: Request, res: Response, next:
   }
 });
 
-// GET /api/players/:id — JWT auth, with challenge progress + reward history
-playersRouter.get('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+// GET /api/players/:username — JWT auth, with challenge progress + reward history
+playersRouter.get('/:username', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const id = req.params.id as string;
-    const cached = await redis.get(`player:${id}`);
+    const username = req.params.username as string;
+    const cached = await redis.get(`player:${username}`);
     if (cached) {
       res.json(JSON.parse(cached));
       return;
     }
 
     const player = await prisma.player.findUnique({
-      where: { id },
+      where: { username },
       include: {
         progress: {
           include: { challenge: { select: { id: true, title: true, type: true, activeUntil: true } } },
@@ -122,37 +121,34 @@ playersRouter.get('/:id', authMiddleware, async (req: Request, res: Response, ne
     }
 
     const result = withTier(player);
-    await redis.setex(`player:${id}`, CACHE_TTL, JSON.stringify(result));
+    await redis.setex(`player:${username}`, CACHE_TTL, JSON.stringify(result));
     res.json(result);
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/players/:id/join — service token auth (returning player join, called by GreeterPlugin)
-playersRouter.post('/:id/join', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+// POST /api/players/:username/join — service token auth (returning player join, called by GreeterPlugin)
+playersRouter.post('/:username/join', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const id = req.params.id as string;
+    const username = req.params.username as string;
     const now = new Date();
-    const player = await prisma.player.update({
-      where: { id },
-      data: { lastSeenAt: now, joinCount: { increment: 1 } },
+    const player = await prisma.player.upsert({
+      where: { username },
+      update: { lastSeenAt: now, joinCount: { increment: 1 } },
+      create: { username, firstJoinAt: now, lastSeenAt: now, joinCount: 1 },
     });
-    await redis.del(`player:${id}`);
+    await redis.del(`player:${username}`);
     res.json(withTier(player));
-  } catch (err: any) {
-    if (err?.code === 'P2025') {
-      res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
-      return;
-    }
+  } catch (err) {
     next(err);
   }
 });
 
-// PATCH /api/players/:id — service token auth
-playersRouter.patch('/:id', serviceTokenMiddleware, validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
+// PATCH /api/players/:username — service token auth
+playersRouter.patch('/:username', serviceTokenMiddleware, validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const id = req.params.id as string;
+    const username = req.params.username as string;
     const data = req.body as z.infer<typeof updateSchema>;
 
     const update: Record<string, unknown> = {};
@@ -164,14 +160,14 @@ playersRouter.patch('/:id', serviceTokenMiddleware, validateBody(updateSchema), 
     if (data.lastLoginDate) update.lastLoginDate = new Date(data.lastLoginDate);
 
     const player = await prisma.player.update({
-      where: { id },
+      where: { username },
       data: update,
     });
 
-    await redis.del(`player:${id}`);
+    await redis.del(`player:${username}`);
     res.json(withTier(player));
   } catch (err: any) {
-    if (err?.code === 'P2025') {
+    if ((err as any)?.code === 'P2025') {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
       return;
     }

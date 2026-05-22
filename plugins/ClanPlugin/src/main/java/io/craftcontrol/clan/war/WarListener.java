@@ -26,7 +26,7 @@ public class WarListener implements Listener {
             && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
 
         Player player = event.getPlayer();
-        String clanId = clanManager.getClanId(player.getUniqueId().toString());
+        String clanId = clanManager.getClanId(player.getName());
         if (clanId == null) return;
         ActiveWar war = warManager.getWarForClan(clanId);
         if (war == null || war.type != WarType.TERRITORY_CONTROL || war.zoneCenter == null) return;
@@ -45,7 +45,7 @@ public class WarListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        String clanId = clanManager.getClanId(player.getUniqueId().toString());
+        String clanId = clanManager.getClanId(player.getName());
         if (clanId == null) return;
         ActiveWar war = warManager.getWarForClan(clanId);
         if (war == null || war.type != WarType.RESOURCE_RACE) return;
@@ -64,8 +64,8 @@ public class WarListener implements Listener {
         Player killer = killed.getKiller();
         if (killer == null) return;
 
-        String killerClanId = clanManager.getClanId(killer.getUniqueId().toString());
-        String killedClanId = clanManager.getClanId(killed.getUniqueId().toString());
+        String killerClanId = clanManager.getClanId(killer.getName());
+        String killedClanId = clanManager.getClanId(killed.getName());
         if (killerClanId == null || killedClanId == null) return;
         if (killerClanId.equals(killedClanId)) return; // No friendly kills
 

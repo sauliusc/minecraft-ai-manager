@@ -64,8 +64,8 @@ public class VoteCommand implements CommandExecutor {
 
     private void handleVoteClaim(Player player) {
         player.sendMessage(Component.text("§eClaiming your vote reward...", NamedTextColor.YELLOW));
-        String json = "{\"uuid\":\"" + player.getUniqueId() + "\",\"playerName\":\"" + player.getName() + "\"}";
-        BridgePlugin.getInstance().getApiClient().post("/api/vote/claim", json, new Callback() {
+        String json = "{\"playerName\":\"" + player.getName() + "\"}";
+        BridgePlugin.getInstance().getApiClient().post("/vote/claim", json, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 plugin.getServer().getScheduler().runTask(plugin, () ->
@@ -81,8 +81,8 @@ public class VoteCommand implements CommandExecutor {
                         if (coins > 0) {
                             String creditJson = String.format(
                                 "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"vote_reward\"}",
-                                player.getUniqueId(), coins);
-                            BridgePlugin.getInstance().getApiClient().post("/api/economy/plugin/credit", creditJson, new Callback() {
+                                player.getName(), coins);
+                            BridgePlugin.getInstance().getApiClient().post("/economy/plugin/credit", creditJson, new Callback() {
                                 @Override public void onResponse(Call c, Response r) { r.close(); }
                                 @Override public void onFailure(Call c, IOException e) {
                                     plugin.getLogger().warning("Failed to credit vote coins: " + e.getMessage());
@@ -93,8 +93,8 @@ public class VoteCommand implements CommandExecutor {
                         if (rewardId != null && !rewardId.isEmpty()) {
                             String grantJson = String.format(
                                 "{\"playerId\":\"%s\",\"rewardId\":\"%s\",\"reason\":\"vote_reward\"}",
-                                player.getUniqueId(), rewardId);
-                            BridgePlugin.getInstance().getApiClient().post("/api/rewards/grant", grantJson, new Callback() {
+                                player.getName(), rewardId);
+                            BridgePlugin.getInstance().getApiClient().post("/rewards/grant", grantJson, new Callback() {
                                 @Override public void onResponse(Call c, Response r) { r.close(); }
                                 @Override public void onFailure(Call c, IOException e) {
                                     plugin.getLogger().warning("Failed to grant vote reward: " + e.getMessage());
@@ -104,7 +104,7 @@ public class VoteCommand implements CommandExecutor {
 
                         // Update vote streak on main thread (YML is not thread-safe)
                         plugin.getServer().getScheduler().runTask(plugin, () -> {
-                            int streak = updateVoteStreak(player.getUniqueId().toString());
+                            int streak = updateVoteStreak(player.getName());
                             player.sendMessage(Component.text(
                                 "§aVote reward claimed! +" + coins + " coins. Vote streak: §e" + streak + " days§a!",
                                 NamedTextColor.GREEN));
@@ -167,12 +167,12 @@ public class VoteCommand implements CommandExecutor {
             Object coinsObj = m.get("coins");
             int bonusCoins = coinsObj instanceof Number n ? n.intValue() : 0;
             if (bonusCoins > 0) {
-                String uuid = player.getUniqueId().toString();
+                String uuid = player.getName();
                 String json = String.format(
                     "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"vote_streak_milestone_day_%d\"}",
                     uuid, bonusCoins, streak);
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-                    BridgePlugin.getInstance().getApiClient().post("/api/economy/plugin/credit", json, new Callback() {
+                    BridgePlugin.getInstance().getApiClient().post("/economy/plugin/credit", json, new Callback() {
                         @Override public void onResponse(Call c, Response r) { r.close(); }
                         @Override public void onFailure(Call c, IOException e) {
                             plugin.getLogger().warning("Failed to credit vote streak milestone coins: " + e.getMessage());
