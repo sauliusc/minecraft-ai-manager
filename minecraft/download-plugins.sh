@@ -3,7 +3,7 @@
 # Run from repo root:  bash minecraft/download-plugins.sh
 # Or from CI before docker build.
 #
-# Plugins NOT included (incompatible with Paper 1.21.4):
+# Plugins NOT included (incompatible with Paper 1.21.11):
 #   BuildCraft             — Forge only, last updated 1.12.2
 #   Waystones              — Forge/Fabric/NeoForge only (no Bukkit port)
 #   Domestication Innovation — Forge/NeoForge only, last updated 1.20.1
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 OUTDIR="${1:-jars}"
-MC_VERSION="1.21.4"
+MC_VERSION="1.21.11"
 
 mkdir -p "$OUTDIR"
 
@@ -21,7 +21,7 @@ modrinth_download() {
   echo "  → ${label} (${slug}, ${loader})..."
   local url
   url=$(curl -sf \
-    "https://api.modrinth.com/v2/project/${slug}/version?loaders=%5B%22${loader}%22%5D&game_versions=%5B%221.21.4%22%5D" \
+    "https://api.modrinth.com/v2/project/${slug}/version?loaders=%5B%22${loader}%22%5D&game_versions=%5B%22${MC_VERSION}%22%5D" \
     | jq -r '[.[] | select(.version_type == "release")] | .[0].files[] | select(.primary // true) | .url' \
     | head -1) || true
   if [ -n "$url" ] && [ "$url" != "null" ]; then

@@ -3,7 +3,7 @@ FROM itzg/minecraft-server
 # Defaults — all can be overridden in docker-compose environment
 ENV EULA=TRUE \
     TYPE=PAPER \
-    VERSION=1.21.4 \
+    VERSION=1.21.11 \
     MEMORY=4G \
     ENABLE_RCON=true \
     RCON_PORT=25575 \
