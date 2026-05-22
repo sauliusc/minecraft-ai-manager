@@ -338,14 +338,55 @@ When a reward is granted, the delivery is never silent:
 **Goal:** Make players want to recruit their friends.
 
 ### Features
-- `/clan create <name>` — creates a clan (costs currency as anti-spam).
-- Clan has a tag displayed before username in chat: `[VOID] PlayerName`.
-- Clan home (`/clan home`) — a shared teleport point.
+- Clan tag displayed before username in chat: `[VOID] PlayerName`.
+- Clan home — a shared teleport point with cooldown.
 - Clan chest — a shared storage visible to all members.
 - Clan chat — private channel for members only.
 - Clan XP — accumulated through clan quests, levels up the clan (higher-level clans unlock perks).
 - Clan war — challenge another clan to a competitive event (see Part 4.4).
 - Clan of the Week — featured on the web leaderboard and in-game spawn billboard.
+
+### Commands
+
+#### Clan Management
+| Command | Who | Description |
+|---|---|---|
+| `/clan create <name> <tag>` | Any player | Create a new clan (costs currency as anti-spam). Tag must be unique, 2–5 chars. |
+| `/clan disband` | Leader | First use shows a warning. `/clan disband confirm` permanently deletes the clan and notifies all members. |
+| `/clan info` | Any member | Display clan name, tag, level, XP, leader, and member count. |
+| `/clan list` | Any player | List all clans with tag, name, level, and member count. |
+
+#### Membership
+| Command | Who | Description |
+|---|---|---|
+| `/clan invite <player>` | Leader | Invite a player; they receive a notification with `/clan accept <tag>` instructions. |
+| `/clan accept [tag]` | Invited player | Accept a pending invite by clan tag or name. Omit `[tag]` to accept the oldest pending invite. |
+| `/clan deny [tag]` | Invited player | Decline a pending invite. Omit `[tag]` to deny the oldest pending invite. |
+| `/clan leave` | Any member | Leave the current clan (leader must transfer or disband first). |
+| `/clan kick <player>` | Leader | Remove a member from the clan; notifies the kicked player if online. |
+| `/clan members` | Any member | List all clan members with role (`[L]` leader, `[O]` officer, `[M]` member) and online/offline status. |
+
+#### Roles
+| Command | Who | Description |
+|---|---|---|
+| `/clan promote <player>` | Leader | Promote a member to Officer. |
+| `/clan demote <player>` | Leader | Demote an Officer back to Member. |
+
+#### Clan Home
+| Command | Who | Description |
+|---|---|---|
+| `/clan sethome` | Leader | Set the clan home to the leader's current location. |
+| `/clan home` | Any member | Teleport to clan home (subject to cooldown). |
+
+#### Communication
+| Command | Who | Description |
+|---|---|---|
+| `/clan chat` | Any member | Toggle clan-only chat mode. Messages are visible only to online clan members. |
+
+#### War
+| Command | Who | Description |
+|---|---|---|
+| `/clan war challenge <ClanName>` | Leader | Challenge another clan to a war (see Section 4.4). |
 
 ---
 
