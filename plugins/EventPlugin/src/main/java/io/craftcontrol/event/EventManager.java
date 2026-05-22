@@ -50,7 +50,7 @@ public class EventManager {
 
     private void pollUpcomingEvents() {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
-        api.get("/api/events/upcoming", new Callback() {
+        api.get("/events/upcoming", new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 log.warning("Failed to poll events: " + e.getMessage());
@@ -128,7 +128,7 @@ public class EventManager {
         });
 
         ApiClient api = BridgePlugin.getInstance().getApiClient();
-        api.post("/api/events/" + id + "/complete", "{\"result\":\"completed\"}", new Callback() {
+        api.post("/events/" + id + "/complete", "{\"result\":\"completed\"}", new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 log.warning("Failed to post event complete for " + id + ": " + e.getMessage());
