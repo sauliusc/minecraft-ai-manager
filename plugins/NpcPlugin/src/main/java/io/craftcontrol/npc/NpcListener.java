@@ -40,7 +40,7 @@ public class NpcListener implements Listener {
         Player player = event.getPlayer();
 
         if (BridgePlugin.getInstance() != null) {
-            BridgePlugin.getInstance().getApiClient().get("/api/events/active", new Callback() {
+            BridgePlugin.getInstance().getApiClient().get("/events/active", new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     handleAfterEvents(player, def, null);

@@ -32,7 +32,7 @@ public class CosmeticsManager {
     public void loadProfile(UUID uuid) {
         ApiClient api = api();
         if (api == null) return;
-        api.get("/api/cosmetics/" + uuid + "/equipped", new Callback() {
+        api.get("/cosmetics/" + uuid + "/equipped", new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 try (response) {
@@ -79,7 +79,7 @@ public class CosmeticsManager {
         else body.add("petType", JsonNull.INSTANCE);
         if (profile.getTrailType() != null) body.addProperty("trailType", profile.getTrailType());
         else body.add("trailType", JsonNull.INSTANCE);
-        api.patch("/api/cosmetics/" + uuid + "/equipped", gson.toJson(body), new Callback() {
+        api.patch("/cosmetics/" + uuid + "/equipped", gson.toJson(body), new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 try (response) {
@@ -99,7 +99,7 @@ public class CosmeticsManager {
     public void fetchTitles(Callback callback) {
         ApiClient api = api();
         if (api == null) return;
-        api.get("/api/cosmetics/titles", callback);
+        api.get("/cosmetics/titles", callback);
     }
 
     public List<String> parseTitleIds(String json) {

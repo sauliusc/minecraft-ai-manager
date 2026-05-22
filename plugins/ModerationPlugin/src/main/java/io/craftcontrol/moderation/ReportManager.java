@@ -55,7 +55,7 @@ public class ReportManager {
         String json = gson.toJson(body);
 
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/reports", json, new Callback() {
+            api.post("/moderation/reports", json, new Callback() {
                 @Override
                 public void onResponse(Call call, Response response) {
                     try (response) {

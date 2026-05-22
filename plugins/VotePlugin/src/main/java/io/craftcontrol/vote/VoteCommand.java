@@ -65,7 +65,7 @@ public class VoteCommand implements CommandExecutor {
     private void handleVoteClaim(Player player) {
         player.sendMessage(Component.text("§eClaiming your vote reward...", NamedTextColor.YELLOW));
         String json = "{\"uuid\":\"" + player.getUniqueId() + "\",\"playerName\":\"" + player.getName() + "\"}";
-        BridgePlugin.getInstance().getApiClient().post("/api/vote/claim", json, new Callback() {
+        BridgePlugin.getInstance().getApiClient().post("/vote/claim", json, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 plugin.getServer().getScheduler().runTask(plugin, () ->
@@ -82,7 +82,7 @@ public class VoteCommand implements CommandExecutor {
                             String creditJson = String.format(
                                 "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"vote_reward\"}",
                                 player.getUniqueId(), coins);
-                            BridgePlugin.getInstance().getApiClient().post("/api/economy/plugin/credit", creditJson, new Callback() {
+                            BridgePlugin.getInstance().getApiClient().post("/economy/plugin/credit", creditJson, new Callback() {
                                 @Override public void onResponse(Call c, Response r) { r.close(); }
                                 @Override public void onFailure(Call c, IOException e) {
                                     plugin.getLogger().warning("Failed to credit vote coins: " + e.getMessage());
@@ -94,7 +94,7 @@ public class VoteCommand implements CommandExecutor {
                             String grantJson = String.format(
                                 "{\"playerId\":\"%s\",\"rewardId\":\"%s\",\"reason\":\"vote_reward\"}",
                                 player.getUniqueId(), rewardId);
-                            BridgePlugin.getInstance().getApiClient().post("/api/rewards/grant", grantJson, new Callback() {
+                            BridgePlugin.getInstance().getApiClient().post("/rewards/grant", grantJson, new Callback() {
                                 @Override public void onResponse(Call c, Response r) { r.close(); }
                                 @Override public void onFailure(Call c, IOException e) {
                                     plugin.getLogger().warning("Failed to grant vote reward: " + e.getMessage());
@@ -172,7 +172,7 @@ public class VoteCommand implements CommandExecutor {
                     "{\"playerId\":\"%s\",\"currency\":\"coins\",\"amount\":%d,\"reason\":\"vote_streak_milestone_day_%d\"}",
                     uuid, bonusCoins, streak);
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-                    BridgePlugin.getInstance().getApiClient().post("/api/economy/plugin/credit", json, new Callback() {
+                    BridgePlugin.getInstance().getApiClient().post("/economy/plugin/credit", json, new Callback() {
                         @Override public void onResponse(Call c, Response r) { r.close(); }
                         @Override public void onFailure(Call c, IOException e) {
                             plugin.getLogger().warning("Failed to credit vote streak milestone coins: " + e.getMessage());

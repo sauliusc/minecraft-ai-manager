@@ -37,7 +37,7 @@ public class ModerationManager {
         blockBody.addProperty("blockedId", target.getUniqueId().toString());
         String json = gson.toJson(blockBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/block", json, new Callback() {
+            api.post("/moderation/block", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })
@@ -49,7 +49,7 @@ public class ModerationManager {
         if (set != null) set.remove(target.getUniqueId());
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String path = "/api/moderation/block?blockerId=" + blocker.getUniqueId() + "&blockedId=" + target.getUniqueId();
+        String path = "/moderation/block?blockerId=" + blocker.getUniqueId() + "&blockedId=" + target.getUniqueId();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
             Request request = new Request.Builder()
                 .url(api.getBaseUrl() + path)
@@ -80,7 +80,7 @@ public class ModerationManager {
         safechatBody.addProperty("safechat", enabled);
         String json = gson.toJson(safechatBody);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.patch("/api/players/" + player.getUniqueId(), json, new Callback() {
+            api.patch("/players/" + player.getUniqueId(), json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })
@@ -156,7 +156,7 @@ public class ModerationManager {
         if (reason != null) body.addProperty("reason", reason);
         String json = gson.toJson(body);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/actions", json, new Callback() {
+            api.post("/moderation/actions", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })
@@ -174,7 +174,7 @@ public class ModerationManager {
         if (reason != null) body.addProperty("reason", reason);
         String json = gson.toJson(body);
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () ->
-            api.post("/api/moderation/actions", json, new Callback() {
+            api.post("/moderation/actions", json, new Callback() {
                 @Override public void onResponse(Call call, Response r) { r.close(); }
                 @Override public void onFailure(Call call, IOException e) {}
             })

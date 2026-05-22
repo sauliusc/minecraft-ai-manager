@@ -177,7 +177,8 @@ public class PlayerJoinListener implements Listener {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
         String uuid = player.getUniqueId().toString();
-        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\"}";
+        String name = player.getName().replace("\"", "\\\"");
+        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\",\"username\":\"" + name + "\"}";
         api.post("/players/" + uuid + "/join", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
