@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class PlayerJoinListener implements Listener {
 
@@ -175,12 +176,17 @@ public class PlayerJoinListener implements Listener {
     private void updatePlayerRecord(Player player) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
+        // Use the same upsert endpoint as first-join so players are created if their
+        // initial registration failed (e.g. server downtime or misconfigured secret).
         String name = player.getName().replace("\"", "\\\"");
-        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\"}";
-        api.post("/players/" + name + "/join", json, new Callback() {
+        String json = "{\"username\":\"" + name + "\"}";
+        api.post("/players", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 response.close();
+                if (!response.isSuccessful()) {
+                    plugin.getLogger().warning("Failed to update player " + player.getName() + ": HTTP " + response.code());
+                }
             }
             @Override
             public void onFailure(Call call, IOException e) {
