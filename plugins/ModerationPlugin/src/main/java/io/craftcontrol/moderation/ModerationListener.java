@@ -104,7 +104,7 @@ public class ModerationListener implements Listener {
 
     private void notifyResolvedReports(Player player) {
         if (BridgePlugin.getInstance() == null) return;
-        String playerId = player.getUniqueId().toString();
+        String playerId = player.getName();
         // Check reports resolved in last 30 days (covers any offline period)
         String endpoint = "/moderation/reports/resolved/" + playerId;
         BridgePlugin.getInstance().getApiClient().get(endpoint, new Callback() {

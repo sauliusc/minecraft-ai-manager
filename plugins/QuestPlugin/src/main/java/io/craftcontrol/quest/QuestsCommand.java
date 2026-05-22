@@ -23,7 +23,7 @@ public class QuestsCommand implements CommandExecutor {
             sender.sendMessage("Only players can use this command.");
             return true;
         }
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         List<QuestData> quests = repo.getQuests(uuid);
 
         if (quests.isEmpty()) {

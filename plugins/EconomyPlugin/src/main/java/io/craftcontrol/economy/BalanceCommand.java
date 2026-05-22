@@ -16,7 +16,7 @@ public class BalanceCommand implements CommandExecutor {
             sender.sendMessage("Only players can use this command.");
             return true;
         }
-        String targetId = player.getUniqueId().toString();
+        String targetId = player.getName();
         long[] bal = economy.getBalance(targetId);
         player.sendMessage(Component.text("Balance: ", NamedTextColor.YELLOW)
             .append(Component.text(bal[0] + " Coins", NamedTextColor.GOLD))

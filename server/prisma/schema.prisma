@@ -8,8 +8,7 @@ datasource db {
 }
 
 model Player {
-  id             String              @id
-  username       String
+  username       String              @id
   firstJoinAt    DateTime
   lastSeenAt     DateTime
   joinCount      Int                 @default(0)
@@ -50,7 +49,7 @@ model ChallengeProgress {
   current     Int       @default(0)
   completed   Boolean   @default(false)
   completedAt DateTime?
-  player      Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player      Player    @relation(fields: [playerId], references: [username], onDelete: Cascade)
   challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
 
   @@unique([playerId, challengeId])
@@ -75,7 +74,7 @@ model PlayerReward {
   rewardId  String
   grantedAt DateTime @default(now())
   grantedBy String
-  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [username], onDelete: Cascade)
   reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Restrict)
 
   @@index([playerId])
@@ -294,8 +293,8 @@ model MarketListing {
   expiresAt DateTime
   soldAt    DateTime?
   createdAt DateTime  @default(now())
-  seller    Player    @relation("SellerListings", fields: [sellerId], references: [id], onDelete: Cascade)
-  buyer     Player?   @relation("BuyerListings", fields: [buyerId], references: [id])
+  seller    Player    @relation("SellerListings", fields: [sellerId], references: [username], onDelete: Cascade)
+  buyer     Player?   @relation("BuyerListings", fields: [buyerId], references: [username])
 
   @@index([sellerId])
   @@index([sold])

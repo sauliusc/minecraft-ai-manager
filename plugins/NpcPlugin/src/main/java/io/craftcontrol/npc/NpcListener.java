@@ -69,7 +69,7 @@ public class NpcListener implements Listener {
     private void handleAfterEvents(Player player, NpcDefinition def, String activeEventTitle) {
         if ("QUEST_GIVER".equals(def.type) && def.questIds != null && !def.questIds.isEmpty()
                 && BridgePlugin.getInstance() != null) {
-            npcManager.getRelationship(player.getUniqueId(), def.id, new Callback() {
+            npcManager.getRelationship(player.getName(), def.id, new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     plugin.getServer().getScheduler().runTask(plugin, () -> {

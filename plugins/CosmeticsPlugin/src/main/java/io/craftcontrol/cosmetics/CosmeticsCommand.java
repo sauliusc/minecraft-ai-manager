@@ -65,15 +65,15 @@ public class CosmeticsCommand implements CommandExecutor {
             );
             case "equip" -> {
                 if (args.length < 2) { player.sendMessage(Component.text("Usage: /title equip <id>", NamedTextColor.RED)); return; }
-                CosmeticsProfile profile = manager.getProfile(player.getUniqueId());
+                CosmeticsProfile profile = manager.getProfile(player.getName());
                 profile.setTitleId(args[1]);
-                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
                 plugin.getServer().getScheduler().runTask(plugin, () -> listener.applyTabListName(player, profile));
                 player.sendMessage(Component.text("Title equipped: " + args[1], NamedTextColor.GREEN));
             }
             case "unequip" -> {
-                manager.getProfile(player.getUniqueId()).setTitleId(null);
-                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+                manager.getProfile(player.getName()).setTitleId(null);
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
                 player.playerListName(player.displayName());
                 player.sendMessage(Component.text("Title removed.", NamedTextColor.YELLOW));
             }
@@ -82,7 +82,7 @@ public class CosmeticsCommand implements CommandExecutor {
 
     private void handleChatColor(Player player, String[] args) {
         if (args.length == 0) { player.sendMessage(Component.text("Usage: /chatcolor <color|off>", NamedTextColor.YELLOW)); return; }
-        CosmeticsProfile profile = manager.getProfile(player.getUniqueId());
+        CosmeticsProfile profile = manager.getProfile(player.getName());
         if (args[0].equalsIgnoreCase("off")) {
             profile.setChatColor(null);
             player.sendMessage(Component.text("Chat color removed.", NamedTextColor.YELLOW));
@@ -90,7 +90,7 @@ public class CosmeticsCommand implements CommandExecutor {
             profile.setChatColor(args[0].toUpperCase());
             player.sendMessage(Component.text("Chat color set to " + args[0], NamedTextColor.GREEN));
         }
-        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+        plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
     }
 
     private void handleParticles(Player player, String[] args) {
@@ -106,11 +106,11 @@ public class CosmeticsCommand implements CommandExecutor {
                 try { Particle.valueOf(args[1].toUpperCase()); } catch (IllegalArgumentException e) {
                     player.sendMessage(Component.text("Unknown particle: " + args[1], NamedTextColor.RED)); return;
                 }
-                manager.getProfile(player.getUniqueId()).setParticleType(args[1].toUpperCase());
-                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+                manager.getProfile(player.getName()).setParticleType(args[1].toUpperCase());
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
                 plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
                     if (!player.isOnline()) return;
-                    CosmeticsProfile p = manager.getProfile(player.getUniqueId());
+                    CosmeticsProfile p = manager.getProfile(player.getName());
                     if (p.getParticleType() == null) return;
                     try { player.getWorld().spawnParticle(Particle.valueOf(p.getParticleType()), player.getLocation().add(0,1,0), 5, 0.3, 0.3, 0.3, 0); }
                     catch (IllegalArgumentException ignored) {}
@@ -118,8 +118,8 @@ public class CosmeticsCommand implements CommandExecutor {
                 player.sendMessage(Component.text("Particles equipped: " + args[1], NamedTextColor.GREEN));
             }
             case "off" -> {
-                manager.getProfile(player.getUniqueId()).setParticleType(null);
-                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+                manager.getProfile(player.getName()).setParticleType(null);
+                plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
                 player.sendMessage(Component.text("Particles disabled.", NamedTextColor.YELLOW));
             }
         }
@@ -129,7 +129,7 @@ public class CosmeticsCommand implements CommandExecutor {
         if (args.length == 0) { player.sendMessage(Component.text("Usage: /pet <summon|dismiss>", NamedTextColor.YELLOW)); return; }
         switch (args[0].toLowerCase()) {
             case "summon" -> {
-                String petType = manager.getProfile(player.getUniqueId()).getPetType();
+                String petType = manager.getProfile(player.getName()).getPetType();
                 if (petType == null) petType = "CAT";
                 petManager.summon(player, petType);
                 player.sendMessage(Component.text("Pet summoned!", NamedTextColor.GREEN));
@@ -143,17 +143,17 @@ public class CosmeticsCommand implements CommandExecutor {
 
     private void handleTrail(Player player, String[] args) {
         if (args.length == 0) { player.sendMessage(Component.text("Usage: /trail <equip <id>|off>", NamedTextColor.YELLOW)); return; }
-        CosmeticsProfile profile = manager.getProfile(player.getUniqueId());
+        CosmeticsProfile profile = manager.getProfile(player.getName());
         if (args[0].equalsIgnoreCase("off")) {
             profile.setTrailType(null);
-            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
             player.sendMessage(Component.text("Trail disabled.", NamedTextColor.YELLOW));
         } else if (args[0].equalsIgnoreCase("equip") && args.length >= 2) {
             try { Particle.valueOf(args[1].toUpperCase()); } catch (IllegalArgumentException e) {
                 player.sendMessage(Component.text("Unknown particle: " + args[1], NamedTextColor.RED)); return;
             }
             profile.setTrailType(args[1].toUpperCase());
-            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getUniqueId()));
+            plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
             player.sendMessage(Component.text("Trail equipped: " + args[1], NamedTextColor.GREEN));
         }
     }

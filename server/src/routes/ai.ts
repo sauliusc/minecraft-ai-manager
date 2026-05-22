@@ -179,22 +179,22 @@ router.post('/engagement/scan', async (req: Request, res: Response): Promise<voi
     const lastRewards = await prisma.playerReward.groupBy({
       by: ['playerId'],
       _max: { grantedAt: true },
-      where: { playerId: { in: activePlayers.map((p) => p.id) } },
+      where: { playerId: { in: activePlayers.map((p) => p.username) } },
     });
     const lastRewardMap = Object.fromEntries(lastRewards.map((r) => [r.playerId, r._max.grantedAt]));
 
     const playerInputs = activePlayers.map((p) => {
-      const lastRewardDate = lastRewardMap[p.id];
+      const lastRewardDate = lastRewardMap[p.username];
       const daysSinceReward = lastRewardDate
         ? Math.floor((Date.now() - new Date(lastRewardDate).getTime()) / 86400_000)
         : 999;
       return {
-        uuid: p.id,
+        uuid: p.username,
         username: p.username,
         recentLogins: Math.min(p.joinCount, 14),
         baselineLogins: Math.max(Math.round(p.joinCount / 4), 1),
-        recentCompletions: recentMap[p.id] ?? 0,
-        priorCompletions: priorMap[p.id] ?? 0,
+        recentCompletions: recentMap[p.username] ?? 0,
+        priorCompletions: priorMap[p.username] ?? 0,
         currentStreak: p.currentStreak,
         longestStreak: p.longestStreak,
         daysSinceReward,
@@ -225,7 +225,7 @@ router.post('/rewards/suggest', async (req: Request, res: Response): Promise<voi
   }
   try {
     const [player, recentRewards, topChallenges, cosmetics, catalogue] = await Promise.all([
-      prisma.player.findUnique({ where: { id: playerUuid } }),
+      prisma.player.findUnique({ where: { username: playerUuid } }),
       prisma.playerReward.findMany({
         where: { playerId: playerUuid },
         include: { reward: { select: { type: true } } },

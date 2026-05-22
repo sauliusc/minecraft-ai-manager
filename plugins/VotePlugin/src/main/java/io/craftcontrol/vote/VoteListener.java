@@ -24,7 +24,7 @@ public class VoteListener implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        BridgePlugin.getInstance().getApiClient().get("/vote/pending/" + player.getUniqueId(), new Callback() {
+        BridgePlugin.getInstance().getApiClient().get("/vote/pending/" + player.getName(), new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 plugin.getLogger().fine("Could not check pending votes for " + player.getName() + ": " + e.getMessage());

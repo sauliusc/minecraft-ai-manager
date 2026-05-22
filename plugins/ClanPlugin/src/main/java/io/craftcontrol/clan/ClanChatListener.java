@@ -19,7 +19,7 @@ public class ClanChatListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        String uuid = player.getUniqueId().toString();
+        String uuid = player.getName();
         if (!manager.isClanChatEnabled(uuid)) return;
 
         ClanData clan = manager.getClanByPlayer(uuid);
@@ -43,7 +43,7 @@ public class ClanChatListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        String uuid = event.getPlayer().getUniqueId().toString();
+        String uuid = event.getPlayer().getName();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.fetchClan(uuid));
     }
 }

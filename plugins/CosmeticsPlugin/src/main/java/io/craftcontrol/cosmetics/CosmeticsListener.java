@@ -15,8 +15,6 @@ import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 
-import java.util.UUID;
-
 public class CosmeticsListener implements Listener {
     private final CosmeticsPlugin plugin;
     private final CosmeticsManager manager;
@@ -30,31 +28,31 @@ public class CosmeticsListener implements Listener {
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
+        Player player = event.getPlayer();
+        String playerName = player.getName();
         plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> {
-            manager.loadProfile(uuid);
+            manager.loadProfile(playerName);
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                Player player = plugin.getServer().getPlayer(uuid);
-                if (player == null) return;
-                CosmeticsProfile profile = manager.getProfile(uuid);
-                applyTabListName(player, profile);
+                Player p = plugin.getServer().getPlayer(playerName);
+                if (p == null) return;
+                CosmeticsProfile profile = manager.getProfile(playerName);
+                applyTabListName(p, profile);
             }, 20L);
         });
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        UUID uuid = event.getPlayer().getUniqueId();
-        petManager.dismiss(uuid);
-        manager.unloadProfile(uuid);
+        Player player = event.getPlayer();
+        petManager.dismiss(player.getUniqueId());
+        manager.unloadProfile(player.getName());
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
-        CosmeticsProfile profile = manager.getProfile(player.getUniqueId());
+        CosmeticsProfile profile = manager.getProfile(player.getName());
 
-        // Apply title prefix to the rendered chat format
         String titleId = profile.getTitleId();
         if (titleId != null && !titleId.isEmpty()) {
             Component titlePrefix = Component.text("[" + titleId + "] ", NamedTextColor.GOLD);
@@ -62,7 +60,6 @@ public class CosmeticsListener implements Listener {
                 titlePrefix.append(sourceDisplayName).append(Component.text(": ")).append(message));
         }
 
-        // Apply chat color to the message body
         String colorName = profile.getChatColor();
         if (colorName == null) return;
         TextColor color = resolveColor(colorName);
@@ -75,7 +72,7 @@ public class CosmeticsListener implements Listener {
     public void onMove(PlayerMoveEvent event) {
         if (!event.hasChangedBlock()) return;
         Player player = event.getPlayer();
-        CosmeticsProfile profile = manager.getProfile(player.getUniqueId());
+        CosmeticsProfile profile = manager.getProfile(player.getName());
         String trailType = profile.getTrailType();
         if (trailType == null) return;
         try {

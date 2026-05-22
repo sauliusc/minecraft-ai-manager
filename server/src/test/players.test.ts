@@ -31,7 +31,6 @@ const SERVICE_TOKEN = 'test-bridge-secret';
 const adminToken = signAccess({ sub: 'user-1', email: 'admin@test.com', role: 'SUPER_ADMIN' });
 
 const mockPlayer = {
-  id: '550e8400-e29b-41d4-a716-446655440000',
   username: 'TestPlayer',
   firstJoinAt: new Date(),
   lastSeenAt: new Date(),
@@ -50,7 +49,7 @@ describe('POST /api/players', () => {
     const res = await request(app)
       .post('/api/players')
       .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
-      .send({ id: mockPlayer.id, username: 'TestPlayer' });
+      .send({ username: 'TestPlayer' });
     expect(res.status).toBe(200);
     expect(res.body.tier).toBe('Regular');
   });
@@ -58,15 +57,15 @@ describe('POST /api/players', () => {
   it('returns 403 without service token', async () => {
     const res = await request(app)
       .post('/api/players')
-      .send({ id: mockPlayer.id, username: 'TestPlayer' });
+      .send({ username: 'TestPlayer' });
     expect(res.status).toBe(403);
   });
 
-  it('returns 400 for invalid UUID', async () => {
+  it('returns 400 for missing username', async () => {
     const res = await request(app)
       .post('/api/players')
       .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
-      .send({ id: 'not-a-uuid', username: 'TestPlayer' });
+      .send({});
     expect(res.status).toBe(400);
   });
 });
@@ -89,11 +88,11 @@ describe('GET /api/players', () => {
   });
 });
 
-describe('GET /api/players/:id', () => {
+describe('GET /api/players/:username', () => {
   it('returns player detail from DB when cache is cold', async () => {
     vi.mocked(prisma.player.findUnique).mockResolvedValueOnce({ ...mockPlayer, progress: [], rewards: [] } as any);
     const res = await request(app)
-      .get(`/api/players/${mockPlayer.id}`)
+      .get(`/api/players/${mockPlayer.username}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(res.body.username).toBe('TestPlayer');
@@ -103,7 +102,7 @@ describe('GET /api/players/:id', () => {
   it('returns cached result when cache is warm', async () => {
     vi.mocked(redis.get).mockResolvedValueOnce(JSON.stringify({ ...mockPlayer, tier: 'Regular', progress: [], rewards: [] }));
     const res = await request(app)
-      .get(`/api/players/${mockPlayer.id}`)
+      .get(`/api/players/${mockPlayer.username}`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(200);
     expect(vi.mocked(prisma.player.findUnique)).not.toHaveBeenCalled();
@@ -112,7 +111,7 @@ describe('GET /api/players/:id', () => {
   it('returns 404 for unknown player', async () => {
     vi.mocked(prisma.player.findUnique).mockResolvedValueOnce(null);
     const res = await request(app)
-      .get('/api/players/00000000-0000-0000-0000-000000000000')
+      .get('/api/players/UnknownPlayer')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(res.status).toBe(404);
   });
@@ -127,7 +126,7 @@ describe('Engagement tier calculation', () => {
     const res = await request(app)
       .post('/api/players')
       .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
-      .send({ id: mockPlayer.id, username: 'TestPlayer' });
+      .send({ username: 'TestPlayer' });
     expect(res.body.tier).toBe(expectedTier);
   });
 });

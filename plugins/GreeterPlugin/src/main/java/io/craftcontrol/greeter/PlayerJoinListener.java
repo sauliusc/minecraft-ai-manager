@@ -26,7 +26,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class PlayerJoinListener implements Listener {
 
@@ -157,7 +156,7 @@ public class PlayerJoinListener implements Listener {
     private void postPlayerRecord(Player player) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String json = "{\"id\":\"" + player.getUniqueId() + "\",\"username\":\"" + player.getName() + "\"}";
+        String json = "{\"username\":\"" + player.getName().replace("\"", "\\\"") + "\"}";
         api.post("/players", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
@@ -176,10 +175,9 @@ public class PlayerJoinListener implements Listener {
     private void updatePlayerRecord(Player player) {
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
-        String uuid = player.getUniqueId().toString();
         String name = player.getName().replace("\"", "\\\"");
-        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\",\"username\":\"" + name + "\"}";
-        api.post("/players/" + uuid + "/join", json, new Callback() {
+        String json = "{\"lastSeenAt\":\"" + Instant.now() + "\"}";
+        api.post("/players/" + name + "/join", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 response.close();

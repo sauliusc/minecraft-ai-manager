@@ -22,8 +22,8 @@ economyRouter.get('/balance/:playerId', serviceTokenMiddleware, async (req: Requ
   try {
     const { playerId } = req.params as { playerId: string };
     const player = await prisma.player.findUnique({
-      where: { id: playerId },
-      select: { id: true, coins: true, crystals: true },
+      where: { username: playerId },
+      select: { username: true, coins: true, crystals: true },
     });
     if (!player) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
@@ -42,12 +42,12 @@ economyRouter.get('/balances', authMiddleware, async (_req: Request, res: Respon
       prisma.player.findMany({
         orderBy: { coins: 'desc' },
         take: 10,
-        select: { id: true, username: true, coins: true, crystals: true },
+        select: { username: true, coins: true, crystals: true },
       }),
       prisma.player.findMany({
         orderBy: { crystals: 'desc' },
         take: 10,
-        select: { id: true, username: true, coins: true, crystals: true },
+        select: { username: true, coins: true, crystals: true },
       }),
     ]);
     res.json({ topCoins, topCrystals });
@@ -71,7 +71,7 @@ economyRouter.post('/transfer', serviceTokenMiddleware, validateBody(transferSch
       return;
     }
 
-    const sender = await prisma.player.findUnique({ where: { id: fromId }, select: { coins: true } });
+    const sender = await prisma.player.findUnique({ where: { username: fromId }, select: { coins: true } });
     if (!sender) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Sender not found', statusCode: 404 });
       return;
@@ -82,8 +82,8 @@ economyRouter.post('/transfer', serviceTokenMiddleware, validateBody(transferSch
     }
 
     const [updated] = await prisma.$transaction([
-      prisma.player.update({ where: { id: fromId }, data: { coins: { decrement: amount } } }),
-      prisma.player.update({ where: { id: toId }, data: { coins: { increment: amount } } }),
+      prisma.player.update({ where: { username: fromId }, data: { coins: { decrement: amount } } }),
+      prisma.player.update({ where: { username: toId }, data: { coins: { increment: amount } } }),
     ]);
 
     res.json({ success: true, newBalance: updated.coins });
@@ -106,7 +106,7 @@ economyRouter.post('/adjust', authMiddleware, validateBody(adjustSchema), async 
     const { playerId, currency, delta, reason } = req.body as z.infer<typeof adjustSchema>;
     const adminId = (req as any).user.id as string;
 
-    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    const player = await prisma.player.findUnique({ where: { username: playerId } });
     if (!player) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
       return;
@@ -119,7 +119,7 @@ economyRouter.post('/adjust', authMiddleware, validateBody(adjustSchema), async 
     }
 
     const [updated] = await prisma.$transaction([
-      prisma.player.update({ where: { id: playerId }, data: { [currency]: { increment: delta } } }),
+      prisma.player.update({ where: { username: playerId }, data: { [currency]: { increment: delta } } }),
       prisma.economyAuditLog.create({ data: { adminId, targetId: playerId, delta, currency, reason } }),
     ]);
 
@@ -141,14 +141,14 @@ economyRouter.post('/plugin/credit', serviceTokenMiddleware, validateBody(plugin
   try {
     const { playerId, currency, amount, reason } = req.body as z.infer<typeof pluginCreditSchema>;
 
-    const player = await prisma.player.findUnique({ where: { id: playerId } });
+    const player = await prisma.player.findUnique({ where: { username: playerId } });
     if (!player) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
       return;
     }
 
     const [updated] = await prisma.$transaction([
-      prisma.player.update({ where: { id: playerId }, data: { [currency]: { increment: amount } } }),
+      prisma.player.update({ where: { username: playerId }, data: { [currency]: { increment: amount } } }),
       prisma.economyAuditLog.create({ data: { adminId: 'plugin', targetId: playerId, delta: amount, currency, reason } }),
     ]);
 
@@ -198,7 +198,7 @@ economyRouter.post('/market/listings', serviceTokenMiddleware, validateBody(crea
   try {
     const { sellerId, material, amount, price, fee } = req.body as z.infer<typeof createListingSchema>;
 
-    const seller = await prisma.player.findUnique({ where: { id: sellerId }, select: { coins: true } });
+    const seller = await prisma.player.findUnique({ where: { username: sellerId }, select: { coins: true } });
     if (!seller) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
       return;
@@ -212,7 +212,7 @@ economyRouter.post('/market/listings', serviceTokenMiddleware, validateBody(crea
 
     const listing = await prisma.$transaction(async (tx) => {
       if (fee > 0) {
-        await tx.player.update({ where: { id: sellerId }, data: { coins: { decrement: fee } } });
+        await tx.player.update({ where: { username: sellerId }, data: { coins: { decrement: fee } } });
       }
       return tx.marketListing.create({
         data: { sellerId, material, amount, price, fee, expiresAt },
@@ -253,7 +253,7 @@ economyRouter.post('/market/listings/:id/buy', serviceTokenMiddleware, validateB
       return;
     }
 
-    const buyer = await prisma.player.findUnique({ where: { id: buyerId }, select: { coins: true } });
+    const buyer = await prisma.player.findUnique({ where: { username: buyerId }, select: { coins: true } });
     if (!buyer) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Buyer not found', statusCode: 404 });
       return;
@@ -264,8 +264,8 @@ economyRouter.post('/market/listings/:id/buy', serviceTokenMiddleware, validateB
     }
 
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.player.update({ where: { id: buyerId }, data: { coins: { decrement: listing.price } } });
-      await tx.player.update({ where: { id: listing.sellerId }, data: { coins: { increment: listing.price } } });
+      await tx.player.update({ where: { username: buyerId }, data: { coins: { decrement: listing.price } } });
+      await tx.player.update({ where: { username: listing.sellerId }, data: { coins: { increment: listing.price } } });
       return tx.marketListing.update({
         where: { id },
         data: { sold: true, buyerId, soldAt: new Date() },

@@ -186,7 +186,7 @@ clansRouter.post('/', serviceTokenMiddleware, validateBody(createClanSchema), as
     }
 
     // Check coin balance
-    const player = await prisma.player.findUnique({ where: { id: leaderId }, select: { coins: true } });
+    const player = await prisma.player.findUnique({ where: { username: leaderId }, select: { coins: true } });
     if (!player) {
       res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
       return;
@@ -197,7 +197,7 @@ clansRouter.post('/', serviceTokenMiddleware, validateBody(createClanSchema), as
     }
 
     const clan = await prisma.$transaction(async (tx) => {
-      await tx.player.update({ where: { id: leaderId }, data: { coins: { decrement: CLAN_CREATION_COST } } });
+      await tx.player.update({ where: { username: leaderId }, data: { coins: { decrement: CLAN_CREATION_COST } } });
       const c = await tx.clan.create({
         data: { name, tag, leaderId },
         include: { members: true },

@@ -51,7 +51,7 @@ public class ChallengeTracker implements Listener {
         for (ActiveChallenge ch : challenges) {
             if (!"BLOCK_BREAK".equals(ch.type())) continue;
             if (!material.equalsIgnoreCase(ch.targetMaterial())) continue;
-            bufferAndCheckCompletion(ch, player.getUniqueId().toString());
+            bufferAndCheckCompletion(ch, player.getName());
             sendActionBar(player, ch);
         }
     }
@@ -67,7 +67,7 @@ public class ChallengeTracker implements Listener {
         for (ActiveChallenge ch : challenges) {
             if (!"KILL_MOB".equals(ch.type())) continue;
             if (!entityType.equalsIgnoreCase(ch.targetEntity())) continue;
-            bufferAndCheckCompletion(ch, killer.getUniqueId().toString());
+            bufferAndCheckCompletion(ch, killer.getName());
             sendActionBar(killer, ch);
         }
     }
@@ -98,8 +98,8 @@ public class ChallengeTracker implements Listener {
             } else {
                 amount = event.getRecipe().getResult().getAmount();
             }
-            repo.bufferProgress(ch.id(), player.getUniqueId().toString(), amount);
-            checkCompletion(ch, player.getUniqueId().toString());
+            repo.bufferProgress(ch.id(), player.getName(), amount);
+            checkCompletion(ch, player.getName());
             sendActionBar(player, ch);
         }
     }
@@ -129,7 +129,7 @@ public class ChallengeTracker implements Listener {
         int metres = (int) dist;
         if (metres <= 0) return;
 
-        String playerId = player.getUniqueId().toString();
+        String playerId = player.getName();
         List<ActiveChallenge> challenges = manager.getActive();
         for (ActiveChallenge ch : challenges) {
             if (!"TRAVEL".equals(ch.type())) continue;
@@ -165,7 +165,7 @@ public class ChallengeTracker implements Listener {
                     log.info("Challenge " + ch.id() + " completed by " + playerId);
                     if (plugin == null) { response.close(); return; }
                     plugin.getServer().getScheduler().runTask(plugin, () -> {
-                        Player p = plugin.getServer().getPlayer(java.util.UUID.fromString(playerId));
+                        Player p = plugin.getServer().getPlayer(playerId);
                         if (p == null) return;
                         // Title (configurable via config.yml completion.title)
                         String titleText = plugin.getConfig().getString("completion.title", "CHALLENGE COMPLETE!");
@@ -199,7 +199,7 @@ public class ChallengeTracker implements Listener {
     }
 
     private void sendActionBar(Player player, ActiveChallenge ch) {
-        int current = repo.getProgress(ch.id(), player.getUniqueId().toString());
+        int current = repo.getProgress(ch.id(), player.getName());
         String msg = "⚔ " + ch.title() + ": " + current + "/" + ch.targetCount();
         player.sendActionBar(net.kyori.adventure.text.Component.text(
             msg, net.kyori.adventure.text.format.NamedTextColor.YELLOW));

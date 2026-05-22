@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
 interface Player {
-  id: string;
   username: string;
   tier: string;
   lastSeenAt: string;
@@ -61,8 +60,8 @@ export function Players() {
               <tr><td colSpan={4} className="px-4 py-8 text-center text-gray-400">No players found.</td></tr>
             ) : data?.data?.map((p: Player) => (
               <tr
-                key={p.id}
-                onClick={() => navigate(`/players/${p.id}`)}
+                key={p.username}
+                onClick={() => navigate(`/players/${p.username}`)}
                 className="hover:bg-gray-50 cursor-pointer"
               >
                 <td className="px-4 py-3 font-medium text-gray-800">{p.username}</td>

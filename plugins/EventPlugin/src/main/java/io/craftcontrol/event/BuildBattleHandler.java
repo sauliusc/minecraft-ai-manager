@@ -254,7 +254,8 @@ public class BuildBattleHandler {
         eventManager.completeEvent(eventId);
     }
 
-    private void grantReward(UUID playerId, String rewardId, String eventId) {
+    private void grantReward(UUID playerUuid, String rewardId, String eventId) {
+        String playerId = getPlayerName(playerUuid);
         String json = "{\"playerId\":\"" + playerId + "\",\"rewardId\":\"" + rewardId + "\",\"eventId\":\"" + eventId + "\"}";
         BridgePlugin.getInstance().getApiClient().post("/rewards/grant", json, new Callback() {
             @Override

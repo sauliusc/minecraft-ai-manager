@@ -48,8 +48,8 @@ public class ReportManager {
         for (String line : buf) snapshot.add(line);
 
         JsonObject body = new JsonObject();
-        body.addProperty("reporterId", reporter.getUniqueId().toString());
-        body.addProperty("reportedId", reported.getUniqueId().toString());
+        body.addProperty("reporterId", reporter.getName());
+        body.addProperty("reportedId", reported.getName());
         body.addProperty("reason", reason);
         body.add("chatSnapshot", snapshot);
         String json = gson.toJson(body);

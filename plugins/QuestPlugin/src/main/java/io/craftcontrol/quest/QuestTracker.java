@@ -48,7 +48,7 @@ public class QuestTracker implements Listener {
     }
 
     private void process(Player player, String eventType, String material, String entity, int amount) {
-        String playerId = player.getUniqueId().toString();
+        String playerId = player.getName();
         List<QuestData> quests = repo.getQuests(playerId);
         for (QuestData q : quests) {
             if (q.completed()) continue;
