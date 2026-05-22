@@ -130,8 +130,32 @@ jobs:
           STEP="init"
           trap 'echo "::error::pre-install failed at step=$STEP"' ERR
 
-          STEP="clear-cache"
-          rm -rf ~/.m2/repository/io/papermc 2>/dev/null || true
+          PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar"
+
+          # Always write settings.xml so Maven mirrors point to local repo for papermc/spigotmc
+          STEP="write-settings"
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'SETTINGS'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
+            <mirrors>
+              <mirror>
+                <id>papermc-local</id>
+                <mirrorOf>papermc</mirrorOf>
+                <url>file://${user.home}/.m2/repository</url>
+              </mirror>
+              <mirror>
+                <id>spigotmc-local</id>
+                <mirrorOf>spigotmc-snapshots</mirrorOf>
+                <url>file://${user.home}/.m2/repository</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          SETTINGS
+
+          if [ -f "$PAPER_INSTALLED" ]; then
+            echo "::notice::step=cache-hit Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), skipping download"
+            exit 0
+          fi
 
           STEP="fetch-build-info"
           BUILD_INFO=$(curl -sf "https://api.papermc.io/v2/projects/paper/versions/1.21.4/builds")
@@ -203,27 +227,7 @@ jobs:
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress
-
-          STEP="write-settings"
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'SETTINGS'
-          <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
-            <mirrors>
-              <mirror>
-                <id>papermc-local</id>
-                <mirrorOf>papermc</mirrorOf>
-                <url>file://${user.home}/.m2/repository</url>
-              </mirror>
-              <mirror>
-                <id>spigotmc-local</id>
-                <mirrorOf>spigotmc-snapshots</mirrorOf>
-                <url>file://${user.home}/.m2/repository</url>
-              </mirror>
-            </mirrors>
-          </settings>
-          SETTINGS
-          INSTALLED=~/.m2/repository/io/papermc/paper/paper-api/1.21.4-R0.1-SNAPSHOT/paper-api-1.21.4-R0.1-SNAPSHOT.jar
-          echo "::notice::step=done installed=$(du -sh $INSTALLED 2>/dev/null || echo MISSING)"
+          echo "::notice::step=done installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
 
       - name: Pre-install BungeeCord Chat stubs (not in Paper bundler)
         run: |
