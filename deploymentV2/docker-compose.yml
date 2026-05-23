@@ -37,10 +37,7 @@ services:
 
   # ── Node.js API ───────────────────────────────────────────────────────────
   api:
-    build:
-      context: ../server
-      dockerfile: Dockerfile
-    image: craftcontrol-api:${IMAGE_TAG:-latest}
+    image: ghcr.io/sauliusc/minecraft-ai-manager/api:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       db:
@@ -68,12 +65,9 @@ services:
       start_period: 60s
       retries: 3
 
-  # ── MCP server (Claude tool access) ─────────────────────────────────────────
+  # ── MCP server (Claude tool access) ──────────────────────────────────────
   mcp:
-    build:
-      context: ../mcp
-      dockerfile: Dockerfile
-    image: craftcontrol-mcp:${IMAGE_TAG:-latest}
+    image: ghcr.io/sauliusc/minecraft-ai-manager/mcp:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       api:
@@ -95,12 +89,7 @@ services:
 
   # ── React SPA + Nginx reverse proxy ──────────────────────────────────────
   web:
-    build:
-      context: ../client
-      dockerfile: Dockerfile
-      args:
-        VITE_API_BASE_URL: /api
-    image: craftcontrol-web:${IMAGE_TAG:-latest}
+    image: ghcr.io/sauliusc/minecraft-ai-manager/web:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       api:
@@ -110,27 +99,24 @@ services:
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
 
-  # ── Minecraft server ─────────────────────────────────────────────────────────
+  # ── Minecraft server ──────────────────────────────────────────────────────
   minecraft:
-    build:
-      context: ..
-      dockerfile: minecraft/Dockerfile
-    image: craftcontrol-minecraft:${IMAGE_TAG:-latest}
+    image: ghcr.io/sauliusc/minecraft-ai-manager/minecraft:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       api:
         condition: service_healthy
     environment:
-      EULA:                 "TRUE"
-      TYPE:                 PAPER
-      VERSION:              ${MINECRAFT_VERSION:-1.21.1}
-      MEMORY:               ${MINECRAFT_MEMORY:-4G}
-      ENABLE_RCON:          "true"
-      RCON_PORT:            ${RCON_PORT:-25575}
-      RCON_PASSWORD:        ${RCON_PASSWORD}
+      EULA:                  "TRUE"
+      TYPE:                  PAPER
+      VERSION:               ${MINECRAFT_VERSION:-1.21.1}
+      MEMORY:                ${MINECRAFT_MEMORY:-4G}
+      ENABLE_RCON:           "true"
+      RCON_PORT:             ${RCON_PORT:-25575}
+      RCON_PASSWORD:         ${RCON_PASSWORD}
       REPLACE_ENV_VARIABLES: "TRUE"
-      CFG_BRIDGE_SECRET:    ${BRIDGE_SECRET}
-      CFG_BRIDGE_API_URL:   http://api:3000
+      CFG_BRIDGE_SECRET:     ${BRIDGE_SECRET}
+      CFG_BRIDGE_API_URL:    http://api:3000
     volumes:
       - minecraft_data:/data
     ports:
