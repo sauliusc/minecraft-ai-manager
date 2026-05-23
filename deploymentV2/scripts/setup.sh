@@ -29,13 +29,13 @@ if ! command -v docker &>/dev/null; then
   err "Docker not found. Install it from https://docs.docker.com/engine/install/"
   exit 1
 fi
-ok "Docker $(docker --version | awk '{print $3}' | tr -d ',')"
+ok "Docker $(docker --version 2>/dev/null | awk '{print $3}' | tr -d ',' || echo 'installed')"
 
 if ! docker compose version &>/dev/null; then
   err "Docker Compose plugin not found. Run: sudo apt install docker-compose-plugin"
   exit 1
 fi
-ok "Docker Compose $(docker compose version --short)"
+ok "Docker Compose $(docker compose version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || echo 'installed')"
 
 if [[ -f "$ENV_FILE" ]]; then
   ask ".env already exists. Overwrite? [y/N]"
@@ -67,12 +67,12 @@ while [[ -z "$ADMIN_EMAIL" ]]; do
 done
 
 ask "Admin password (min 12 chars):"
-read -rs ADMIN_PASSWORD
+read -rs ADMIN_PASSWORD || true
 echo ""
 while [[ ${#ADMIN_PASSWORD} -lt 12 ]]; do
   err "Password must be at least 12 characters."
   ask "Admin password:"
-  read -rs ADMIN_PASSWORD
+  read -rs ADMIN_PASSWORD || true
   echo ""
 done
 
@@ -83,7 +83,7 @@ read -r RCON_PORT
 RCON_PORT="${RCON_PORT:-25575}"
 
 ask "RCON password (auto-generate? press Enter):"
-read -rs RCON_PASSWORD_INPUT
+read -rs RCON_PASSWORD_INPUT || true
 echo ""
 
 echo ""
@@ -93,7 +93,7 @@ read -r MCP_PORT
 MCP_PORT="${MCP_PORT:-3100}"
 
 ask "MCP auth token (auto-generate? press Enter):"
-read -rs MCP_AUTH_TOKEN_INPUT
+read -rs MCP_AUTH_TOKEN_INPUT || true
 echo ""
 
 echo ""
