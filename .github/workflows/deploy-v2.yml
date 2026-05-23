@@ -60,41 +60,25 @@ jobs:
       - run: npm test
 
   # ────────────────────────────────────────────────────────────────────────────
-  # Deploy to production server
+  # Deploy directly on the self-hosted runner inside CT102
+  # The runner IS the server — no SSH hop needed
   # ────────────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy
     needs: test
-    runs-on: ubuntu-latest
-    environment: production       # requires manual approval if configured
-    # Copy secret to env so we can test it in step if: (secrets context is
-    # not available in if: expressions; env context is).
-    env:
-      MGMT_VM_HOST: ${{ secrets.MGMT_VM_HOST }}
-    outputs:
-      deployed: ${{ steps.ssh.outcome == 'success' }}
+    runs-on: [self-hosted, ct102]
 
     steps:
-      - name: Deploy via SSH
-        id: ssh
-        if: ${{ env.MGMT_VM_HOST != '' }}
-        uses: appleboy/ssh-action@v1
-        with:
-          host:        ${{ secrets.MGMT_VM_HOST }}
-          username:    ${{ secrets.MGMT_VM_SSH_USER }}
-          key:         ${{ secrets.MGMT_VM_SSH_KEY }}
-          port:        ${{ secrets.MGMT_VM_SSH_PORT || 22 }}
-          script: |
-            set -euo pipefail
+      - name: Pull latest code & deploy
+        run: |
+          set -euo pipefail
 
-            # Pull latest code
-            cd /opt/craftcontrol
-            git pull --ff-only
+          cd /opt/craftcontrol
+          git pull --ff-only
 
-            # Run the same deploy script used locally
-            bash deploymentV2/scripts/deploy.sh
+          bash deploymentV2/scripts/deploy.sh
 
-            echo "✓ Deployment finished"
+          echo "✓ Deployment finished"
 
   # ────────────────────────────────────────────────────────────────────────────
   # Validate Minecraft startup on the self-hosted runner inside CT102
@@ -104,7 +88,6 @@ jobs:
     name: Validate Minecraft startup
     needs: deploy
     runs-on: [self-hosted, ct102]
-    if: ${{ always() && needs.deploy.outputs.deployed == 'true' }}
     timeout-minutes: 5
 
     steps:
@@ -146,18 +129,15 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────────
   # Build & deploy Minecraft plugins (only when plugins/ changes)
+  # Runs on self-hosted runner so it can reach the game VM on the local network
   # ────────────────────────────────────────────────────────────────────────────
   deploy-plugins:
     name: Deploy Plugins
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ct102]
     if: >-
       github.event_name == 'push' &&
       contains(toJson(github.event.commits), '"plugins/')
-    # Copy secret to env so we can test it in step if: (secrets context is
-    # not available in if: expressions; env context is).
-    env:
-      GAME_VM_HOST: ${{ secrets.GAME_VM_HOST }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -170,7 +150,6 @@ jobs:
         run: mvn -f plugins/pom.xml clean package -DskipTests -q
 
       - name: Upload JARs to game server
-        if: ${{ env.GAME_VM_HOST != '' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host:     ${{ secrets.GAME_VM_HOST }}
@@ -181,7 +160,6 @@ jobs:
           strip_components: 3     # removes plugins/PluginName/target/ prefix
 
       - name: Restart Minecraft via DiscoPanel
-        if: ${{ env.GAME_VM_HOST != '' }}
         run: |
           curl -s -f -X POST \
             -H "Authorization: Bearer ${{ secrets.DISCOPANEL_API_TOKEN }}" \
