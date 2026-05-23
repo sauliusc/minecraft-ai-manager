@@ -60,12 +60,6 @@
                 <scope>provided</scope>
             </dependency>
             <dependency>
-                <groupId>net.md_5.bungee</groupId>
-                <artifactId>bungeecord-chat</artifactId>
-                <version>${paper.version}</version>
-                <scope>provided</scope>
-            </dependency>
-            <dependency>
                 <groupId>io.craftcontrol</groupId>
                 <artifactId>BridgePlugin</artifactId>
                 <version>${project.version}</version>
@@ -111,14 +105,6 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>net.md_5.bungee</groupId>
-            <artifactId>bungeecord-chat</artifactId>
-            <scope>provided</scope>
-        </dependency>
-    </dependencies>
 
     <build>
         <plugins>
