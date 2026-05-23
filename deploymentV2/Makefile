@@ -13,7 +13,8 @@ COMPOSE     := docker compose --env-file $(ENV_FILE) -f $(DEPLOY_DIR)docker-comp
 export
 
 .PHONY: help setup deploy update stop restart status logs \
-        rollback backup restore shell-api shell-db \
+        rollback backup restore shell-api shell-db shell-mcp \
+        logs-api logs-web logs-db logs-mcp \
         build-plugins deploy-plugins seed-admin nuke
 
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -70,6 +71,9 @@ logs-web: ## Tail only the Nginx/web logs
 logs-db: ## Tail only the database logs
 	$(COMPOSE) logs -f db
 
+logs-mcp: ## Tail only the MCP server logs
+	$(COMPOSE) logs -f mcp
+
 ## ─────────────────────────────────────────────────────────────────────────────
 ## DATABASE
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -108,6 +112,9 @@ shell-db: ## Open a psql shell inside the database container
 
 shell-redis: ## Open a redis-cli shell
 	$(COMPOSE) exec redis redis-cli -a $(REDIS_PASSWORD)
+
+shell-mcp: ## Open a shell inside the MCP server container
+	$(COMPOSE) exec mcp sh
 
 ## ─────────────────────────────────────────────────────────────────────────────
 ## MINECRAFT PLUGINS
