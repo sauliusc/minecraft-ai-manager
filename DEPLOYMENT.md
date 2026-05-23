@@ -1,8 +1,8 @@
 # CraftControl — Deployment Guide
 
 **Environment:** Proxmox VE (bare metal) + DiscoPanel
-**Last Updated:** 2026-05-12
-**Status:** Pre-production
+**Last Updated:** 2026-05-23
+**Status:** Production
 
 ---
 
@@ -582,107 +582,40 @@ DiscoPanel provides an SFTP endpoint for uploading plugin JARs and editing confi
 
 ## 8. CI/CD Pipeline
 
-### 8.1 GitHub Actions Workflows
+### 8.1 Workflow overview
 
-```
-.github/workflows/
-├── minecraft-plugin.yml    # PR check: Maven build + JUnit tests
-├── api.yml                 # PR check: npm test + eslint + type-check
-└── deploy.yml              # Push to main: build + deploy to both VMs
-```
+The single workflow `.github/workflows/deploy-v2.yml` runs on every push to `main`:
 
-### 8.2 deploy.yml Overview
+| Job | Runner | What it does |
+|-----|--------|--------------|
+| `test` | GitHub-hosted (ubuntu-latest) | Full test suite against real PostgreSQL + Redis |
+| `deploy` | Self-hosted (ct102) | `git pull --ff-only` + `bash deploymentV2/scripts/deploy.sh` — runs directly on the server |
+| `validate` | Self-hosted (ct102) | Captures Minecraft startup logs, fails on `[ERROR]`/`[FATAL]` lines |
+| `deploy-plugins` | Self-hosted (ct102) | Builds plugin JARs with Maven, uploads via SCP, triggers DiscoPanel restart (only when `plugins/` changes) |
 
-```yaml
-name: Deploy
+The deploy and validate jobs run **on the management container itself** (CT102 self-hosted runner) — no SSH from GitHub is needed.
 
-on:
-  push:
-    branches: [main]
+### 8.2 Self-hosted runner setup
 
-jobs:
-  deploy-plugin:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with: { java-version: '21', distribution: 'temurin' }
-      - name: Build plugin JAR
-        run: mvn clean package -DskipTests -f plugins/pom.xml
-      - name: Upload plugin via DiscoPanel SFTP
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.GAME_VM_HOST }}
-          username: ${{ secrets.DISCOPANEL_SFTP_USER }}
-          password: ${{ secrets.DISCOPANEL_SFTP_PASS }}
-          port: ${{ secrets.DISCOPANEL_SFTP_PORT }}
-          source: "plugins/target/CraftControl-*.jar"
-          target: "/plugins/"
-          strip_components: 2
-      - name: Restart Minecraft via DiscoPanel API
-        run: |
-          curl -s -X POST \
-            -H "Authorization: Bearer ${{ secrets.DISCOPANEL_API_TOKEN }}" \
-            http://10.10.10.10:3001/api/servers/craftcontrol/power \
-            -d '{"signal":"restart"}'
+Register the runner on CT102 with label `ct102`:
 
-  deploy-api:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - name: Build API
-        working-directory: server
-        run: npm ci && npm run build
-      - name: Run DB migrations
-        working-directory: server
-        run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      - name: Deploy API to mgmt-vm
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.MGMT_VM_HOST }}
-          username: deploy
-          key: ${{ secrets.MGMT_VM_SSH_KEY }}
-          script: |
-            rsync -av --delete /tmp/api-build/ /var/www/craftcontrol/api/
-            pm2 reload craftcontrol-api
+1. Go to **Settings → Actions → Runners → New self-hosted runner**
+2. Follow the instructions, passing `--labels ct102` to `config.sh`
+3. Install as a systemd service: `sudo ./svc.sh install && sudo ./svc.sh start`
 
-  deploy-spa:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: '22' }
-      - name: Build SPA
-        working-directory: client
-        run: npm ci && npm run build
-        env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
-      - name: Deploy SPA to mgmt-vm
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.MGMT_VM_HOST }}
-          username: deploy
-          key: ${{ secrets.MGMT_VM_SSH_KEY }}
-          script: rsync -av --delete /tmp/spa-dist/ /var/www/craftcontrol/public/
-```
+The runner connects outbound to GitHub — no inbound ports are needed.
 
 ### 8.3 Required GitHub Secrets
 
+These secrets are **only needed for the `deploy-plugins` job** (automatic plugin upload on Minecraft server changes). The main deploy job has no secrets requirements.
+
 | Secret | Description |
 |---|---|
-| `GAME_VM_HOST` | game-vm public IP or hostname |
-| `DISCOPANEL_SFTP_USER` | DiscoPanel SFTP username |
-| `DISCOPANEL_SFTP_PASS` | DiscoPanel SFTP password |
-| `DISCOPANEL_SFTP_PORT` | DiscoPanel SFTP port (default: 2022) |
-| `DISCOPANEL_API_TOKEN` | DiscoPanel API bearer token |
-| `MGMT_VM_HOST` | mgmt-vm public IP or hostname |
-| `MGMT_VM_SSH_KEY` | SSH private key for `deploy` user on mgmt-vm |
-| `DATABASE_URL` | Full PostgreSQL connection string (for migrations) |
-| `VITE_API_BASE_URL` | Public API URL (e.g., `https://panel.yourdomain.com/api`) |
+| `GAME_VM_HOST` | IP address of game-vm (Minecraft server) |
+| `GAME_VM_SSH_USER` | SSH username on game-vm |
+| `GAME_VM_SSH_KEY` | Private SSH key for game-vm |
+| `DISCOPANEL_API_TOKEN` | DiscoPanel API bearer token (for server restart) |
+| `DISCOPANEL_SERVER_ID` | DiscoPanel server UUID |
 
 ---
 
@@ -814,20 +747,25 @@ All secrets follow this lifecycle:
 ### 12.1 Deploy a Plugin Update
 
 1. Push changes to `main`.
-2. GitHub Actions `deploy.yml` automatically builds the JAR and uploads it via DiscoPanel SFTP.
+2. GitHub Actions `deploy-v2.yml` (`deploy-plugins` job) automatically builds the JAR via Maven and uploads it to game-vm via SCP.
 3. DiscoPanel API call restarts the Minecraft server.
-4. Verify via DiscoPanel console: `[BridgePlugin] Bridge started on port 25580` should appear in server logs.
+4. The `validate` job on CT102 captures startup logs and annotates any `[ERROR]`/`[FATAL]` lines in the GitHub Actions UI.
+5. Verify: `[BridgePlugin] Bridge started on port 25580` should appear in the startup log artifact.
 
 ### 12.2 Run a Database Migration
 
+Migrations run automatically during `make deploy`. To run manually on CT102:
+
 ```bash
-# On mgmt-vm as www-data
-cd /var/www/craftcontrol/api
-npx prisma migrate deploy
-pm2 reload craftcontrol-api
+cd /opt/craftcontrol/deploymentV2
+make migrate
 ```
 
-For destructive migrations, take a PostgreSQL backup first (see Section 9.2).
+For destructive migrations, take a PostgreSQL backup first:
+
+```bash
+make backup
+```
 
 ### 12.3 Emergency Minecraft Server Restart
 
@@ -858,62 +796,19 @@ tar -xzf /opt/discopanel/backups/craftcontrol/<backup-file>.tar.gz world/
 ### 12.5 Roll Back a Bad Deployment
 
 ```bash
-# mgmt-vm: PM2 rollback (if using PM2 deploy)
-pm2 deploy production revert 1
-
-# OR: restore Proxmox snapshot taken before deployment
-# Via Proxmox web UI: Datacenter → VM 101 → Snapshots → Rollback
+# On CT102 — reverts all Docker images (api, web, mcp) to the previous build
+cd /opt/craftcontrol/deploymentV2
+make rollback
 ```
+
+For a deeper rollback (DB data corruption), restore a backup first:
+
+```bash
+make restore
+```
+
+Or restore a Proxmox VM snapshot via the Proxmox web UI: Datacenter → CT102 → Snapshots → Rollback.
 
 ---
 
-*This document covers all operational aspects of the CraftControl production environment. For development setup instructions, see [TECHNICAL_DOCS.md](./TECHNICAL_DOCS.md) Section 8.*
-
-## 8.3 GitHub Actions Secrets
-
-Configure these secrets in **GitHub → Settings → Secrets and variables → Actions** before the deploy pipeline can run.
-
-| Secret | Used by | Description |
-|---|---|---|
-| `GAME_VM_HOST` | deploy-plugin | Hostname/IP of game-vm (10.10.10.10) |
-| `DISCOPANEL_SFTP_USER` | deploy-plugin | SFTP username for DiscoPanel file manager |
-| `DISCOPANEL_SFTP_PASS` | deploy-plugin | SFTP password for DiscoPanel file manager |
-| `DISCOPANEL_SFTP_PORT` | deploy-plugin | SFTP port exposed by DiscoPanel (default: 2022) |
-| `DISCOPANEL_API_TOKEN` | deploy-plugin | DiscoPanel API bearer token (Power management) |
-| `MGMT_VM_HOST` | deploy-api, deploy-spa | Hostname/IP of mgmt-vm (10.10.10.20) |
-| `MGMT_VM_SSH_KEY` | deploy-api, deploy-spa | Private SSH key for `www-data` on mgmt-vm |
-| `DATABASE_URL` | deploy-api | PostgreSQL connection string for `prisma migrate deploy` |
-| `VITE_API_BASE_URL` | deploy-spa | Public API URL injected into the built SPA (e.g. `https://panel.yourdomain.com`) |
-
-### Generating the SSH key pair
-
-**Recommended: use a GitHub Deploy Key** (repository-scoped, cannot access other repos).
-
-1. Generate a dedicated deploy keypair — do **not** reuse personal SSH keys:
-
-```bash
-ssh-keygen -t ed25519 -C "craftcontrol-deploy-$(date +%Y%m%d)" -f ~/.ssh/craftcontrol_deploy -N ""
-```
-
-2. Add the **public** key to mgmt-vm's `authorized_keys`:
-
-```bash
-ssh-copy-id -i ~/.ssh/craftcontrol_deploy.pub www-data@10.10.10.20
-```
-
-Restrict the key to only the commands the deploy job needs:
-
-```
-# /var/www/.ssh/authorized_keys
-command="cd /var/www/craftcontrol/api && git pull origin main && npm ci --omit=dev && npx prisma migrate deploy && pm2 reload craftcontrol-api",no-port-forwarding,no-X11-forwarding,no-agent-forwarding ssh-ed25519 AAAA...
-```
-
-3. Add the **private** key content as the `MGMT_VM_SSH_KEY` GitHub secret:
-
-```bash
-cat ~/.ssh/craftcontrol_deploy   # copy output → GitHub → Settings → Secrets → MGMT_VM_SSH_KEY
-```
-
-4. **Rotate the key every 90 days** — generate a new pair, update `authorized_keys` on the VM, update the GitHub secret, then delete the old public key from `authorized_keys`.
-
-> **Security note:** Never commit SSH private keys to the repository or share them outside GitHub Secrets. If a key is accidentally exposed, rotate it immediately using the steps above.
+*This document covers the Proxmox + DiscoPanel production topology. For the simpler Docker Compose deployment guide, see [deploymentV2/README.md](deploymentV2/README.md). For development setup, see [TECHNICAL_DOCS.md](TECHNICAL_DOCS.md) §8.*

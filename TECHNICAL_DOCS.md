@@ -2,9 +2,9 @@
 
 **Project Codename:** `CraftControl`
 **Version:** 1.0.0
-**Status:** Pre-development
+**Status:** Production
 **Owner:** sauliusc
-**Last Updated:** 2026-05-12
+**Last Updated:** 2026-05-23
 
 ---
 
@@ -88,9 +88,10 @@ CraftControl is a two-component system:
 
 ### 2.2 Communication Flow
 
-- **Player joins** → GreeterPlugin fires → checks DB via BridgePlugin → sends welcome if first-time join.
-- **Challenge triggered** → ChallengePlugin polls web API every N minutes or on demand → fetches active challenges for a player → displays in-game.
-- **Reward granted** → Admin clicks "Grant Reward" in dashboard → REST call hits BridgePlugin endpoint on Minecraft server → RewardPlugin executes the grant in-game.
+- **Player joins** → GreeterPlugin fires → upserts player record via `POST /api/players` (BridgePlugin) → sends welcome on first join.
+- **Challenge triggered** → ChallengePlugin polls `GET /api/challenges/active` every 60 s → displays active challenges in-game and tracks progress.
+- **Reward granted** → Admin clicks "Grant Reward" in dashboard → `POST /api/rewards/grant` → BridgePlugin callback → RewardPlugin executes in-game.
+- **Claude control** → MCP server authenticates with the API, exposes 52 typed tools — Claude can query players, manage clans, run RCON commands, trigger AI scans, etc.
 
 ---
 
@@ -127,14 +128,13 @@ public void onPlayerQuit(PlayerQuitEvent event) { ... }
 
 #### Behavior
 
-1. On `PlayerJoinEvent`, query local cache (Redis via BridgePlugin) for the player's UUID.
+1. On `PlayerJoinEvent`, upsert the player record via `POST /api/players` with `{"username": "<name>"}` (idempotent — creates on first join, updates on return).
 2. If **new player**: run `firstJoinSequence()`:
    - Send configurable welcome message (supports MiniMessage formatting).
    - Give starter kit defined in `config.yml`.
    - Broadcast server-wide announcement (toggleable).
-   - POST player record to web API (`/api/players`).
 3. If **returning player**: send a shorter returning greeting (configurable).
-4. Log all events to the web API for analytics.
+4. HTTP errors are logged via the plugin logger — connection failures do not crash the server.
 
 #### Configuration (`plugins/GreeterPlugin/config.yml`)
 
@@ -367,8 +367,7 @@ Act as the HTTP gateway between all other plugins and the web API, in both direc
 
 ```prisma
 model Player {
-  id          String    @id         // Minecraft UUID
-  username    String
+  username    String    @id         // Minecraft username (primary key — not UUID)
   firstJoinAt DateTime
   lastSeenAt  DateTime
   joinCount   Int       @default(0)
@@ -446,11 +445,11 @@ enum Role          { SUPER_ADMIN MODERATOR }
 
 ## 6. Infrastructure & Deployment
 
-### 6.1 Hosting Platform: Proxmox VE + DiscoPanel
+### 6.1 Hosting Platform: Proxmox VE + Docker Compose
 
-The production environment runs on a **Proxmox VE** hypervisor. The Minecraft server is managed through **DiscoPanel**, a self-hosted game-server management panel. The CraftControl web stack runs on a dedicated second VM to keep game-server resources fully isolated from database and API workloads.
+The production environment runs on a **Proxmox VE** hypervisor. The Minecraft server runs on a dedicated game-vm managed by **DiscoPanel**. The CraftControl web stack (including the MCP server) runs via Docker Compose on a management container (CT102) to keep game-server resources isolated from API workloads.
 
-> Full step-by-step deployment instructions, resource sizing, network configuration, backup strategy, and CI/CD pipeline details are documented in **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+> Full step-by-step Proxmox/VM deployment instructions are in **[DEPLOYMENT.md](./DEPLOYMENT.md)**. For the simpler Docker Compose setup, see **[deploymentV2/README.md](./deploymentV2/README.md)**.
 
 ### 6.2 Two-VM Architecture
 
@@ -530,15 +529,14 @@ api:
 
 ```
 .github/workflows/
-├── minecraft-plugin.yml    # Maven build + test on PR
-├── api.yml                 # Node.js test + lint on PR
-└── deploy.yml              # SSH deploy to both VMs on merge to main
+└── deploy-v2.yml   # test → deploy → validate → deploy-plugins
 ```
 
-**Deploy steps:**
-1. **game-vm:** Build JAR → SCP to game-vm → DiscoPanel API restarts the Minecraft server instance.
-2. **mgmt-vm:** Build Node.js app → PM2 reload on mgmt-vm.
-3. **mgmt-vm:** Build React SPA → rsync to `/var/www/craftcontrol` on mgmt-vm.
+**Deploy steps (on push to `main`):**
+1. **test** — full suite against ephemeral PostgreSQL + Redis (GitHub-hosted runner)
+2. **deploy** — self-hosted CT102 runner runs `git pull` + `deploy.sh` directly (no SSH from GitHub)
+3. **validate** — captures Minecraft startup logs, annotates errors in the GitHub UI
+4. **deploy-plugins** — builds plugin JARs, uploads via SCP, triggers DiscoPanel restart (only when `plugins/` changes)
 
 ### 6.7 DiscoPanel Integration
 
@@ -727,37 +725,39 @@ mvn clean package -DskipTests
 
 ## 10. Roadmap & Milestones
 
-### Phase 1 — Foundation (Weeks 1–3)
+### Phase 1 — Foundation ✅
 - [x] Repository setup, CI skeleton
-- [ ] BridgePlugin base (inbound + outbound HTTP)
-- [ ] GreeterPlugin (first-join + return greeting)
-- [ ] Web API: auth, player endpoints
-- [ ] Basic dashboard: login, player list
+- [x] BridgePlugin base (inbound + outbound HTTP)
+- [x] GreeterPlugin (first-join + return greeting, upsert via `POST /api/players`)
+- [x] Web API: auth, player endpoints
+- [x] Basic dashboard: login, player list
 
-### Phase 2 — Challenge System (Weeks 4–6)
-- [ ] ChallengePlugin (BLOCK_BREAK, KILL_MOB, CRAFT_ITEM types)
-- [ ] Web API: challenge CRUD + progress endpoints
-- [ ] Dashboard: challenge manager page
-- [ ] In-game UX: `/challenges` command, action bar progress, completion title
+### Phase 2 — Challenge System ✅
+- [x] ChallengePlugin (BLOCK_BREAK, KILL_MOB, CRAFT_ITEM types)
+- [x] Web API: challenge CRUD + progress endpoints
+- [x] Dashboard: challenge manager page
+- [x] In-game UX: `/challenges` command, action bar progress, completion title
 
-### Phase 3 — Rewards (Weeks 7–8)
-- [ ] RewardPlugin (ITEM, XP, COMMAND types)
-- [ ] Web API: reward grant endpoint + bridge call
-- [ ] Dashboard: reward manager, manual grant UI
-- [ ] Offline reward queuing
+### Phase 3 — Rewards & Engagement ✅
+- [x] RewardPlugin (ITEM, XP, COMMAND types)
+- [x] Web API: reward grant endpoint + bridge call
+- [x] Dashboard: reward manager, manual grant UI
+- [x] Clan system (create, invite, kick, roles, wars, clan homes)
+- [x] Economy (coins, crystals, player-to-player market)
+- [x] Events, broadcasts, cosmetics, voting rewards
 
-### Phase 4 — Polish & Launch (Weeks 9–10)
-- [ ] TRAVEL and CUSTOM challenge types
-- [ ] Dashboard: event log stream, analytics charts
-- [ ] Full E2E test suite
-- [ ] Production deployment, Nginx + SSL
-- [ ] Documentation finalized
+### Phase 4 — AI + MCP ✅
+- [x] AI features: challenge generation, engagement scan, reward suggestions, chat moderation
+- [x] MCP server (52 tools via SSE; bundled in Docker Compose)
+- [x] Analytics: retention, churn risk, heatmap
+- [x] Production deployment on Proxmox + Docker Compose
+- [x] Full CI/CD via self-hosted runner on CT102
 
-### Phase 5 — v1.1 (Post-launch)
+### Phase 5 — v1.1 (Planned)
 - [ ] Vault / economy integration
-- [ ] Challenge leaderboards
 - [ ] Discord webhook notifications
 - [ ] Multi-server (BungeeCord) support
+- [ ] HTTPS via Certbot / Cloudflare on panel
 
 ---
 
@@ -777,7 +777,9 @@ mvn clean package -DskipTests
 | **Proxmox VE** | Open-source bare-metal hypervisor used to host the project VMs |
 | **DiscoPanel** | Self-hosted game-server management panel that runs and monitors the Minecraft server process on game-vm |
 | **game-vm** | VM 1 on Proxmox; hosts DiscoPanel and the Minecraft Paper server |
-| **mgmt-vm** | VM 2 on Proxmox; hosts the CraftControl web stack (Node.js API, React SPA, PostgreSQL, Redis, Nginx) |
+| **mgmt-vm / CT102** | Container on Proxmox; runs the CraftControl Docker Compose stack (api, web, mcp, db, redis) |
+| **MCP server** | Model Context Protocol server included in the Docker stack; gives Claude 52 typed tools to control the entire platform |
+| **self-hosted runner** | GitHub Actions runner registered on CT102 with label `ct102`; runs deploy and validate jobs directly on the server without SSH |
 
 ---
 

@@ -2,7 +2,7 @@
 ## Minecraft AI Manager — Engagement & Automation Layer
 
 **Version**: 1.0  
-**Status**: Draft  
+**Status**: Partially implemented — see feature status below  
 **Scope**: Backend AI services, no changes to existing Minecraft plugins required (bridge API is the integration point)
 
 ---
@@ -11,13 +11,13 @@
 
 This document specifies five AI-powered features layered on top of the existing system. Each feature targets a distinct engagement problem visible in the current analytics data:
 
-| Problem | Symptom | AI Feature |
-|---------|---------|------------|
-| Challenge repetition / staleness | >95% completion rate on easy challenges, low daily return rate | **Dynamic Challenge Generator** |
-| Players feel unheard by NPCs | Flat dialogue, no memory of interactions | **Contextual NPC Dialogue** |
-| Slow churn response | 2-week detection window is too late | **Predictive Engagement Alerts** |
-| Toxic chat uncaught by keyword filters | Escalated reports grow faster than moderation can process | **AI Chat Moderation** |
-| Rewards feel generic | High-tier players claim common rewards, churn anyway | **Personalised Reward Recommendations** |
+| Problem | Symptom | AI Feature | Status |
+|---------|---------|------------|--------|
+| Challenge repetition / staleness | >95% completion rate on easy challenges, low daily return rate | **Dynamic Challenge Generator** | ✅ Implemented |
+| Players feel unheard by NPCs | Flat dialogue, no memory of interactions | **Contextual NPC Dialogue** | 🔲 Planned |
+| Slow churn response | 2-week detection window is too late | **Predictive Engagement Alerts** | ✅ Implemented |
+| Toxic chat uncaught by keyword filters | Escalated reports grow faster than moderation can process | **AI Chat Moderation** | ✅ Implemented |
+| Rewards feel generic | High-tier players claim common rewards, churn anyway | **Personalised Reward Recommendations** | ✅ Implemented |
 
 All five features call the Claude API (claude-sonnet-4-6 for generation, claude-haiku-4-5 for real-time inference) through a new `server/src/services/ai/` module. No Minecraft plugin changes are needed; all AI decisions surface through the existing bridge REST API.
 
@@ -295,19 +295,15 @@ Costs scale linearly with player count. The prompt caching discount is not inclu
 
 ---
 
-## 4. Implementation Order
+## 4. Implementation Status
 
-Features are ordered by impact-to-effort ratio:
-
-| Phase | Feature | Effort | Impact |
-|-------|---------|--------|--------|
-| 1 | AI Chat Moderation | Low — extends existing chatlog flow | High — reduces mod burnout immediately |
-| 2 | Dynamic Challenge Generator | Medium | High — core daily engagement loop |
-| 3 | Predictive Engagement Alerts | Medium | High — retention before churn |
-| 4 | Personalised Reward Recommendations | Low — no new data needed | Medium |
-| 5 | Contextual NPC Dialogue | High — latency constraints | Medium — delight factor |
-
-Phase 1 and 2 can run in parallel.
+| Phase | Feature | Status |
+|-------|---------|--------|
+| 1 | AI Chat Moderation | ✅ Live — `POST /api/ai/moderation/scan`, results at `GET /api/ai/moderation/latest` |
+| 2 | Dynamic Challenge Generator | ✅ Live — `POST /api/ai/challenges/generate`, draft queue with approve/reject |
+| 3 | Predictive Engagement Alerts | ✅ Live — `POST /api/ai/engagement/scan`, results at `GET /api/ai/engagement/latest` |
+| 4 | Personalised Reward Recommendations | ✅ Live — `POST /api/ai/rewards/suggest` |
+| 5 | Contextual NPC Dialogue | 🔲 Planned — high latency constraints, deprioritised |
 
 ---
 
