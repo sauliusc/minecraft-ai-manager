@@ -13,8 +13,8 @@ COMPOSE     := docker compose --env-file $(ENV_FILE) -f $(DEPLOY_DIR)docker-comp
 export
 
 .PHONY: help setup deploy update stop restart status logs \
-        rollback backup restore shell-api shell-db shell-mcp \
-        logs-api logs-web logs-db logs-mcp \
+        rollback backup restore shell-api shell-db shell-mcp shell-minecraft \
+        logs-api logs-web logs-db logs-mcp logs-minecraft \
         build-plugins deploy-plugins seed-admin nuke
 
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -74,6 +74,9 @@ logs-db: ## Tail only the database logs
 logs-mcp: ## Tail only the MCP server logs
 	$(COMPOSE) logs -f mcp
 
+logs-minecraft: ## Tail only the Minecraft server logs
+	$(COMPOSE) logs -f minecraft
+
 ## ─────────────────────────────────────────────────────────────────────────────
 ## DATABASE
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -116,6 +119,9 @@ shell-redis: ## Open a redis-cli shell
 shell-mcp: ## Open a shell inside the MCP server container
 	$(COMPOSE) exec mcp sh
 
+shell-minecraft: ## Open a shell inside the Minecraft container
+	$(COMPOSE) exec minecraft bash
+
 ## ─────────────────────────────────────────────────────────────────────────────
 ## MINECRAFT PLUGINS
 ## ─────────────────────────────────────────────────────────────────────────────
@@ -124,16 +130,16 @@ build-plugins: ## Compile all Java plugins with Maven
 	mvn -f $(DEPLOY_DIR)../plugins/pom.xml clean package -DskipTests -q
 	@echo "  ✓ Plugin JARs built in plugins/*/target/"
 
-deploy-plugins: build-plugins ## Build + copy plugin JARs to the game server via SCP
-ifndef GAME_VM_HOST
-	$(error GAME_VM_HOST is not set. Run 'make setup' first.)
-endif
-	@echo "  ▶ Uploading plugins to $(GAME_VM_HOST)..."
+deploy-plugins: build-plugins ## Build plugins + rebuild and restart the Minecraft container
+	@echo "  ▶ Staging JARs into jars/..."
 	@find $(DEPLOY_DIR)../plugins -name '*-*.jar' -path '*/target/*' \
 	  ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
-	  | xargs -I{} scp {} $(GAME_VM_SSH_USER:-minecraft)@$(GAME_VM_HOST):/opt/minecraft/plugins/
-	@echo "  ✓ Plugins uploaded"
-	@echo "  ℹ  Restart the Minecraft server via DiscoPanel to load the new plugins."
+	  -exec cp {} $(DEPLOY_DIR)../jars/ \;
+	@echo "  ✓ JARs staged"
+	@echo "  ▶ Rebuilding Minecraft container..."
+	$(COMPOSE) build minecraft
+	$(COMPOSE) up -d minecraft
+	@echo "  ✓ Minecraft container updated with new plugins"
 
 ## ─────────────────────────────────────────────────────────────────────────────
 ## DANGER ZONE

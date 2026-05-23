@@ -1,23 +1,27 @@
 # CraftControl — Deployment Guide
 
-**Environment:** Proxmox VE (bare metal) + DiscoPanel
-**Last Updated:** 2026-05-23
+**Environment:** Proxmox VE (bare metal) — single LXC container + Docker Compose  
+**Last Updated:** 2026-05-23  
 **Status:** Production
 
 ---
 
 ## Quick Start
 
-After creating mgmt-vm in Proxmox (see §2), run the one-call setup script:
-
 ```bash
-sudo bash scripts/setup-mgmt-vm.sh \
-  --domain panel.yourdomain.com \
-  --email  admin@yourdomain.com \
-  --game-vm 10.10.10.10
+# 1. Clone the repo into the container
+git clone https://github.com/sauliusc/minecraft-ai-manager.git /opt/craftcontrol
+cd /opt/craftcontrol/deploymentV2
+
+# 2. Interactive setup wizard — generates .env with all secrets
+make setup
+
+# 3. Build images and start everything
+make deploy
 ```
 
-This single command installs and configures Node.js 22, PostgreSQL 16, Redis 7, Nginx, Let's Encrypt SSL, UFW, fail2ban, PM2, all app directories, and a ready-to-use `.env` with generated secrets. See [§4 mgmt-vm (Web Stack)](#4-vm-2--mgmt-vm-web-stack) for the complete reference, or jump to [§4.1](#41-automated-setup-script) for script options.
+The web panel will be at **http://\<container-ip\>** and the Minecraft server on **:25565**.  
+See [`deploymentV2/README.md`](deploymentV2/README.md) for day-to-day commands.
 
 ---
 
@@ -25,56 +29,50 @@ This single command installs and configures Node.js 22, PostgreSQL 16, Redis 7, 
 
 1. [Architecture Overview](#1-architecture-overview)
 2. [Proxmox Host Setup](#2-proxmox-host-setup)
-3. [VM 1 — game-vm (Minecraft + DiscoPanel)](#3-vm-1--game-vm-minecraft--discopanel)
-4. [VM 2 — mgmt-vm (Web Stack)](#4-vm-2--mgmt-vm-web-stack)
-   - 4.1 [Automated Setup Script](#41-automated-setup-script)
-   - 4.2 [Manual Steps Reference](#42-manual-steps-reference)
-5. [Networking & Firewall](#5-networking--firewall)
-6. [SSL/TLS Configuration](#6-ssltls-configuration)
-7. [DiscoPanel Configuration](#7-discopanel-configuration)
-8. [CI/CD Pipeline](#8-cicd-pipeline)
-9. [Backup Strategy](#9-backup-strategy)
-10. [Monitoring & Alerting](#10-monitoring--alerting)
-11. [Secrets Management](#11-secrets-management)
-12. [Runbooks](#12-runbooks)
+3. [CT102 — LXC Container Setup](#3-ct102--lxc-container-setup)
+4. [Networking & Firewall](#4-networking--firewall)
+5. [SSL/TLS Configuration](#5-ssltls-configuration)
+6. [CI/CD Pipeline](#6-cicd-pipeline)
+7. [Backup Strategy](#7-backup-strategy)
+8. [Monitoring & Alerting](#8-monitoring--alerting)
+9. [Secrets Management](#9-secrets-management)
+10. [Runbooks](#10-runbooks)
 
 ---
 
 ## 1. Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                      PROXMOX VE HOST                             │
-│                    (bare metal, Ubuntu)                          │
-│                                                                  │
-│  ┌──────────────────────────────┐  ┌─────────────────────────┐  │
-│  │  VM 1 — game-vm              │  │  VM 2 — mgmt-vm         │  │
-│  │  4 vCPU  /  8 GB RAM         │  │  2 vCPU  /  6 GB RAM    │  │
-│  │  40 GB SSD  (world data)     │  │  40 GB SSD              │  │
-│  │  Ubuntu 24.04 LTS            │  │  Ubuntu 24.04 LTS       │  │
-│  │                              │  │                         │  │
-│  │  ┌─ DiscoPanel               │  │  ┌─ Nginx :443          │  │
-│  │  │  :3001 (internal only)    │  │  ├─ Node.js API :3000   │  │
-│  │  └─ Minecraft Paper 1.21.x   │  │  ├─ React SPA           │  │
-│  │     :25565 (public)          │  │  │   /var/www/craftcontrol│ │
-│  │     BridgePlugin: :25580     │  │  ├─ PostgreSQL :5432    │  │
-│  │     (internal only)          │  │  │   (socket only)      │  │
-│  │                              │  │  └─ Redis :6379         │  │
-│  │  Internal IP: 10.10.10.10   │  │     (socket only)       │  │
-│  └──────────────────────────────┘  │  Internal IP:10.10.10.20│  │
-│                                    └─────────────────────────┘  │
-│              Proxmox Internal Bridge: vmbr1 (10.10.10.0/24)     │
-└──────────────────────────────────────────────────────────────────┘
-                               │
-                  Public bridge: vmbr0 (NAT / public IP)
-                    Minecraft :25565  |  HTTPS :443
+┌─────────────────────────────────────────────────────────────────┐
+│                      PROXMOX VE HOST                            │
+│                    (bare metal, Ubuntu)                         │
+│                                                                 │
+│  ┌──────────────────────────────────────────────────────────┐  │
+│  │  CT102 — LXC Container (Docker Compose)                  │  │
+│  │  4–8 vCPU  /  12–16 GB RAM  /  80 GB disk                │  │
+│  │                                                          │  │
+│  │  ┌────────┐ ┌────────┐ ┌─────────────┐ ┌────────────┐  │  │
+│  │  │ db     │ │ redis  │ │ api         │ │ web        │  │  │
+│  │  │ :5432  │ │ :6379  │ │ :3000       │ │ Nginx :80  │  │  │
+│  │  │(intern)│ │(intern)│ │ (internal)  │ │ (public)   │  │  │
+│  │  └────────┘ └────────┘ └─────────────┘ └────────────┘  │  │
+│  │                                                          │  │
+│  │  ┌──────────────────────┐  ┌──────────────────────────┐ │  │
+│  │  │ minecraft            │  │ mcp                      │ │  │
+│  │  │ Paper 1.21.x         │  │ Claude MCP server        │ │  │
+│  │  │ :25565 (public)      │  │ :3100 (public)           │ │  │
+│  │  │ BridgePlugin: :25580 │  │                          │ │  │
+│  │  │ RCON: :25575         │  └──────────────────────────┘ │  │
+│  │  │ (all internal)       │                               │  │
+│  │  └──────────────────────┘                               │  │
+│  └──────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                         Public Internet
+          Minecraft :25565  |  Web panel :80  |  MCP :3100
 ```
 
-### Why two separate VMs
-
-Minecraft's JVM generates stop-the-world GC pauses that compete with OS I/O scheduling. PostgreSQL, Redis, and the Node.js API are all sensitive to I/O latency. Running them on the same VM risks cascading latency spikes: a GC pause delays I/O, which delays API responses, which causes BridgePlugin timeouts, which degrades in-game experience. Separating the workloads onto two VMs eliminates this coupling at the cost of one additional VM — a trivial overhead on Proxmox.
-
-Additional benefits: independent snapshots before updates, separate monitoring thresholds, and a smaller blast radius if either VM is compromised.
+All six services share a single Docker Compose network. The Minecraft server communicates with the API container by name (`http://api:3000`) — no external network hops.
 
 ---
 
@@ -84,731 +82,338 @@ Additional benefits: independent snapshots before updates, separate monitoring t
 
 | Resource | Minimum | Recommended |
 |---|---|---|
-| CPU | 4 cores (physical) | 8 cores |
-| RAM | 20 GB | 32 GB |
+| CPU | 4 cores (physical) | 8+ cores |
+| RAM | 16 GB | 32 GB |
 | Storage | 120 GB SSD | 250 GB NVMe |
 | OS | Proxmox VE 8.x | Proxmox VE 8.x (latest) |
-| NICs | 1 (1 Gbit) | 2 (1 Gbit each — separate for public/internal) |
 
-### 2.2 Network Bridges
-
-Create two Linux bridges on the Proxmox host:
-
-| Bridge | CIDR | Purpose |
-|---|---|---|
-| `vmbr0` | Public IP / NAT | Internet-facing traffic (Minecraft port, HTTPS) |
-| `vmbr1` | `10.10.10.0/24` | Internal VM-to-VM communication |
+### 2.2 One-Click LXC Deployment (Proxmox shell)
 
 ```bash
-# /etc/network/interfaces snippet (Proxmox host)
-auto vmbr1
-iface vmbr1 inet static
-    address 10.10.10.1/24
-    bridge-ports none
-    bridge-stp off
-    bridge-fd 0
+bash proxmox/deploy.sh
 ```
 
-### 2.3 VM Creation Summary
+This creates CT102 (Ubuntu 22.04), installs Docker, clones the repo, and prints next steps.  
+See [`proxmox/README.md`](proxmox/README.md) for options (custom CTID, RAM, disk).
 
-| Setting | game-vm | mgmt-vm |
-|---|---|---|
-| VM ID | 100 | 101 |
-| OS | Ubuntu 24.04 LTS (cloud-init) | Ubuntu 24.04 LTS (cloud-init) |
-| vCPU | 4 | 2 |
-| RAM | 8 GB | 6 GB |
-| Disk | 40 GB (local-lvm) | 40 GB (local-lvm) |
-| NIC 1 | vmbr0 (public) | vmbr0 (public) |
-| NIC 2 | vmbr1, IP `10.10.10.10/24` | vmbr1, IP `10.10.10.20/24` |
-| QEMU Agent | enabled | enabled |
+### 2.3 Manual LXC Creation
+
+If you prefer manual setup, create an LXC container with these settings:
+
+| Setting | Value |
+|---|---|
+| Container ID | 102 |
+| OS Template | Ubuntu 22.04 LTS |
+| vCPU | 4–8 |
+| RAM | 12–16 GB |
+| Disk | 80 GB (local-lvm) |
+| Network | Bridge `vmbr0`, static or DHCP |
+| Features | `keyctl=1,nesting=1` (required for Docker) |
+
+After creation, run `proxmox/deploy.sh` inside the container or follow §3 manually.
 
 ---
 
-## 3. VM 1 — game-vm (Minecraft + DiscoPanel)
+## 3. CT102 — LXC Container Setup
 
-### 3.1 Base OS Setup
-
-```bash
-# Update system
-apt update && apt upgrade -y
-apt install -y curl wget unzip ufw fail2ban openjdk-21-jre-headless
-
-# Set hostname
-hostnamectl set-hostname game-vm
-echo "10.10.10.20 mgmt-vm" >> /etc/hosts
-```
-
-### 3.2 DiscoPanel Installation
-
-DiscoPanel is installed on game-vm and manages the Minecraft server process.
+### 3.1 Install Docker
 
 ```bash
-# Install dependencies
-apt install -y docker.io docker-compose
-
-# Download and install DiscoPanel
-curl -sSL https://get.discopanel.io | bash
-
-# DiscoPanel web UI runs on port 3001 — bind to internal IP only
-# Edit /etc/discopanel/config.yml:
-#   listen: "10.10.10.10:3001"
+curl -fsSL https://get.docker.com | sh
+# If not root, add user to docker group:
+# usermod -aG docker $USER && newgrp docker
+docker compose version   # verify
 ```
 
-DiscoPanel admin panel is accessible only from the internal network (`http://10.10.10.10:3001`). It is **not** exposed publicly. Access it via an SSH tunnel if needed remotely:
+### 3.2 Clone repository
 
 ```bash
-ssh -L 3001:10.10.10.10:3001 user@<proxmox-host-ip>
-# Then open http://localhost:3001 in browser
+git clone https://github.com/sauliusc/minecraft-ai-manager.git /opt/craftcontrol
+cd /opt/craftcontrol/deploymentV2
 ```
 
-### 3.3 Minecraft Server via DiscoPanel
+### 3.3 Configure
 
-1. Log in to DiscoPanel at `http://10.10.10.10:3001`.
-2. Create a new server instance:
-   - **Type:** Java (Paper)
-   - **Version:** 1.21.x (latest stable)
-   - **RAM allocation:** 6 GB (`-Xms2G -Xmx6G`)
-   - **Port:** 25565
-   - **Server directory:** `/opt/discopanel/servers/craftcontrol/`
-3. Upload the built `CraftControl-1.0.0.jar` plugin to the `plugins/` directory via DiscoPanel file manager.
-4. Configure each plugin's `config.yml` via DiscoPanel file manager (see Section 3.4).
-
-**Recommended JVM flags (Paper):**
-
-```
--Xms2G -Xmx6G
--XX:+UseG1GC
--XX:+ParallelRefProcEnabled
--XX:MaxGCPauseMillis=200
--XX:+UnlockExperimentalVMOptions
--XX:+DisableExplicitGC
--XX:+AlwaysPreTouch
--XX:G1NewSizePercent=30
--XX:G1MaxNewSizePercent=40
--XX:G1HeapRegionSize=8M
--XX:G1ReservePercent=20
--XX:G1HeapWastePercent=5
--XX:G1MixedGCCountTarget=4
--XX:InitiatingHeapOccupancyPercent=15
--XX:G1MixedGCLiveThresholdPercent=90
--XX:G1RSetUpdatingPauseTimePercent=5
--XX:SurvivorRatio=32
--XX:+PerfDisableSharedMem
--XX:MaxTenuringThreshold=1
--Dusing.aikars.flags=https://mcflags.emc.gs
--Daikars.new.flags=true
+```bash
+make setup    # interactive wizard — generates deploymentV2/.env
 ```
 
-### 3.4 BridgePlugin Configuration
+The wizard asks for:
+- Web panel port (default 80)
+- Admin email + password
+- RCON port + password (or auto-generates)
+- MCP auth token (or auto-generates)
 
-`/opt/discopanel/servers/craftcontrol/plugins/BridgePlugin/config.yml`:
+All other secrets (database, Redis, JWT, bridge) are generated automatically.
 
-```yaml
-bridge:
-  port: 25580
-  bind: "0.0.0.0"   # UFW restricts access to mgmt-vm IP (10.10.10.20)
-  secret: "${BRIDGE_SECRET}"
+### 3.4 Deploy
 
-api:
-  base_url: "http://10.10.10.20:3000/api"
-  service_token: "${SERVICE_TOKEN}"
-  timeout_ms: 5000
-  retry_max: 3
-  retry_backoff_ms: 500
+```bash
+make deploy   # builds images, runs migrations, starts all 6 containers
 ```
 
-Secrets are injected via DiscoPanel's environment variable settings (stored encrypted). Never commit secrets to the repository.
+### 3.5 Register the GitHub Actions self-hosted runner
 
-### 3.5 DiscoPanel Scheduled Tasks
+```bash
+# Run on CT102 — follow GitHub's instructions at:
+# Settings → Actions → Runners → New self-hosted runner
+# Pass --labels ct102 to config.sh, then:
+./svc.sh install
+./svc.sh start
+```
 
-Configure in DiscoPanel → Schedules:
-
-| Task | Schedule | Command |
-|---|---|---|
-| Daily restart | `0 4 * * *` (04:00 server time) | `restart` |
-| World backup | `0 3 * * *` (03:00 server time) | `backup create` |
-| Log rotation | `0 0 * * 0` (weekly) | shell: `find /opt/discopanel/servers/craftcontrol/logs -name "*.log.gz" -mtime +30 -delete` |
+The runner connects outbound to GitHub — no inbound ports needed.
 
 ---
 
-## 4. VM 2 — mgmt-vm (Web Stack)
+## 4. Networking & Firewall
 
-### 4.1 Automated Setup Script
+### 4.1 Exposed Ports
 
-**Script location:** `scripts/setup-mgmt-vm.sh`
-
-Run once on a fresh Ubuntu 24.04 VM:
-
-```bash
-# Full setup with SSL
-sudo bash scripts/setup-mgmt-vm.sh \
-  --domain  panel.yourdomain.com \
-  --email   admin@yourdomain.com \
-  --game-vm 10.10.10.10
-
-# Skip SSL (for internal/staging environments)
-sudo bash scripts/setup-mgmt-vm.sh \
-  --domain  panel.yourdomain.com \
-  --skip-ssl \
-  --game-vm 10.10.10.10
-
-# Supply your own DB password (otherwise auto-generated)
-sudo bash scripts/setup-mgmt-vm.sh \
-  --domain  panel.yourdomain.com \
-  --email   admin@yourdomain.com \
-  --db-pass mySecurePassword123
-```
-
-**Options:**
-
-| Flag | Default | Description |
+| Port | Purpose | Accessible From |
 |---|---|---|
-| `--domain <host>` | required | Public hostname for the web panel |
-| `--email <email>` | required unless `--skip-ssl` | Let's Encrypt notification email |
-| `--db-pass <pass>` | auto-generated | PostgreSQL password for `craftcontrol` user |
-| `--skip-ssl` | false | Skip certbot; configure Nginx for HTTP only |
-| `--game-vm <ip>` | `10.10.10.10` | Internal IP of game-vm (written into `.env`) |
+| 80 (or `HTTP_PORT`) | Web panel (Nginx) | Public internet |
+| 25565 | Minecraft Java Edition | Public internet |
+| 3100 (or `MCP_PORT`) | MCP server (Claude tools) | Admin only (firewall recommended) |
 
-**What the script configures (12 steps):**
+### 4.2 Internal-Only Ports (never expose externally)
 
-1. System package update
-2. Install Node.js 22 LTS, PostgreSQL 16, Redis 7, Nginx, Certbot, fail2ban, PM2
-3. PostgreSQL: create `craftcontrol` user + database, apply performance tuning (`shared_buffers`, `work_mem`, slow query log)
-4. Redis: set `maxmemory 512mb`, `allkeys-lru` eviction
-5. App directories: `/var/www/craftcontrol/{api,public}`, `/var/backups/craftcontrol`
-6. PM2 systemd startup for `www-data` user
-7. Nginx: reverse proxy config with rate limiting (`30r/m`, burst 50), SPA fallback routing, security headers
-8. Let's Encrypt certificate + HSTS + auto-renewal timer
-9. UFW: deny all inbound except ports 22, 80, 443
-10. `.env` file at `/var/www/craftcontrol/api/.env` with all generated secrets (permissions `640`, owner `www-data`)
-11. fail2ban enabled
-12. Service health check + printed summary of all credentials and next steps
+| Port | Purpose |
+|---|---|
+| 3000 | Node.js API |
+| 5432 | PostgreSQL |
+| 6379 | Redis |
+| 25575 | Minecraft RCON |
+| 25580 | BridgePlugin HTTP |
 
-**Output:** The script prints a summary table with all generated secrets. **Copy these immediately** — the `BRIDGE_SECRET` must be entered into DiscoPanel's environment variables on game-vm.
-
-### 4.2 Manual Steps Reference
-
-The sections below document each step individually for reference, troubleshooting, or partial re-runs. For a fresh VM, prefer the automated script above.
-
-### Base OS Setup
-
-```bash
-apt update && apt upgrade -y
-apt install -y curl wget unzip ufw fail2ban nginx certbot python3-certbot-nginx
-
-# Set hostname
-hostnamectl set-hostname mgmt-vm
-echo "10.10.10.10 game-vm" >> /etc/hosts
-```
-
-### 4.2 Node.js 22 LTS
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt install -y nodejs
-npm install -g pm2
-pm2 startup systemd -u www-data --hp /var/www
-```
-
-### 4.3 PostgreSQL 16
-
-```bash
-apt install -y postgresql-16
-
-sudo -u postgres psql <<'SQL'
-CREATE USER craftcontrol WITH PASSWORD 'CHANGE_ME';
-CREATE DATABASE craftcontrol OWNER craftcontrol;
-GRANT ALL PRIVILEGES ON DATABASE craftcontrol TO craftcontrol;
-SQL
-
-# pg_hba.conf — local socket only, no TCP
-# Verify: grep -E "^local|^host" /etc/postgresql/16/main/pg_hba.conf
-```
-
-Edit `/etc/postgresql/16/main/postgresql.conf`:
-
-```
-# Memory (adjust if mgmt-vm has 6 GB RAM)
-shared_buffers = 1536MB
-effective_cache_size = 4GB
-work_mem = 16MB
-maintenance_work_mem = 256MB
-
-# Logging
-log_min_duration_statement = 500
-log_checkpoints = on
-```
-
-```bash
-systemctl restart postgresql
-```
-
-### 4.4 Redis 7
-
-```bash
-apt install -y redis-server
-
-# /etc/redis/redis.conf
-# bind 127.0.0.1          ← already default, keep it
-# maxmemory 512mb
-# maxmemory-policy allkeys-lru
-
-systemctl enable redis-server
-systemctl restart redis-server
-```
-
-### 4.5 CraftControl API Deployment
-
-```bash
-# Create app directory
-mkdir -p /var/www/craftcontrol/api
-chown -R www-data:www-data /var/www/craftcontrol
-
-# Deploy (done by CI/CD — see Section 8)
-# Manual first-time deploy:
-cd /var/www/craftcontrol/api
-npm ci --omit=dev
-npx prisma migrate deploy
-pm2 start dist/index.js --name craftcontrol-api --user www-data
-pm2 save
-```
-
-Environment file `/var/www/craftcontrol/api/.env` (permissions `640`, owned by `www-data`):
-
-```env
-DATABASE_URL=postgresql://craftcontrol:CHANGE_ME@localhost:5432/craftcontrol
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=CHANGE_ME_256_BIT_RANDOM
-JWT_REFRESH_SECRET=CHANGE_ME_256_BIT_RANDOM
-MINECRAFT_BRIDGE_URL=http://10.10.10.10:25580
-MINECRAFT_BRIDGE_SECRET=CHANGE_ME_256_BIT_RANDOM
-NODE_ENV=production
-PORT=3000
-```
-
-Generate secrets:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-### 4.6 React SPA Deployment
-
-```bash
-# Build artifact produced by CI, deployed via rsync
-rsync -av --delete dist/ /var/www/craftcontrol/public/
-```
-
-### 4.7 Nginx Configuration
-
-`/etc/nginx/sites-available/craftcontrol`:
-
-```nginx
-# Redirect HTTP to HTTPS
-server {
-    listen 80;
-    server_name panel.yourdomain.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name panel.yourdomain.com;
-
-    ssl_certificate     /etc/letsencrypt/live/panel.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/panel.yourdomain.com/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;
-    add_header Strict-Transport-Security "max-age=63072000" always;
-
-    # React SPA
-    root /var/www/craftcontrol/public;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # Node.js API proxy
-    location /api/ {
-        proxy_pass         http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade $http_upgrade;
-        proxy_set_header   Connection 'upgrade';
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        proxy_read_timeout 30s;
-
-        # Rate limiting
-        limit_req zone=api burst=50 nodelay;
-    }
-}
-
-# Rate limiting zone
-limit_req_zone $binary_remote_addr zone=api:10m rate=30r/m;
-```
-
-```bash
-ln -s /etc/nginx/sites-available/craftcontrol /etc/nginx/sites-enabled/
-nginx -t
-systemctl reload nginx
-```
-
----
-
-## 5. Networking & Firewall
-
-### 5.1 game-vm UFW Rules
+### 4.3 UFW Rules (recommended)
 
 ```bash
 ufw default deny incoming
 ufw default allow outgoing
 
-# SSH (restrict to known admin IPs in production)
-ufw allow 22/tcp
-
-# Minecraft Java Edition
-ufw allow 25565/tcp
-
-# BridgePlugin — allow ONLY from mgmt-vm internal IP
-ufw allow from 10.10.10.20 to any port 25580 proto tcp
-
-# DiscoPanel web UI — allow ONLY from internal network
-ufw allow from 10.10.10.0/24 to any port 3001 proto tcp
+ufw allow 22/tcp    # SSH (restrict to known admin IPs in production)
+ufw allow 80/tcp    # Web panel
+ufw allow 25565/tcp # Minecraft
+ufw allow 3100/tcp  # MCP server (optional — restrict to your IP)
 
 ufw enable
 ```
 
-### 5.2 mgmt-vm UFW Rules
+---
+
+## 5. SSL/TLS Configuration
+
+The default setup runs on HTTP port 80.
+
+### Option A — Cloudflare (easiest)
+
+1. Point your domain's DNS to the server IP in Cloudflare.
+2. Enable **Proxied** (orange cloud).
+3. Cloudflare handles TLS — no server changes needed.
+
+### Option B — Let's Encrypt (self-managed)
 
 ```bash
-ufw default deny incoming
-ufw default allow outgoing
-
-ufw allow 22/tcp
-ufw allow 80/tcp    # certbot HTTP challenge + redirect
-ufw allow 443/tcp   # HTTPS (Nginx — SPA + API)
-
-# PostgreSQL and Redis — no external access (local socket only, no TCP rule needed)
-
-ufw enable
+sudo apt install certbot
+sudo certbot certonly --standalone -d panel.yourdomain.com
 ```
 
-### 5.3 Proxmox Host Firewall
-
-Enable Proxmox datacenter-level firewall:
-- Drop all inbound traffic to the Proxmox management interface except from trusted admin IP.
-- Allow vmbr1 (internal bridge) traffic between VM 100 and VM 101 only.
-
-### 5.4 Port Summary
-
-| Port | Protocol | Host | Accessible From | Purpose |
-|---|---|---|---|---|
-| 22 | TCP | game-vm, mgmt-vm | Admin IPs only | SSH |
-| 25565 | TCP | game-vm | Public internet | Minecraft Java Edition |
-| 25580 | TCP | game-vm | mgmt-vm (10.10.10.20) only | BridgePlugin HTTP |
-| 3001 | TCP | game-vm | Internal network (10.10.10.0/24) | DiscoPanel UI |
-| 80 | TCP | mgmt-vm | Public internet | HTTP → HTTPS redirect |
-| 443 | TCP | mgmt-vm | Public internet | HTTPS (SPA + API) |
-| 3000 | TCP | mgmt-vm | localhost only | Node.js API (behind Nginx) |
-| 5432 | TCP | mgmt-vm | localhost socket only | PostgreSQL |
-| 6379 | TCP | mgmt-vm | localhost socket only | Redis |
+Update `deploymentV2/nginx/default.conf` to add the HTTPS server block, mount the certs in `docker-compose.yml`, and set `HTTP_PORT=443` in `.env`.
 
 ---
 
-## 6. SSL/TLS Configuration
+## 6. CI/CD Pipeline
 
-```bash
-# On mgmt-vm — obtain certificate for the web panel domain
-certbot --nginx -d panel.yourdomain.com --email admin@yourdomain.com --agree-tos --non-interactive
+### 6.1 Workflow overview
 
-# Auto-renewal (already set up by certbot as a systemd timer)
-systemctl status certbot.timer
-```
+`.github/workflows/deploy-v2.yml` runs on every push to `main`:
 
-The Minecraft server does not need SSL — Minecraft's protocol handles its own encryption and the Java Edition client connects directly on TCP 25565.
+| Job | Runner | Trigger | What it does |
+|-----|--------|---------|--------------|
+| `test` | GitHub-hosted (ubuntu-latest) | always | Full test suite against real PostgreSQL + Redis |
+| `deploy` | Self-hosted (ct102) | after `test` | `git pull` + `deploy.sh` — runs directly on the server |
+| `validate` | Self-hosted (ct102) | after `deploy` | Captures Minecraft startup logs, fails on `[ERROR]`/`[FATAL]` |
+| `deploy-plugins` | Self-hosted (ct102) | after `test` + `deploy`, `plugins/` changed | Builds JARs → rebuilds minecraft image → restarts container |
 
----
+### 6.2 Required GitHub Secrets
 
-## 7. DiscoPanel Configuration
-
-### 7.1 Initial Setup
-
-After installing DiscoPanel on game-vm:
-
-1. Access `http://10.10.10.10:3001` over the internal network (or via SSH tunnel).
-2. Create the admin account.
-3. Set the panel URL to `http://10.10.10.10:3001` (internal only — no public URL for DiscoPanel).
-4. Under **Settings → Security**, enable two-factor authentication for all admin accounts.
-
-### 7.2 Creating the CraftControl Server Instance
-
-| Field | Value |
-|---|---|
-| Server name | `CraftControl` |
-| Server type | `Paper` |
-| Minecraft version | `1.21.x` (latest stable) |
-| Memory | `6144 MB` |
-| CPU limit | `300%` (3 cores max) |
-| Port | `25565` |
-| Directory | `/opt/discopanel/servers/craftcontrol/` |
-| Startup command | `java {JVM_FLAGS} -jar paper.jar --nogui` |
-
-### 7.3 Environment Variables in DiscoPanel
-
-Set the following in DiscoPanel → Server → Startup → Variables (stored encrypted):
-
-| Variable | Value |
-|---|---|
-| `BRIDGE_SECRET` | 256-bit hex token |
-| `SERVICE_TOKEN` | 256-bit hex token |
-
-### 7.4 SFTP Access
-
-DiscoPanel provides an SFTP endpoint for uploading plugin JARs and editing configs. CI/CD uses this for automated plugin deployment. Credentials are managed per-user in DiscoPanel's user settings.
-
-### 7.5 Roles
-
-| Role | Permissions |
-|---|---|
-| `super_admin` | Full access — start/stop/restart, file manager, console, config, backups |
-| `moderator` | Console access, log viewer, no file manager, no config changes |
+**None.** All jobs run on the CT102 self-hosted runner using local Docker. No SSH keys or external service tokens are needed.
 
 ---
 
-## 8. CI/CD Pipeline
+## 7. Backup Strategy
 
-### 8.1 Workflow overview
-
-The single workflow `.github/workflows/deploy-v2.yml` runs on every push to `main`:
-
-| Job | Runner | What it does |
-|-----|--------|--------------|
-| `test` | GitHub-hosted (ubuntu-latest) | Full test suite against real PostgreSQL + Redis |
-| `deploy` | Self-hosted (ct102) | `git pull --ff-only` + `bash deploymentV2/scripts/deploy.sh` — runs directly on the server |
-| `validate` | Self-hosted (ct102) | Captures Minecraft startup logs, fails on `[ERROR]`/`[FATAL]` lines |
-| `deploy-plugins` | Self-hosted (ct102) | Builds plugin JARs with Maven, uploads via SCP, triggers DiscoPanel restart (only when `plugins/` changes) |
-
-The deploy and validate jobs run **on the management container itself** (CT102 self-hosted runner) — no SSH from GitHub is needed.
-
-### 8.2 Self-hosted runner setup
-
-Register the runner on CT102 with label `ct102`:
-
-1. Go to **Settings → Actions → Runners → New self-hosted runner**
-2. Follow the instructions, passing `--labels ct102` to `config.sh`
-3. Install as a systemd service: `sudo ./svc.sh install && sudo ./svc.sh start`
-
-The runner connects outbound to GitHub — no inbound ports are needed.
-
-### 8.3 Required GitHub Secrets
-
-These secrets are **only needed for the `deploy-plugins` job** (automatic plugin upload on Minecraft server changes). The main deploy job has no secrets requirements.
-
-| Secret | Description |
-|---|---|
-| `GAME_VM_HOST` | IP address of game-vm (Minecraft server) |
-| `GAME_VM_SSH_USER` | SSH username on game-vm |
-| `GAME_VM_SSH_KEY` | Private SSH key for game-vm |
-| `DISCOPANEL_API_TOKEN` | DiscoPanel API bearer token (for server restart) |
-| `DISCOPANEL_SERVER_ID` | DiscoPanel server UUID |
-
----
-
-## 9. Backup Strategy
-
-### 9.1 Minecraft World Backups (game-vm)
-
-Managed by DiscoPanel's built-in backup scheduler:
-
-- **Frequency:** Daily at 03:00 server time (before the 04:00 restart).
-- **Retention:** 7 daily backups kept locally in `/opt/discopanel/backups/craftcontrol/`.
-- **Offsite:** Weekly backup synced to an S3-compatible object store via rclone:
+### 7.1 Database backups (PostgreSQL)
 
 ```bash
-# /etc/cron.weekly/craftcontrol-world-backup
-rclone sync /opt/discopanel/backups/craftcontrol/ remote:craftcontrol-backups/world/ --max-age 7d
+make backup
+# Creates: deploymentV2/backups/craftcontrol_YYYYMMDD_HHMMSS.sql.gz
 ```
 
-### 9.2 PostgreSQL Backups (mgmt-vm)
+Automate with cron on CT102:
+
+```cron
+0 3 * * * cd /opt/craftcontrol/deploymentV2 && make backup >> /var/log/craftcontrol-backup.log 2>&1
+```
+
+Retain 14 days:
 
 ```bash
-# /etc/cron.daily/craftcontrol-pg-backup
-#!/bin/bash
-DATE=$(date +%Y%m%d)
-pg_dump craftcontrol | gzip > /var/backups/craftcontrol/pg_$DATE.sql.gz
-# Retain 14 days
-find /var/backups/craftcontrol/ -name "pg_*.sql.gz" -mtime +14 -delete
-# Sync to offsite
-rclone copy /var/backups/craftcontrol/pg_$DATE.sql.gz remote:craftcontrol-backups/postgres/
+find /opt/craftcontrol/deploymentV2/backups/ -name '*.sql.gz' -mtime +14 -delete
 ```
 
-### 9.3 Proxmox VM Snapshots
-
-- Take a Proxmox snapshot of both VMs **before every major deployment** (plugin update, schema migration, OS upgrade).
-- Weekly automated snapshot via Proxmox Backup Server or `vzdump`:
+Restore:
 
 ```bash
-# /etc/cron.weekly/proxmox-snapshots
-vzdump 100 101 --compress zstd --storage local --mode snapshot
+make restore
+# Or: make restore BACKUP=backups/craftcontrol_20260101_030000.sql.gz
 ```
 
-- Retain last 3 weekly snapshots per VM.
+### 7.2 Minecraft world backups
 
-### 9.4 Recovery Time Objectives
+The `minecraft_data` Docker volume contains the world. Back it up with:
+
+```bash
+docker run --rm \
+  -v craftcontrol_minecraft_data:/data:ro \
+  -v /opt/craftcontrol/backups/worlds:/backup \
+  alpine \
+  tar czf /backup/world_$(date +%Y%m%d).tar.gz -C /data world
+```
+
+Add to cron for daily backups.
+
+### 7.3 Proxmox Container Snapshots
+
+Take a Proxmox snapshot of CT102 **before every major deployment**:
+
+```bash
+# On Proxmox host
+pct snapshot 102 pre-deploy-$(date +%Y%m%d)
+```
+
+Weekly automated snapshot:
+
+```bash
+# /etc/cron.weekly/craftcontrol-snapshot
+vzdump 102 --compress zstd --storage local --mode snapshot
+```
+
+### 7.4 Recovery Time Objectives
 
 | Scenario | Recovery Method | Target RTO |
 |---|---|---|
-| Minecraft plugin crash | DiscoPanel auto-restart | < 2 min |
-| Minecraft data corruption | Restore from daily world backup | < 30 min |
-| mgmt-vm API crash | PM2 auto-restart | < 1 min |
-| mgmt-vm disk failure | Restore Proxmox snapshot | < 1 hour |
-| Full host failure | Restore to new Proxmox host from offsite backups | < 4 hours |
+| Minecraft plugin crash | Docker container auto-restart | < 2 min |
+| Minecraft data corruption | Restore world backup | < 30 min |
+| API crash | Docker container auto-restart | < 1 min |
+| Full container failure | `make deploy` on fresh CT102 | < 15 min |
+| CT102 disk failure | Restore Proxmox snapshot | < 30 min |
 
 ---
 
-## 10. Monitoring & Alerting
+## 8. Monitoring & Alerting
 
-### 10.1 PM2 Monitoring (mgmt-vm)
-
-```bash
-pm2 monit                    # local real-time view
-pm2 logs craftcontrol-api    # live log tail
-```
-
-Configure PM2 to alert on crashes:
+### 8.1 Container health
 
 ```bash
-pm2 install pm2-logrotate
-# In ecosystem.config.js:
-# max_restarts: 10, restart_delay: 5000
+make status       # docker compose ps
+make logs         # tail all logs
+make logs-api     # api container only
+make logs-minecraft  # minecraft container only
 ```
 
-### 10.2 Nginx Access Logs
+### 8.2 API health endpoint
 
 ```bash
-# /etc/logrotate.d/nginx already handles rotation
-# Monitor for 5xx errors:
-tail -f /var/log/nginx/access.log | grep " 5[0-9][0-9] "
+curl http://localhost/api/health
+# {"status":"ok","db":"connected","redis":"connected"}
 ```
 
-### 10.3 PostgreSQL Slow Query Log
+### 8.3 Uptime monitoring
 
-Already configured in Section 4.3 (`log_min_duration_statement = 500`). Log location: `/var/log/postgresql/`.
-
-### 10.4 DiscoPanel Resource Monitoring
-
-DiscoPanel's dashboard shows per-instance CPU%, RAM usage, and TPS for the Minecraft server. Set alert thresholds in DiscoPanel → Alerts:
-
-| Metric | Warning | Critical |
-|---|---|---|
-| Server RAM | 80% | 95% |
-| TPS | < 18 | < 15 |
-| CPU usage | 70% | 90% |
-
-### 10.5 Uptime Monitoring (External)
-
-Use an external uptime monitoring service (e.g., UptimeRobot, Betterstack) to monitor:
-- `panel.yourdomain.com` (HTTPS 200 check every 1 min).
-- Minecraft port `25565` (TCP check every 1 min).
-
-Configure email/Discord webhook alerts on downtime.
+Point an external uptime monitor (UptimeRobot, Betterstack, etc.) at:
+- `http://<server-ip>/api/health` — API health
+- `<server-ip>:25565` — Minecraft port (TCP check)
 
 ---
 
-## 11. Secrets Management
+## 9. Secrets Management
 
-All secrets follow this lifecycle:
+All secrets live in `deploymentV2/.env` (generated by `make setup`, gitignored, chmod 600):
 
-1. **Generated** with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` (32 bytes = 256 bits).
-2. **Stored** in:
-   - DiscoPanel encrypted environment variables (plugin secrets on game-vm).
-   - `/var/www/craftcontrol/api/.env` (permissions `640`, owner `www-data`) on mgmt-vm.
-   - GitHub Actions encrypted secrets (for CI/CD).
-3. **Never** committed to the repository. `.env` is in `.gitignore`.
-4. **Rotated** every 90 days or immediately after any suspected compromise.
+| Secret | Description |
+|---|---|
+| `POSTGRES_PASSWORD` | PostgreSQL password (auto-generated) |
+| `REDIS_PASSWORD` | Redis password (auto-generated) |
+| `JWT_SECRET` | JWT signing key (auto-generated) |
+| `JWT_REFRESH_SECRET` | JWT refresh signing key (auto-generated) |
+| `BRIDGE_SECRET` | Shared secret between API and BridgePlugin (auto-generated) |
+| `RCON_PASSWORD` | Minecraft RCON password (auto-generated or entered) |
+| `ADMIN_EMAIL` | First SUPER_ADMIN account email |
+| `ADMIN_PASSWORD` | First SUPER_ADMIN account password |
+| `MCP_AUTH_TOKEN` | Bearer token for MCP server (auto-generated or entered) |
 
-### Rotation Procedure
-
-1. Generate new secret value.
-2. Update in DiscoPanel (for `BRIDGE_SECRET` / `SERVICE_TOKEN`) and redeploy Minecraft server.
-3. Update `/var/www/craftcontrol/api/.env` and run `pm2 reload craftcontrol-api`.
-4. Update in GitHub Actions secrets for CI/CD.
-5. Verify end-to-end: a reward grant triggered from the dashboard should successfully call BridgePlugin and execute in-game.
+**Rules:**
+- Never commit `.env` to git (it is in `.gitignore`)
+- Back up `.env` securely (password manager or encrypted offsite copy)
+- Rotate secrets by editing `.env` and running `make deploy`
 
 ---
 
-## 12. Runbooks
+## 10. Runbooks
 
-### 12.1 Deploy a Plugin Update
+### Restart a specific service
 
-1. Push changes to `main`.
-2. GitHub Actions `deploy-v2.yml` (`deploy-plugins` job) automatically builds the JAR via Maven and uploads it to game-vm via SCP.
-3. DiscoPanel API call restarts the Minecraft server.
-4. The `validate` job on CT102 captures startup logs and annotates any `[ERROR]`/`[FATAL]` lines in the GitHub Actions UI.
-5. Verify: `[BridgePlugin] Bridge started on port 25580` should appear in the startup log artifact.
+```bash
+docker compose -f /opt/craftcontrol/deploymentV2/docker-compose.yml restart minecraft
+# Or via make:
+make restart
+```
 
-### 12.2 Run a Database Migration
+### Rollback after a bad deploy
 
-Migrations run automatically during `make deploy`. To run manually on CT102:
+```bash
+cd /opt/craftcontrol/deploymentV2
+make rollback
+```
+
+Rolls back `api`, `web`, `mcp`, and `minecraft` images to the previous tagged version in under 30 seconds. Database migrations are **not** reversed — if the migration was destructive, restore from a backup.
+
+### Reset admin password
+
+```bash
+cd /opt/craftcontrol/deploymentV2
+docker compose exec api node -e "
+  const {PrismaClient} = require('@prisma/client');
+  const bcrypt = require('bcryptjs');
+  const p = new PrismaClient();
+  bcrypt.hash('newpassword',12).then(h =>
+    p.user.update({where:{email:'admin@example.com'},data:{passwordHash:h}})
+  ).then(() => { console.log('done'); p.\$disconnect(); });
+"
+```
+
+### View Minecraft console
+
+```bash
+make logs-minecraft   # tail live logs
+# Or drop into RCON:
+make shell-minecraft
+# then: rcon-cli (if installed in image)
+```
+
+### Run database migrations manually
 
 ```bash
 cd /opt/craftcontrol/deploymentV2
 make migrate
 ```
 
-For destructive migrations, take a PostgreSQL backup first:
+### Wipe everything and start fresh
 
 ```bash
-make backup
-```
-
-### 12.3 Emergency Minecraft Server Restart
-
-```bash
-# Via DiscoPanel UI: Server → Power → Restart
-# OR via API (from admin machine connected to internal network):
-curl -X POST \
-  -H "Authorization: Bearer <DISCOPANEL_API_TOKEN>" \
-  http://10.10.10.10:3001/api/servers/craftcontrol/power \
-  -d '{"signal":"restart"}'
-```
-
-### 12.4 Restore World from Backup
-
-1. Stop Minecraft server via DiscoPanel → Power → Stop.
-2. Identify backup: `ls /opt/discopanel/backups/craftcontrol/`.
-3. Restore via DiscoPanel → Backups → Restore, or manually:
-
-```bash
-cd /opt/discopanel/servers/craftcontrol/
-cp -r world world.bak.$(date +%s)   # keep current as safety copy
-tar -xzf /opt/discopanel/backups/craftcontrol/<backup-file>.tar.gz world/
-```
-
-4. Start server via DiscoPanel → Power → Start.
-5. Verify in console that world loaded without errors.
-
-### 12.5 Roll Back a Bad Deployment
-
-```bash
-# On CT102 — reverts all Docker images (api, web, mcp) to the previous build
 cd /opt/craftcontrol/deploymentV2
-make rollback
+make nuke    # ⚠ destroys all data volumes — type 'DELETE EVERYTHING' to confirm
+make deploy
 ```
-
-For a deeper rollback (DB data corruption), restore a backup first:
-
-```bash
-make restore
-```
-
-Or restore a Proxmox VM snapshot via the Proxmox web UI: Datacenter → CT102 → Snapshots → Rollback.
-
----
-
-*This document covers the Proxmox + DiscoPanel production topology. For the simpler Docker Compose deployment guide, see [deploymentV2/README.md](deploymentV2/README.md). For development setup, see [TECHNICAL_DOCS.md](TECHNICAL_DOCS.md) §8.*

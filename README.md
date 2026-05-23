@@ -17,19 +17,6 @@ The panel will be available at **http://\<your-server-ip\>** — log in with the
 
 ---
 
-## Copy the BRIDGE_SECRET to your Minecraft server
-
-```bash
-grep BRIDGE_SECRET deploymentV2/.env
-```
-
-Add the value to your Minecraft server's environment variables in DiscoPanel:
-```
-BRIDGE_SECRET=<value from above>
-```
-
----
-
 ## What gets deployed
 
 | Container | What it runs | Port |
@@ -39,8 +26,9 @@ BRIDGE_SECRET=<value from above>
 | `api` | Node.js API + Prisma | internal |
 | `web` | Nginx + React SPA | **80** |
 | `mcp` | Claude MCP server (52 tools) | **3100** |
+| `minecraft` | Paper Minecraft server | **25565** |
 
-> The `minecraft` container is included in the production compose file (`docker-compose.yml`) for fully self-contained setups. In a two-VM topology the Minecraft server runs separately under DiscoPanel.
+The Minecraft server is part of the Docker Compose stack. The `BRIDGE_SECRET` and RCON credentials are injected automatically from `.env` — no manual configuration of the game server is required.
 
 ---
 
