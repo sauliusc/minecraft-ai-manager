@@ -130,14 +130,19 @@ build-plugins: ## Compile all Java plugins with Maven
 	mvn -f $(DEPLOY_DIR)../plugins/pom.xml clean package -DskipTests -q
 	@echo "  ✓ Plugin JARs built in plugins/*/target/"
 
-deploy-plugins: build-plugins ## Build plugins + rebuild and restart the Minecraft container
+deploy-plugins: build-plugins ## Build plugins + push new minecraft image to GHCR + restart container
 	@echo "  ▶ Staging JARs into jars/..."
 	@find $(DEPLOY_DIR)../plugins -name '*-*.jar' -path '*/target/*' \
 	  ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
 	  -exec cp {} $(DEPLOY_DIR)../jars/ \;
 	@echo "  ✓ JARs staged"
-	@echo "  ▶ Rebuilding Minecraft container..."
-	$(COMPOSE) build minecraft
+	@echo "  ▶ Building and pushing minecraft image to GHCR..."
+	docker build \
+	  -t ghcr.io/sauliusc/minecraft-ai-manager/minecraft:latest \
+	  -f $(DEPLOY_DIR)../minecraft/Dockerfile \
+	  $(DEPLOY_DIR)..
+	docker push ghcr.io/sauliusc/minecraft-ai-manager/minecraft:latest
+	$(COMPOSE) pull minecraft
 	$(COMPOSE) up -d minecraft
 	@echo "  ✓ Minecraft container updated with new plugins"
 

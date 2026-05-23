@@ -60,29 +60,131 @@ jobs:
       - run: npm test
 
   # ────────────────────────────────────────────────────────────────────────────
-  # Deploy directly on the self-hosted runner inside CT102
-  # The runner IS the server — no SSH hop needed
+  # Build all Docker images on GitHub and push to GHCR
+  # Includes: plugin JARs (Maven) baked into the minecraft image
+  # ────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build & Push Images
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Build plugin JARs and stage for minecraft image ───────────────────
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Build plugin JARs
+        run: mvn -f plugins/pom.xml clean package -DskipTests -q
+
+      - name: Stage JARs into jars/ (picked up by minecraft/Dockerfile)
+        run: |
+          find plugins -name '*-*.jar' -path '*/target/*' \
+            ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+            -exec cp {} jars/ \;
+          echo "Staged JARs:"
+          ls -la jars/
+
+      # ── Docker setup ────────────────────────────────────────────────────────
+      - name: Set image tag (short SHA)
+        id: tag
+        run: echo "value=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Build & push each image ─────────────────────────────────────────────
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: server
+          push: true
+          cache-from: type=gha,scope=api
+          cache-to:   type=gha,scope=api,mode=max
+          tags: |
+            ghcr.io/sauliusc/minecraft-ai-manager/api:${{ steps.tag.outputs.value }}
+            ghcr.io/sauliusc/minecraft-ai-manager/api:latest
+
+      - name: Build and push Web image
+        uses: docker/build-push-action@v5
+        with:
+          context: client
+          push: true
+          build-args: VITE_API_BASE_URL=/api
+          cache-from: type=gha,scope=web
+          cache-to:   type=gha,scope=web,mode=max
+          tags: |
+            ghcr.io/sauliusc/minecraft-ai-manager/web:${{ steps.tag.outputs.value }}
+            ghcr.io/sauliusc/minecraft-ai-manager/web:latest
+
+      - name: Build and push MCP image
+        uses: docker/build-push-action@v5
+        with:
+          context: mcp
+          push: true
+          cache-from: type=gha,scope=mcp
+          cache-to:   type=gha,scope=mcp,mode=max
+          tags: |
+            ghcr.io/sauliusc/minecraft-ai-manager/mcp:${{ steps.tag.outputs.value }}
+            ghcr.io/sauliusc/minecraft-ai-manager/mcp:latest
+
+      - name: Build and push Minecraft image (includes plugin JARs)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: minecraft/Dockerfile
+          push: true
+          cache-from: type=gha,scope=minecraft
+          cache-to:   type=gha,scope=minecraft,mode=max
+          tags: |
+            ghcr.io/sauliusc/minecraft-ai-manager/minecraft:${{ steps.tag.outputs.value }}
+            ghcr.io/sauliusc/minecraft-ai-manager/minecraft:latest
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Pull pre-built images and start all services on CT102
+  # No building on the server — just docker compose pull + up
   # ────────────────────────────────────────────────────────────────────────────
   deploy:
     name: Deploy
-    needs: test
+    needs: build
     runs-on: [self-hosted, ct102]
 
     steps:
-      - name: Pull latest code & deploy
+      - name: Pull latest config & deploy
+        env:
+          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
         run: |
           set -euo pipefail
 
-          cd /opt/craftcontrol
-          git pull --ff-only
+          # Update docker-compose.yml and scripts from the repo
+          git -C /opt/craftcontrol fetch origin main
+          git -C /opt/craftcontrol reset --hard origin/main
 
-          bash deploymentV2/scripts/deploy.sh
+          # Authenticate with GHCR so private packages can be pulled
+          echo "${{ secrets.GITHUB_TOKEN }}" | \
+            docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-          echo "✓ Deployment finished"
+          export IMAGE_TAG
+          bash /opt/craftcontrol/deploymentV2/scripts/deploy.sh
 
   # ────────────────────────────────────────────────────────────────────────────
-  # Validate Minecraft startup on the self-hosted runner inside CT102
-  # Runs after deploy so docker compose is already up-to-date
+  # Validate Minecraft startup — all logs visible inline in GitHub Actions UI
   # ────────────────────────────────────────────────────────────────────────────
   validate:
     name: Validate Minecraft startup
@@ -94,13 +196,23 @@ jobs:
       - name: Wait for Paper + plugins to initialise
         run: sleep 90
 
-      - name: Capture startup logs
-        working-directory: /opt/craftcontrol
+      - name: Stream Minecraft startup logs
         run: |
-          docker compose logs --no-color --tail 300 minecraft > /tmp/mc-startup.log
-          cat /tmp/mc-startup.log
+          echo "════════════════════ Minecraft startup log ════════════════════"
+          docker compose -f /opt/craftcontrol/deploymentV2/docker-compose.yml \
+            --env-file /opt/craftcontrol/deploymentV2/.env \
+            logs --no-color --tail 500 minecraft 2>&1 | tee /tmp/mc-startup.log
+          echo "════════════════════════════════════════════════════════════════"
 
-      - name: Parse and annotate errors
+      - name: Stream API startup logs
+        run: |
+          echo "════════════════════════ API startup log ════════════════════════"
+          docker compose -f /opt/craftcontrol/deploymentV2/docker-compose.yml \
+            --env-file /opt/craftcontrol/deploymentV2/.env \
+            logs --no-color --tail 100 api 2>&1
+          echo "═════════════════════════════════════════════════════════════════"
+
+      - name: Annotate errors
         run: |
           WARNS=$(grep -E "\[WARN\]" /tmp/mc-startup.log || true)
           ERRORS=$(grep -E "\[ERROR\]|\[FATAL\]" /tmp/mc-startup.log || true)
@@ -126,48 +238,3 @@ jobs:
           name: minecraft-startup-log
           path: /tmp/mc-startup.log
           retention-days: 7
-
-  # ────────────────────────────────────────────────────────────────────────────
-  # Build & deploy Minecraft plugins (only when plugins/ changes)
-  # Runs on the self-hosted CT102 runner — no SSH or external service needed.
-  # Minecraft runs as part of the Docker Compose stack on the same host.
-  # ────────────────────────────────────────────────────────────────────────────
-  deploy-plugins:
-    name: Deploy Plugins
-    needs: [test, deploy]
-    runs-on: [self-hosted, ct102]
-    if: >-
-      github.event_name == 'push' &&
-      contains(toJson(github.event.commits), '"plugins/')
-    steps:
-      - uses: actions/setup-java@v4
-        with:
-          java-version: "21"
-          distribution: temurin
-          cache: maven
-
-      - name: Build plugins
-        working-directory: /opt/craftcontrol
-        run: mvn -f plugins/pom.xml clean package -DskipTests -q
-
-      - name: Stage JARs and rebuild Minecraft container
-        working-directory: /opt/craftcontrol
-        run: |
-          set -euo pipefail
-
-          # Copy built JARs to jars/ — the Dockerfile COPYs this dir into the image
-          find plugins -name '*-*.jar' -path '*/target/*' \
-            ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
-            -exec cp {} jars/ \;
-          echo "✓ JARs staged in jars/"
-
-          # Rebuild the minecraft image with the updated JARs, then restart
-          docker compose -f deploymentV2/docker-compose.yml \
-            --env-file deploymentV2/.env \
-            build minecraft
-
-          docker compose -f deploymentV2/docker-compose.yml \
-            --env-file deploymentV2/.env \
-            up -d minecraft
-
-          echo "✓ Minecraft container updated with new plugins"
