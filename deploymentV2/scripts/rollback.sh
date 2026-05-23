@@ -34,7 +34,7 @@ step "Rolling back to version: ${PREV_TAG}"
 
 # ── Switch images back ───────────────────────────────────────────────────────
 ROLLED_BACK=0
-for svc in api web mcp; do
+for svc in api web mcp minecraft; do
   img="craftcontrol-${svc}"
   if docker image inspect "${img}:previous" &>/dev/null; then
     docker tag "${img}:previous" "${img}:latest"

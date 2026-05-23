@@ -62,18 +62,9 @@ The wizard asks for:
 All other secrets (database, Redis, JWT, bridge) are generated automatically.
 
 At the end it prints:
-- The `BRIDGE_SECRET` to copy into DiscoPanel
 - A **ready-to-paste Claude config snippet** for the MCP server
 
-### 3. Configure the Minecraft game server
-
-In DiscoPanel → **Startup → Environment Variables**, add:
-
-```
-BRIDGE_SECRET=<the value shown at the end of make setup>
-```
-
-### 4. Deploy
+### 3. Deploy
 
 ```bash
 make deploy
@@ -98,16 +89,17 @@ Paste the config snippet from `make setup` into Claude Desktop or Claude Code co
 ## Day-to-day commands
 
 ```bash
-make status       # Are all containers running?
-make logs         # Tail all logs (Ctrl+C to stop)
-make logs-api     # API logs only
-make logs-mcp     # MCP server logs
-make deploy       # Deploy a new version (safe to run anytime)
-make update       # git pull + deploy in one step
-make rollback     # Revert to the previous version
-make backup       # Dump the database to deploymentV2/backups/
-make restart      # Restart containers without rebuilding
-make stop         # Stop everything (data preserved)
+make status           # Are all containers running?
+make logs             # Tail all logs (Ctrl+C to stop)
+make logs-api         # API logs only
+make logs-mcp         # MCP server logs
+make logs-minecraft   # Minecraft server logs
+make deploy           # Deploy a new version (safe to run anytime)
+make update           # git pull + deploy in one step
+make rollback         # Revert to the previous version
+make backup           # Dump the database to deploymentV2/backups/
+make restart          # Restart containers without rebuilding
+make stop             # Stop everything (data preserved)
 ```
 
 ---
@@ -172,18 +164,18 @@ make restore BACKUP=backups/craftcontrol_20240801_030000.sql.gz
 
 ## Minecraft plugins
 
-Plugins run inside the Minecraft server managed by DiscoPanel and communicate with the web API over the network.
+Plugins run inside the `minecraft` Docker container. They communicate with the API container over the internal Docker network — no external connection needed.
 
 ### Build and deploy plugins manually
 
 ```bash
 make build-plugins    # compiles all plugins with Maven
-make deploy-plugins   # uploads JARs to the game server via SCP
+make deploy-plugins   # build + stage JARs + rebuild and restart the minecraft container
 ```
 
 ### Automatic plugin deployment (CI/CD)
 
-The GitHub Actions workflow automatically deploys plugins whenever files in `plugins/` change on `main`. See the **CI/CD** section below.
+The GitHub Actions workflow automatically rebuilds and restarts the Minecraft container whenever files in `plugins/` change on `main`. See the **CI/CD** section below.
 
 ---
 
@@ -194,7 +186,7 @@ The workflow at `.github/workflows/deploy-v2.yml` runs on every push to `main`:
 1. **Tests** — full test suite against real PostgreSQL + Redis (GitHub-hosted runner)
 2. **Deploy** — runs `git pull` + `deploy.sh` directly on the **self-hosted CT102 runner** (no SSH needed — the runner is the server)
 3. **Validate** — checks Minecraft startup logs for errors on the same runner
-4. **Deploy plugins** — builds and uploads plugin JARs if `plugins/` changed (self-hosted runner, reaches game VM over local network)
+4. **Deploy plugins** — builds plugin JARs, stages them in `jars/`, rebuilds the `minecraft` Docker image, and restarts the container (only when `plugins/` changes)
 
 ### Self-hosted runner setup
 
@@ -206,19 +198,9 @@ The runner must be registered on the CT102 container with label `ct102`. To regi
 
 The runner connects outbound to GitHub — no inbound ports needed.
 
-### GitHub Secrets required (plugin deployment only)
+### GitHub Secrets required
 
-These are only needed if you use the automatic plugin deploy (`deploy-plugins` job):
-
-| Secret | Value |
-|--------|-------|
-| `GAME_VM_HOST` | IP address of your Minecraft server |
-| `GAME_VM_SSH_USER` | SSH username on the game server |
-| `GAME_VM_SSH_KEY` | Private SSH key for the game server |
-| `DISCOPANEL_API_TOKEN` | DiscoPanel API token (for restart-on-deploy) |
-| `DISCOPANEL_SERVER_ID` | DiscoPanel server UUID |
-
-> No `MGMT_VM_*` secrets are needed — the deploy runs locally on the self-hosted runner.
+**No GitHub Secrets are required.** The deploy and plugin deployment jobs run directly on the CT102 self-hosted runner and use local Docker — no SSH keys or external service tokens needed.
 
 ---
 

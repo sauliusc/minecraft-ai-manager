@@ -52,10 +52,6 @@ echo -e "  ${CYAN}(Press Enter to accept the default shown in brackets)${RESET}"
 echo ""
 
 # ── Collect user inputs ──────────────────────────────────────────────────────
-ask "Game server IP or hostname [10.10.10.10]:"
-read -r GAME_VM_HOST
-GAME_VM_HOST="${GAME_VM_HOST:-10.10.10.10}"
-
 ask "Web panel port [80]:"
 read -r HTTP_PORT
 HTTP_PORT="${HTTP_PORT:-80}"
@@ -146,8 +142,9 @@ JWT_REFRESH_EXPIRES_IN=7d
 # ── Plugin bridge ────────────────────────────────────────────────────────────
 BRIDGE_SECRET=${BRIDGE_SECRET}
 
-# ── Game server ──────────────────────────────────────────────────────────────
-GAME_VM_HOST=${GAME_VM_HOST}
+# ── Minecraft server ────────────────────────────────────────────────────────
+MINECRAFT_VERSION=1.21.1
+MINECRAFT_MEMORY=4G
 
 # ── Minecraft RCON ──────────────────────────────────────────────────────────
 RCON_PORT=${RCON_PORT}
@@ -170,12 +167,6 @@ chmod 600 "$ENV_FILE"
 # ── Summary ──────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}✓ .env created successfully!${RESET}"
-echo ""
-echo -e "${BOLD}════ ACTION REQUIRED ════════════════════════════${RESET}"
-echo -e "${YELLOW}Copy the BRIDGE_SECRET to your Minecraft server:${RESET}"
-echo ""
-echo -e "  DiscoPanel → Environment Variables → add:"
-echo -e "  ${BOLD}BRIDGE_SECRET=${BRIDGE_SECRET}${RESET}"
 echo ""
 echo -e "${BOLD}════ MCP server (Claude AI tools) ═══════════════${RESET}"
 echo -e "Add to Claude Desktop / Claude Code config:"

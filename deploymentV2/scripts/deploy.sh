@@ -51,7 +51,7 @@ docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
 ok "Images built"
 
 # ── Tag images as 'previous' before replacing 'latest' ───────────────────────
-for svc in api web mcp; do
+for svc in api web mcp minecraft; do
   img="craftcontrol-${svc}"
   if docker image inspect "${img}:latest" &>/dev/null; then
     docker tag "${img}:latest" "${img}:previous" 2>/dev/null || true
