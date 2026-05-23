@@ -80,6 +80,28 @@ services:
     ports:
       - "${HTTP_PORT:-80}:80"
 
+  # ── MCP server (Claude tool access) ─────────────────────────────────────────
+  mcp:
+    image: ghcr.io/sauliusc/minecraft-ai-manager/mcp:latest
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${MCP_PORT:-3100}:3100"
+    environment:
+      PORT:                  3100
+      CRAFTCONTROL_URL:      http://api:3000
+      CRAFTCONTROL_EMAIL:    ${ADMIN_EMAIL}
+      CRAFTCONTROL_PASSWORD: ${ADMIN_PASSWORD}
+      MCP_AUTH_TOKEN:        ${MCP_AUTH_TOKEN:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
   # ── Minecraft server ────────────────────────────────────────────────────────
   minecraft:
     image: ghcr.io/sauliusc/minecraft-ai-manager/minecraft:latest

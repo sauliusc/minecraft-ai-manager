@@ -2,6 +2,92 @@
 
 Exposes your entire CraftControl platform as MCP tools — giving Claude full control over both raw Minecraft and your custom game logic.
 
+## Two transport modes
+
+| Mode | When | Use case |
+|------|------|---------|
+| **SSE / HTTP** | `PORT` env var is set | Docker Compose (recommended) |
+| **stdio** | No `PORT` | Local Claude Desktop / Claude Code subprocess |
+
+---
+
+## Docker Compose (recommended — zero manual steps)
+
+The MCP server is part of the standard Docker Compose setup. It builds and starts automatically with everything else when you run `deploy.sh`.
+
+Add these to your `.env` (alongside the existing variables):
+
+```bash
+# Required — same admin account used to log into the web panel
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=your-admin-password
+
+# Optional — bearer token Claude must send; leave blank to disable auth
+MCP_AUTH_TOKEN=some-random-secret
+
+# Optional — host port (default 3100)
+MCP_PORT=3100
+```
+
+Then connect Claude to it. In Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`) or Claude Code (`.claude/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "craftcontrol": {
+      "transport": "sse",
+      "url": "http://YOUR_SERVER_IP:3100/sse",
+      "headers": {
+        "Authorization": "Bearer some-random-secret"
+      }
+    }
+  }
+}
+```
+
+If `MCP_AUTH_TOKEN` is empty, omit the `headers` block.
+
+---
+
+## Local subprocess mode (stdio)
+
+Useful for development or when Claude is running on the same machine.
+
+```bash
+cd mcp
+npm install
+npm run build
+
+# Then in Claude config:
+```
+
+```json
+{
+  "mcpServers": {
+    "craftcontrol": {
+      "command": "node",
+      "args": ["/path/to/mcp/dist/index.js"],
+      "env": {
+        "CRAFTCONTROL_URL": "http://localhost:3000",
+        "CRAFTCONTROL_EMAIL": "admin@example.com",
+        "CRAFTCONTROL_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+Or with `tsx` for dev (no build step):
+
+```bash
+CRAFTCONTROL_URL=http://localhost:3000 \
+CRAFTCONTROL_EMAIL=admin@example.com \
+CRAFTCONTROL_PASSWORD=password \
+npx tsx src/index.ts
+```
+
+---
+
 ## Tools (52 total)
 
 | Domain | Tools |
@@ -17,71 +103,12 @@ Exposes your entire CraftControl platform as MCP tools — giving Claude full co
 | **Broadcast** | `list_broadcasts`, `create_broadcast`, `cancel_broadcast`, `update_broadcast` |
 | **Analytics** | `get_retention_stats`, `get_challenge_analytics`, `get_economy_analytics`, `get_churn_risk`, `get_engagement_heatmap` |
 
-## Setup
-
-### 1. Build
-
-```bash
-cd mcp
-npm install
-npm run build
-```
-
-### 2. Configure in Claude Desktop
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "craftcontrol": {
-      "command": "node",
-      "args": ["/path/to/minecraft-ai-manager/mcp/dist/index.js"],
-      "env": {
-        "CRAFTCONTROL_URL": "http://your-server:3000",
-        "CRAFTCONTROL_EMAIL": "admin@example.com",
-        "CRAFTCONTROL_PASSWORD": "your-admin-password"
-      }
-    }
-  }
-}
-```
-
-### 3. Configure in Claude Code (CLI)
-
-Add to your project's `.claude/settings.json` or global `~/.claude/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "craftcontrol": {
-      "command": "node",
-      "args": ["./mcp/dist/index.js"],
-      "env": {
-        "CRAFTCONTROL_URL": "http://your-server:3000",
-        "CRAFTCONTROL_EMAIL": "admin@example.com",
-        "CRAFTCONTROL_PASSWORD": "your-admin-password"
-      }
-    }
-  }
-}
-```
-
-### 4. Dev mode (no build needed)
-
-```bash
-CRAFTCONTROL_URL=http://localhost:3000 \
-CRAFTCONTROL_EMAIL=admin@example.com \
-CRAFTCONTROL_PASSWORD=password \
-npx tsx src/index.ts
-```
-
-## Environment Variables
+## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `CRAFTCONTROL_URL` | ✅ | Base URL of your CraftControl API (e.g. `http://192.168.1.10:3000`) |
+| `CRAFTCONTROL_URL` | ✅ | Base URL of your CraftControl API |
 | `CRAFTCONTROL_EMAIL` | ✅ | Admin account email |
 | `CRAFTCONTROL_PASSWORD` | ✅ | Admin account password |
-
-The server logs in on first use and auto-refreshes the JWT when it expires.
+| `PORT` | — | If set, runs in SSE/HTTP mode on this port (Docker) |
+| `MCP_AUTH_TOKEN` | — | Bearer token required on `/sse` requests (optional but recommended) |
