@@ -1,0 +1,22 @@
+{
+  "name": "@craftcontrol/mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server — full CraftControl API + raw Minecraft RCON access for Claude",
+  "type": "module",
+  "bin": {
+    "craftcontrol-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
