@@ -67,13 +67,17 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     environment: production       # requires manual approval if configured
+    # Copy secret to env so we can test it in step if: (secrets context is
+    # not available in if: expressions; env context is).
+    env:
+      MGMT_VM_HOST: ${{ secrets.MGMT_VM_HOST }}
     outputs:
       deployed: ${{ steps.ssh.outcome == 'success' }}
 
     steps:
       - name: Deploy via SSH
         id: ssh
-        if: ${{ secrets.MGMT_VM_HOST != '' }}
+        if: ${{ env.MGMT_VM_HOST != '' }}
         uses: appleboy/ssh-action@v1
         with:
           host:        ${{ secrets.MGMT_VM_HOST }}
@@ -150,6 +154,10 @@ jobs:
     if: >-
       github.event_name == 'push' &&
       contains(toJson(github.event.commits), '"plugins/')
+    # Copy secret to env so we can test it in step if: (secrets context is
+    # not available in if: expressions; env context is).
+    env:
+      GAME_VM_HOST: ${{ secrets.GAME_VM_HOST }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -162,7 +170,7 @@ jobs:
         run: mvn -f plugins/pom.xml clean package -DskipTests -q
 
       - name: Upload JARs to game server
-        if: ${{ secrets.GAME_VM_HOST != '' }}
+        if: ${{ env.GAME_VM_HOST != '' }}
         uses: appleboy/scp-action@v0.1.7
         with:
           host:     ${{ secrets.GAME_VM_HOST }}
@@ -173,7 +181,7 @@ jobs:
           strip_components: 3     # removes plugins/PluginName/target/ prefix
 
       - name: Restart Minecraft via DiscoPanel
-        if: ${{ secrets.GAME_VM_HOST != '' }}
+        if: ${{ env.GAME_VM_HOST != '' }}
         run: |
           curl -s -f -X POST \
             -H "Authorization: Bearer ${{ secrets.DISCOPANEL_API_TOKEN }}" \
