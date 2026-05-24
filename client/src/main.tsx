@@ -5,9 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import './index.css';
 
 import { ErrorBoundary } from './components/ErrorBoundary.js';
-import { ProtectedRoute } from './components/ProtectedRoute.js';
+import { ProtectedRoute, RequireSuperAdmin, RequireAutoConfirm } from './components/ProtectedRoute.js';
 import { Layout } from './components/Layout.js';
 import { Login } from './pages/Login.js';
+import { Register } from './pages/Register.js';
 import { Dashboard } from './pages/Dashboard.js';
 import { Players } from './pages/Players.js';
 import { PlayerDetail } from './pages/PlayerDetail.js';
@@ -26,6 +27,9 @@ import { Cosmetics } from './pages/Cosmetics.js';
 import { Clans } from './pages/Clans.js';
 import { MinecraftServer } from './pages/MinecraftServer.js';
 import { AiConfig } from './pages/AiConfig.js';
+import { Users } from './pages/Users.js';
+import { ActivityLog } from './pages/ActivityLog.js';
+import { PendingActions } from './pages/PendingActions.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -39,6 +43,7 @@ createRoot(document.getElementById('root')!).render(
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route element={<ProtectedRoute />}>
               <Route element={<Layout />}>
                 <Route path="/" element={<Dashboard />} />
@@ -59,6 +64,18 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/clans" element={<Clans />} />
                 <Route path="/server" element={<MinecraftServer />} />
                 <Route path="/ai" element={<AiConfig />} />
+
+                {/* SUPER_ADMIN only */}
+                <Route element={<RequireSuperAdmin />}>
+                  <Route path="/settings/users" element={<Users />} />
+                  <Route path="/activity-log" element={<ActivityLog />} />
+                </Route>
+
+                {/* autoConfirm only */}
+                <Route element={<RequireAutoConfirm />}>
+                  <Route path="/pending-actions" element={<PendingActions />} />
+                </Route>
+
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Route>

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const rewardsRouter = Router();
@@ -137,7 +138,7 @@ rewardsRouter.get('/', authMiddleware, async (req: Request, res: Response, next:
 });
 
 // POST /api/rewards — authMiddleware + SUPER_ADMIN
-rewardsRouter.post('/', authMiddleware, validateBody(createRewardSchema), async (req: Request, res: Response, next: NextFunction) => {
+rewardsRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'reward' }), validateBody(createRewardSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const data = req.body as z.infer<typeof createRewardSchema>;
@@ -285,7 +286,7 @@ rewardsRouter.get('/:id', authMiddleware, async (req: Request, res: Response, ne
 });
 
 // PATCH /api/rewards/:id — authMiddleware + SUPER_ADMIN
-rewardsRouter.patch('/:id', authMiddleware, validateBody(updateRewardSchema), async (req: Request, res: Response, next: NextFunction) => {
+rewardsRouter.patch('/:id', authMiddleware, adminActionMiddleware({ resource: 'reward' }), validateBody(updateRewardSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const id = req.params.id as string;
@@ -314,7 +315,7 @@ rewardsRouter.patch('/:id', authMiddleware, validateBody(updateRewardSchema), as
 });
 
 // DELETE /api/rewards/:id — authMiddleware + SUPER_ADMIN
-rewardsRouter.delete('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+rewardsRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'reward' }), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const id = req.params.id as string;

@@ -8,6 +8,12 @@ vi.mock('../lib/prisma.js', () => ({
     user: {
       findUnique: vi.fn(),
       upsert: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
+      count: vi.fn().mockResolvedValue(1),
+      create: vi.fn(),
+    },
+    activityLog: {
+      create: vi.fn().mockResolvedValue({}),
     },
   },
 }));
@@ -37,8 +43,11 @@ describe('POST /api/auth/login', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
       id: 'user-1',
       email: 'admin@example.com',
+      name: 'Admin',
       passwordHash,
       role: 'SUPER_ADMIN',
+      autoConfirm: true,
+      isActive: true,
       createdAt: new Date(),
     } as any);
     const res = await request(app)
@@ -60,8 +69,11 @@ describe('POST /api/auth/login', () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValueOnce({
       id: 'user-1',
       email: 'admin@example.com',
+      name: 'Admin',
       passwordHash,
       role: 'SUPER_ADMIN',
+      autoConfirm: true,
+      isActive: true,
       createdAt: new Date(),
     } as any);
     const res = await request(app)

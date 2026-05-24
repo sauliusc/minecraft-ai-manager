@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const challengesRouter = Router();
@@ -165,7 +166,7 @@ challengesRouter.get('/active', serviceTokenMiddleware, async (req: Request, res
 });
 
 // POST /api/challenges — authMiddleware + SUPER_ADMIN
-challengesRouter.post('/', authMiddleware, validateBody(createSchema), async (req: Request, res: Response, next: NextFunction) => {
+challengesRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'challenge' }), validateBody(createSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const data = req.body as z.infer<typeof createSchema>;
@@ -226,7 +227,7 @@ challengesRouter.get('/:id', authMiddleware, async (req: Request, res: Response,
 });
 
 // PATCH /api/challenges/:id — authMiddleware + SUPER_ADMIN
-challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
+challengesRouter.patch('/:id', authMiddleware, adminActionMiddleware({ resource: 'challenge' }), validateBody(updateSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const id = req.params.id as string;
@@ -260,7 +261,7 @@ challengesRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async
 });
 
 // DELETE /api/challenges/:id — authMiddleware + SUPER_ADMIN
-challengesRouter.delete('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+challengesRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'challenge' }), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const id = req.params.id as string;

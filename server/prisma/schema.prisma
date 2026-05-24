@@ -81,11 +81,81 @@ model PlayerReward {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  role         Role     @default(MODERATOR)
-  createdAt    DateTime @default(now())
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String          @default("")
+  passwordHash   String
+  role           Role            @default(MODERATOR)
+  autoConfirm    Boolean         @default(false)
+  isActive       Boolean         @default(true)
+  lastLoginAt    DateTime?
+  createdBy      String?
+  createdAt      DateTime        @default(now())
+
+  activityLogs   ActivityLog[]
+  pendingActions PendingAction[] @relation("PendingActionUser")
+  reviews        PendingAction[] @relation("PendingActionReviewer")
+}
+
+enum ActivityStatus {
+  SUCCESS
+  PENDING
+  CONFIRMED
+  REJECTED
+  FAILED
+}
+
+enum PendingStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+model ActivityLog {
+  id              String         @id @default(cuid())
+  userId          String
+  userEmail       String
+  action          String
+  resource        String
+  resourceId      String?
+  method          String
+  path            String
+  requestBody     Json?
+  ipAddress       String
+  status          ActivityStatus @default(SUCCESS)
+  pendingActionId String?
+  createdAt       DateTime       @default(now())
+
+  user            User           @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([resource])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PendingAction {
+  id           String        @id @default(cuid())
+  userId       String
+  userEmail    String
+  action       String
+  resource     String
+  method       String
+  path         String
+  body         Json
+  status       PendingStatus @default(PENDING)
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  executedAt   DateTime?
+  result       Json?
+  createdAt    DateTime      @default(now())
+
+  user         User          @relation("PendingActionUser",    fields: [userId],     references: [id])
+  reviewer     User?         @relation("PendingActionReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 enum ChallengeType {

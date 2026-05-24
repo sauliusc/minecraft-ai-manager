@@ -20,7 +20,7 @@ try {
   } else {
     const hash = await bcrypt.hash(password, 12);
     await prisma.user.create({
-      data: { email, passwordHash: hash, role: 'SUPER_ADMIN' },
+      data: { email, passwordHash: hash, role: 'SUPER_ADMIN', autoConfirm: true, name: process.env.ADMIN_NAME ?? 'Admin' },
     });
     console.log(`Admin account created: ${email}`);
     console.log('⚠  Change your password after first login!');

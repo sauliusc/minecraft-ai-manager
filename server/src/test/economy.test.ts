@@ -22,6 +22,9 @@ vi.mock('../lib/prisma.js', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
+    activityLog: {
+      create: vi.fn().mockResolvedValue({}),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -38,8 +41,8 @@ vi.mock('../lib/redis.js', () => ({
 import { prisma } from '../lib/prisma.js';
 
 const SERVICE_TOKEN = 'test-bridge-secret';
-const adminToken = signAccess({ sub: 'admin-1', email: 'admin@test.com', role: 'SUPER_ADMIN' });
-const modToken = signAccess({ sub: 'mod-1', email: 'mod@test.com', role: 'MODERATOR' });
+const adminToken = signAccess({ sub: 'admin-1', email: 'admin@test.com', role: 'SUPER_ADMIN', name: '', autoConfirm: true });
+const modToken = signAccess({ sub: 'mod-1', email: 'mod@test.com', role: 'MODERATOR', name: '', autoConfirm: false });
 
 const mockPlayer = {
   id: 'player-1',

@@ -28,7 +28,7 @@ import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
 
 const SERVICE_TOKEN = 'test-bridge-secret';
-const adminToken = signAccess({ sub: 'user-1', email: 'admin@test.com', role: 'SUPER_ADMIN' });
+const adminToken = signAccess({ sub: 'user-1', email: 'admin@test.com', role: 'SUPER_ADMIN', name: '', autoConfirm: true });
 
 const mockPlayer = {
   username: 'TestPlayer',

@@ -9,6 +9,8 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  name: string;
+  autoConfirm: boolean;
 }
 
 export function signAccess(payload: JwtPayload): string {

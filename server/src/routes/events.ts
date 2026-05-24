@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const eventsRouter = Router();
@@ -115,7 +116,7 @@ eventsRouter.get('/:id/leaderboard', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/events  (SUPER_ADMIN)
-eventsRouter.post('/', authMiddleware, validateBody(createSchema), async (req, res, next) => {
+eventsRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'event' }), validateBody(createSchema), async (req, res, next) => {
   try {
     const user = (req as any).user;
     if (user.role !== 'SUPER_ADMIN') return res.status(403).json({ message: 'Forbidden' });
@@ -134,7 +135,7 @@ eventsRouter.post('/', authMiddleware, validateBody(createSchema), async (req, r
 });
 
 // PATCH /api/events/:id
-eventsRouter.patch('/:id', authMiddleware, validateBody(updateSchema), async (req, res, next) => {
+eventsRouter.patch('/:id', authMiddleware, adminActionMiddleware({ resource: 'event' }), validateBody(updateSchema), async (req, res, next) => {
   try {
     const user = (req as any).user;
     if (user.role !== 'SUPER_ADMIN') return res.status(403).json({ message: 'Forbidden' });
@@ -195,7 +196,7 @@ eventsRouter.post('/:id/complete', serviceTokenMiddleware, validateBody(complete
 });
 
 // DELETE /api/events/:id  (SUPER_ADMIN, upcoming only)
-eventsRouter.delete('/:id', authMiddleware, async (req, res, next) => {
+eventsRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'event' }), async (req, res, next) => {
   try {
     const user = (req as any).user;
     if (user.role !== 'SUPER_ADMIN') return res.status(403).json({ message: 'Forbidden' });

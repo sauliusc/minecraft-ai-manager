@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import {
   getAiConfig,
   setAiConfig,
@@ -33,7 +34,7 @@ router.get('/config', async (_req: Request, res: Response): Promise<void> => {
   res.json({ data: safe });
 });
 
-router.put('/config', async (req: Request, res: Response): Promise<void> => {
+router.put('/config', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
@@ -48,7 +49,7 @@ router.put('/config', async (req: Request, res: Response): Promise<void> => {
 
 // ── Challenge Generator ───────────────────────────────────────────────────────
 
-router.post('/challenges/generate', async (req: Request, res: Response): Promise<void> => {
+router.post('/challenges/generate', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
@@ -92,7 +93,7 @@ router.get('/challenges/drafts', async (_req: Request, res: Response): Promise<v
   res.json({ data: drafts });
 });
 
-router.post('/challenges/drafts/:id/approve', async (req: Request, res: Response): Promise<void> => {
+router.post('/challenges/drafts/:id/approve', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
@@ -131,7 +132,7 @@ router.post('/challenges/drafts/:id/approve', async (req: Request, res: Response
   res.json({ data: challenge });
 });
 
-router.delete('/challenges/drafts/:id', async (req: Request, res: Response): Promise<void> => {
+router.delete('/challenges/drafts/:id', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
@@ -145,7 +146,7 @@ router.delete('/challenges/drafts/:id', async (req: Request, res: Response): Pro
 
 // ── Engagement Scan ───────────────────────────────────────────────────────────
 
-router.post('/engagement/scan', async (req: Request, res: Response): Promise<void> => {
+router.post('/engagement/scan', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
@@ -284,7 +285,7 @@ router.post('/rewards/suggest', async (req: Request, res: Response): Promise<voi
 
 // ── Chat Moderation Scanner ───────────────────────────────────────────────────
 
-router.post('/moderation/scan', async (req: Request, res: Response): Promise<void> => {
+router.post('/moderation/scan', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
@@ -326,7 +327,7 @@ router.get('/moderation/latest', async (_req: Request, res: Response): Promise<v
 });
 
 // Flag a chat log entry (admin-triggered from AI scan results)
-router.post('/moderation/flag/:logId', async (req: Request, res: Response): Promise<void> => {
+router.post('/moderation/flag/:logId', adminActionMiddleware({ resource: 'ai' }), async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
     return;
