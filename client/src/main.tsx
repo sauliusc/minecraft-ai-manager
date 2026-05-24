@@ -26,6 +26,7 @@ import { Cosmetics } from './pages/Cosmetics.js';
 import { Clans } from './pages/Clans.js';
 import { MinecraftServer } from './pages/MinecraftServer.js';
 import { AiConfig } from './pages/AiConfig.js';
+import { WeekTheme } from './pages/WeekTheme.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -59,6 +60,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/clans" element={<Clans />} />
                 <Route path="/server" element={<MinecraftServer />} />
                 <Route path="/ai" element={<AiConfig />} />
+                <Route path="/ai/week-theme" element={<WeekTheme />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Route>

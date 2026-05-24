@@ -103,6 +103,78 @@ export const aiTools: Tool[] = [
       required: ["fields"],
     },
   },
+  {
+    name: "ai_generate_week_theme",
+    description:
+      "Generate an entire week's coordinated Minecraft server content as a DRAFT based on a theme name and start date. " +
+      "Creates 1 GameEvent, 7 daily challenges, 1 weekly challenge, 1 NPC, and 4 rewards.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        theme: {
+          type: "string",
+          description: "The theme name (e.g. 'Halloween', 'Winter Wonderland', 'Dragon Invasion')",
+        },
+        startDate: {
+          type: "string",
+          description: "Start date in YYYY-MM-DD format (the Monday of the theme week)",
+        },
+      },
+      required: ["theme", "startDate"],
+    },
+  },
+  {
+    name: "ai_list_week_themes",
+    description: "List all AI-generated week themes (paginated).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        page: { type: "number", description: "Page number (default 1)" },
+        limit: { type: "number", description: "Items per page (default 20, max 50)" },
+      },
+      required: [],
+    },
+  },
+  {
+    name: "ai_get_current_week_theme",
+    description: "Get the currently active week theme, if any.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+  },
+  {
+    name: "ai_get_week_theme",
+    description: "Get a specific week theme by ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        themeId: { type: "string", description: "Week theme ID" },
+      },
+      required: ["themeId"],
+    },
+  },
+  {
+    name: "ai_activate_week_theme",
+    description:
+      "Activate a DRAFT week theme. This atomically creates the GameEvent, all challenges, the NPC, " +
+      "and all rewards, then sends the RCON announcement.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        themeId: { type: "string", description: "Week theme ID to activate" },
+      },
+      required: ["themeId"],
+    },
+  },
+  {
+    name: "ai_cancel_week_theme",
+    description: "Cancel a week theme (sets status to CANCELLED). Does not delete created content.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        themeId: { type: "string", description: "Week theme ID to cancel" },
+      },
+      required: ["themeId"],
+    },
+  },
 ];
 
 export async function handleAi(
@@ -149,6 +221,32 @@ export async function handleAi(
 
     case "ai_update_config":
       return client.patch("/api/ai/config", args.fields);
+
+    case "ai_generate_week_theme":
+      return client.post("/api/ai/week-theme/generate", {
+        theme: args.theme,
+        startDate: args.startDate,
+      });
+
+    case "ai_list_week_themes": {
+      const params = new URLSearchParams();
+      if (args.page) params.set("page", String(args.page));
+      if (args.limit) params.set("limit", String(args.limit));
+      const qs = params.toString();
+      return client.get(`/api/ai/week-theme${qs ? `?${qs}` : ""}`);
+    }
+
+    case "ai_get_current_week_theme":
+      return client.get("/api/ai/week-theme/current");
+
+    case "ai_get_week_theme":
+      return client.get(`/api/ai/week-theme/${args.themeId}`);
+
+    case "ai_activate_week_theme":
+      return client.post(`/api/ai/week-theme/${args.themeId}/activate`, {});
+
+    case "ai_cancel_week_theme":
+      return client.del(`/api/ai/week-theme/${args.themeId}`);
 
     default:
       throw new Error(`Unknown AI tool: ${name}`);
