@@ -236,6 +236,22 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
       }
     }
 
+    // CURRENCY rewards: credit the player's coin/crystal balance in the DB immediately.
+    // The clan cost check (and all balance checks) read from Postgres, so this must happen
+    // server-side before the bridge call — not via the plugin.
+    if (bridgeReward.rewardType === 'CURRENCY') {
+      const cfg = bridgeReward.config as Record<string, number>;
+      const updates: Record<string, unknown> = {};
+      if (cfg.coins) updates.coins = { increment: cfg.coins };
+      if (cfg.crystals) updates.crystals = { increment: cfg.crystals };
+      if (Object.keys(updates).length > 0) {
+        await prisma.player.update({ where: { username: playerId }, data: updates }).catch(() => {
+          // Player row may not exist yet (first join not yet processed) — safe to ignore,
+          // the bridge/pending-delivery path will still credit on next login.
+        });
+      }
+    }
+
     // Attempt live delivery first; failure means player is offline — record queued for next login
     const bridgeOk = await callBridge('/bridge/rewards/grant', {
       playerId,
