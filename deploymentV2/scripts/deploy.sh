@@ -73,6 +73,26 @@ ok "Database is ready"
 
 # ── Run migrations ────────────────────────────────────────────────────────────
 step "Running database migrations"
+
+# Baseline: if the DB has schema but no migration history (P3005 — happens on first
+# deploy after the project switched from db push to migrate), auto-mark every
+# migration as applied so migrate deploy doesn't fail.
+MIGRATE_STATUS=$(docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+  exec -T api npx prisma migrate status 2>&1 || true)
+
+if echo "$MIGRATE_STATUS" | grep -q "P3005"; then
+  warn "DB schema exists with no migration history — baselining all migrations..."
+  # List migration directories from inside the container
+  MIGRATIONS=$(docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+    exec -T api sh -c "ls prisma/migrations/ 2>/dev/null" | grep -E '^[0-9]' || true)
+  for migration_name in $MIGRATIONS; do
+    info "Baselining: $migration_name"
+    docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+      exec -T api npx prisma migrate resolve --applied "$migration_name"
+  done
+  ok "Baseline complete"
+fi
+
 docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
   exec -T api npx prisma migrate deploy
 ok "Migrations applied"
