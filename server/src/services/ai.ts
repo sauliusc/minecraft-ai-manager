@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma.js';
 
 // ── Config helpers ─────────────────────────────────────────────────────────────
 
@@ -288,6 +286,147 @@ Return JSON array of exactly 3:
   });
 
   return JSON.parse(stripJsonFences(raw));
+}
+
+// ── Week Theme Generator ───────────────────────────────────────────────────────
+
+export interface WeekThemePayload {
+  description: string;
+  event: {
+    type: 'BOSS_RAID' | 'TREASURE_HUNT' | 'BUILD_BATTLE' | 'CLAN_WAR';
+    title: string;
+    config: Record<string, unknown>;
+  };
+  dailyChallenges: Array<{
+    dayOffset: number;
+    title: string;
+    description: string;
+    type: 'BLOCK_BREAK' | 'KILL_MOB' | 'CRAFT_ITEM' | 'TRAVEL' | 'CUSTOM';
+    difficulty: number;
+    config: Record<string, unknown>;
+  }>;
+  weeklyChallenge: {
+    title: string;
+    description: string;
+    type: string;
+    difficulty: 5;
+    config: Record<string, unknown>;
+  };
+  npc: {
+    name: string;
+    title: string;
+    type: 'GUIDE' | 'QUEST_GIVER' | 'MERCHANT';
+    dialogueLines: string[];
+  };
+  rewards: Array<{
+    name: string;
+    type: 'ITEM' | 'XP' | 'COMMAND' | 'CURRENCY' | 'MYSTERY_BOX';
+    rarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+    config: Record<string, unknown>;
+  }>;
+  announcementText: string;
+}
+
+export async function generateWeekTheme(
+  theme: string,
+  startDate: Date,
+  existingChallengeTitles: string[]
+): Promise<WeekThemePayload> {
+  const cfg = await getAiConfig();
+  const model = resolveModel(cfg, 'generator');
+
+  const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const raw = await callLLM(cfg, {
+    model,
+    maxTokens: 4000,
+    system: `You are a Minecraft server content creator. Generate a full week-theme content package for a Paper 1.21 Minecraft server.
+Always respond with valid JSON only — no markdown, no explanation outside the JSON object.`,
+    user: `Generate a complete week theme content package for the theme: "${theme}"
+
+Start date: ${startDate.toISOString()}
+End date: ${endDate.toISOString()}
+
+Existing challenge titles to AVOID duplicating:
+${existingChallengeTitles.slice(0, 30).join(', ')}
+
+Return a single JSON object with exactly this structure:
+{
+  "description": "2-3 sentence flavour blurb about the theme",
+  "event": {
+    "type": "BOSS_RAID" | "TREASURE_HUNT" | "BUILD_BATTLE" | "CLAN_WAR",
+    "title": "string",
+    "config": {}
+  },
+  "dailyChallenges": [
+    {
+      "dayOffset": 0,
+      "title": "string",
+      "description": "string",
+      "type": "BLOCK_BREAK" | "KILL_MOB" | "CRAFT_ITEM" | "TRAVEL" | "CUSTOM",
+      "difficulty": 1-4,
+      "config": {}
+    }
+    // exactly 7 entries, dayOffset 0 (Monday) through 6 (Sunday)
+  ],
+  "weeklyChallenge": {
+    "title": "string",
+    "description": "string",
+    "type": "BLOCK_BREAK" | "KILL_MOB" | "CRAFT_ITEM" | "TRAVEL" | "CUSTOM",
+    "difficulty": 5,
+    "config": {}
+  },
+  "npc": {
+    "name": "string",
+    "title": "string",
+    "type": "GUIDE" | "QUEST_GIVER" | "MERCHANT",
+    "dialogueLines": ["line1", "line2", "line3", "line4", "line5"]
+  },
+  "rewards": [
+    {
+      "name": "string",
+      "type": "ITEM" | "XP" | "COMMAND" | "CURRENCY" | "MYSTERY_BOX",
+      "rarity": "COMMON" | "RARE" | "EPIC" | "LEGENDARY",
+      "config": {}
+    }
+    // exactly 4 rewards
+  ],
+  "announcementText": "/say or /title command string for the announcement"
+}
+
+Config shapes per challenge type:
+- BLOCK_BREAK: { "block": "STONE", "amount": 100 }
+- KILL_MOB: { "mob": "ZOMBIE", "amount": 20 }
+- CRAFT_ITEM: { "item": "IRON_SWORD", "amount": 1 }
+- TRAVEL: { "distance": 1000 }
+- CUSTOM: { "metric": "string", "target": 1 }
+
+Requirements:
+- dailyChallenges must have exactly 7 entries with dayOffset 0-6
+- npc.dialogueLines must have exactly 5 lines
+- rewards must have exactly 4 entries
+- All content must be thematically consistent with: "${theme}"`,
+  });
+
+  let parsed: WeekThemePayload;
+  try {
+    parsed = JSON.parse(stripJsonFences(raw));
+  } catch (err) {
+    throw new Error(`Failed to parse LLM response as JSON: ${String(err)}\nRaw response: ${raw.slice(0, 500)}`);
+  }
+
+  // Validate structure
+  if (!parsed.dailyChallenges || parsed.dailyChallenges.length !== 7) {
+    throw new Error(`Expected 7 daily challenges, got ${parsed.dailyChallenges?.length ?? 0}`);
+  }
+  if (!parsed.rewards || parsed.rewards.length !== 4) {
+    throw new Error(`Expected 4 rewards, got ${parsed.rewards?.length ?? 0}`);
+  }
+  if (!parsed.npc?.dialogueLines || parsed.npc.dialogueLines.length !== 5) {
+    throw new Error(`Expected 5 NPC dialogue lines, got ${parsed.npc?.dialogueLines?.length ?? 0}`);
+  }
+
+  return parsed;
 }
 
 // ── Chat Moderation Scanner ────────────────────────────────────────────────────
