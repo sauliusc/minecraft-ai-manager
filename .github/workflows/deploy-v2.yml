@@ -90,6 +90,7 @@ jobs:
         run: |
           find plugins -name '*-*.jar' -path '*/target/*' \
             ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+            ! -name 'original-*' \
             -exec cp {} jars/ \;
           echo "Staged JARs:"
           ls -la jars/
@@ -214,8 +215,9 @@ jobs:
 
       - name: Annotate errors
         run: |
-          WARNS=$(grep -E "\[WARN\]" /tmp/mc-startup.log || true)
-          ERRORS=$(grep -E "\[ERROR\]|\[FATAL\]" /tmp/mc-startup.log || true)
+          # Paper log format: [HH:MM:SS WARN]: and [HH:MM:SS ERROR]:
+          WARNS=$(grep -E " WARN\]:" /tmp/mc-startup.log || true)
+          ERRORS=$(grep -E " ERROR\]:" /tmp/mc-startup.log || true)
 
           while IFS= read -r line; do
             [ -n "$line" ] && echo "::warning::$line"
