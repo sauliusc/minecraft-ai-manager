@@ -103,7 +103,10 @@ authRouter.post('/refresh', async (req: Request, res: Response, next: NextFuncti
     const accessToken = signAccess(newPayload);
     const newRefresh = signRefresh(newPayload);
     res.cookie(REFRESH_COOKIE, newRefresh, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
-    res.json({ accessToken });
+    res.json({
+      accessToken,
+      user: { id: user.id, email: user.email, name: user.name, role: user.role, autoConfirm: user.autoConfirm },
+    });
   } catch (err) {
     next(err);
   }

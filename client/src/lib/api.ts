@@ -47,16 +47,21 @@ api.interceptors.response.use(
     original._retry = true;
     refreshPromise = axios
       .post('/api/auth/refresh', {}, { withCredentials: true })
-      .then((r) => r.data.accessToken as string)
+      .then((r) => {
+        if (r.data.user) {
+          useAuthStore.getState().login(r.data.accessToken, r.data.user);
+        }
+        return r.data.accessToken as string;
+      })
       .catch(() => null)
       .finally(() => { refreshPromise = null; });
 
-    const token = await refreshPromise;
-    drainQueue(token);
+    const refreshResult = await refreshPromise;
+    drainQueue(refreshResult);
 
-    if (token) {
-      useAuthStore.getState().setAccessToken(token);
-      original.headers = { ...original.headers, Authorization: `Bearer ${token}` };
+    if (refreshResult) {
+      useAuthStore.getState().setAccessToken(refreshResult);
+      original.headers = { ...original.headers, Authorization: `Bearer ${refreshResult}` };
       return api(original);
     }
 
