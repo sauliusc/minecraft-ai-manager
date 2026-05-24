@@ -541,3 +541,31 @@ enum AiDraftStatus {
   APPROVED
   REJECTED
 }
+
+enum WeekThemeStatus {
+  DRAFT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+model WeekTheme {
+  id               String          @id @default(cuid())
+  theme            String
+  description      String
+  startDate        DateTime
+  endDate          DateTime
+  status           WeekThemeStatus @default(DRAFT)
+  aiPayload        Json
+  eventId          String?
+  npcId            String?
+  challengeIds     String[]
+  rewardIds        String[]
+  announcementText String?
+  createdBy        String
+  createdAt        DateTime        @default(now())
+  activatedAt      DateTime?
+  activatedBy      String?
+
+  @@map("week_themes")
+}

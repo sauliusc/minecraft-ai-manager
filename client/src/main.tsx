@@ -30,6 +30,7 @@ import { AiConfig } from './pages/AiConfig.js';
 import { Users } from './pages/Users.js';
 import { ActivityLog } from './pages/ActivityLog.js';
 import { PendingActions } from './pages/PendingActions.js';
+import { WeekTheme } from './pages/WeekTheme.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/clans" element={<Clans />} />
                 <Route path="/server" element={<MinecraftServer />} />
                 <Route path="/ai" element={<AiConfig />} />
+                <Route path="/ai/week-theme" element={<WeekTheme />} />
 
                 {/* SUPER_ADMIN only */}
                 <Route element={<RequireSuperAdmin />}>
@@ -75,6 +77,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route element={<RequireAutoConfirm />}>
                   <Route path="/pending-actions" element={<PendingActions />} />
                 </Route>
+
 
                 <Route path="*" element={<NotFound />} />
               </Route>

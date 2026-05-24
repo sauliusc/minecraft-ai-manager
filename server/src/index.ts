@@ -26,6 +26,7 @@ import { aiRouter } from './routes/ai.js';
 import { usersRouter } from './routes/users.js';
 import { activityLogRouter } from './routes/activityLog.js';
 import { pendingActionsRouter } from './routes/pendingActions.js';
+import { weekThemeRouter } from './routes/weekTheme.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -84,6 +85,7 @@ app.use('/api/ai', aiRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/activity-log', activityLogRouter);
 app.use('/api/pending-actions', pendingActionsRouter);
+app.use('/api/ai/week-theme', weekThemeRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
