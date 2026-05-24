@@ -174,6 +174,7 @@ rewardsRouter.get('/pending/:playerId', serviceTokenMiddleware, async (req: Requ
       .map((r: any) => ({
         id: r.id,
         rewardId: r.rewardId,
+        rewardName: r.reward.name,
         rewardType: r.reward.type,
         rarity: r.reward.rarity ?? null,
         config: r.reward.config,

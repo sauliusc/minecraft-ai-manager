@@ -275,6 +275,7 @@ describe('GET /api/rewards/pending/:playerId', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0].id).toBe('grant-1');
     expect(res.body[0].rewardId).toBe('reward-1');
+    expect(res.body[0].rewardName).toBe('Diamond Sword');
     expect(res.body[0].rewardType).toBe('ITEM');
   });
 

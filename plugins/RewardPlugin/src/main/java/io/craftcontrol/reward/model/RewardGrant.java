@@ -4,7 +4,8 @@ public record RewardGrant(
     String grantId,
     String playerId,
     String rewardId,
-    String rewardType,   // ITEM, XP, COMMAND, MYSTERY_BOX
-    String rarity,       // COMMON, RARE, EPIC, LEGENDARY
-    Object config        // parsed from JSON by caller
+    String rewardName,    // human-readable name from DB (e.g. "Daily Login Bonus")
+    String rewardType,    // ITEM, XP, COMMAND, CURRENCY
+    String rarity,        // COMMON, RARE, EPIC, LEGENDARY
+    Object config         // parsed from JSON by caller
 ) {}
