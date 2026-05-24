@@ -549,6 +549,19 @@ enum WeekThemeStatus {
   CANCELLED
 }
 
+// ── Deployment / update history ───────────────────────────────────────────────
+
+model Deployment {
+  id          String   @id @default(cuid())
+  imageTag    String                        // short git SHA or "manual"
+  triggeredBy String                        // GitHub actor or admin email
+  action      String                        // "deploy" | "restart" | "start" | "stop"
+  notes       String?                       // commit message or manual note
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model WeekTheme {
   id               String          @id @default(cuid())
   theme            String

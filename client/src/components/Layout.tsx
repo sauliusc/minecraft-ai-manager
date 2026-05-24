@@ -66,6 +66,9 @@ export function Layout() {
           <Link to="/server" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm font-medium text-green-400">
             Minecraft Server
           </Link>
+          <Link to="/updates" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm pl-6 text-green-300">
+            Update History
+          </Link>
           <Link to="/ai" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm font-medium text-indigo-400">
             AI Features
           </Link>

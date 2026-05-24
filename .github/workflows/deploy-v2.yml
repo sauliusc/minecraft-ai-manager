@@ -169,7 +169,9 @@ jobs:
     steps:
       - name: Pull latest config & deploy
         env:
-          IMAGE_TAG: ${{ needs.build.outputs.image_tag }}
+          IMAGE_TAG:    ${{ needs.build.outputs.image_tag }}
+          TRIGGERED_BY: ${{ github.actor }}
+          DEPLOY_NOTES: ${{ github.event.head_commit.message || github.sha }}
         run: |
           set -euo pipefail
 
@@ -181,7 +183,7 @@ jobs:
           echo "${{ secrets.GITHUB_TOKEN }}" | \
             docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-          export IMAGE_TAG
+          export IMAGE_TAG TRIGGERED_BY DEPLOY_NOTES
           bash /opt/craftcontrol/deploymentV2/scripts/deploy.sh
 
   # ────────────────────────────────────────────────────────────────────────────
