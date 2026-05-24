@@ -45,8 +45,11 @@ public class RewardListener implements Listener {
                             g.get("id").getAsString(),
                             playerId,
                             g.get("rewardId").getAsString(),
+                            g.has("rewardName") && !g.get("rewardName").isJsonNull()
+                                ? g.get("rewardName").getAsString() : "",
                             g.get("rewardType").getAsString(),
-                            g.has("rarity") ? g.get("rarity").getAsString() : "COMMON",
+                            g.has("rarity") && !g.get("rarity").isJsonNull()
+                                ? g.get("rarity").getAsString() : "COMMON",
                             gson.fromJson(g.get("config"), java.util.Map.class)
                         );
                         RewardPlugin.getInstance().getServer().getScheduler().runTask(
