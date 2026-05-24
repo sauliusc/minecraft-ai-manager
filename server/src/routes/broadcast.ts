@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 import { withRcon } from '../lib/rcon.js';
 
@@ -51,7 +52,7 @@ broadcastRouter.get('/scheduled', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/broadcast
-broadcastRouter.post('/', authMiddleware, validateBody(createSchema), async (req, res, next) => {
+broadcastRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'broadcast' }), validateBody(createSchema), async (req, res, next) => {
   try {
     if (!requireAdmin(req, res)) return;
     const user = (req as any).user;
@@ -103,7 +104,7 @@ broadcastRouter.get('/pending', serviceTokenMiddleware, async (req, res, next) =
 });
 
 // DELETE /api/broadcast/scheduled/:id
-broadcastRouter.delete('/scheduled/:id', authMiddleware, async (req, res, next) => {
+broadcastRouter.delete('/scheduled/:id', authMiddleware, adminActionMiddleware({ resource: 'broadcast' }), async (req, res, next) => {
   try {
     if (!requireAdmin(req, res)) return;
     await prisma.broadcastMessage.update({
@@ -115,7 +116,7 @@ broadcastRouter.delete('/scheduled/:id', authMiddleware, async (req, res, next) 
 });
 
 // PATCH /api/broadcast/scheduled/:id
-broadcastRouter.patch('/scheduled/:id', authMiddleware, validateBody(updateSchema), async (req, res, next) => {
+broadcastRouter.patch('/scheduled/:id', authMiddleware, adminActionMiddleware({ resource: 'broadcast' }), validateBody(updateSchema), async (req, res, next) => {
   try {
     if (!requireAdmin(req, res)) return;
     const data = req.body as z.infer<typeof updateSchema>;

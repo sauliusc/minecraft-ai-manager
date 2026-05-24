@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const moderationRouter = Router();
@@ -107,7 +108,7 @@ moderationRouter.post('/reports', serviceTokenMiddleware, validateBody(reportSch
 });
 
 // PATCH /api/moderation/reports/:id
-moderationRouter.patch('/reports/:id', authMiddleware, validateBody(resolveSchema), async (req, res, next) => {
+moderationRouter.patch('/reports/:id', authMiddleware, adminActionMiddleware({ resource: 'moderation' }), validateBody(resolveSchema), async (req, res, next) => {
   try {
     const user = (req as any).user;
     const { status } = req.body as z.infer<typeof resolveSchema>;
@@ -138,7 +139,7 @@ moderationRouter.post('/actions', serviceTokenMiddleware, validateBody(actionSch
 });
 
 // Also allow JWT (admin actions from dashboard)
-moderationRouter.post('/actions/admin', authMiddleware, validateBody(actionSchema), async (req, res, next) => {
+moderationRouter.post('/actions/admin', authMiddleware, adminActionMiddleware({ resource: 'moderation' }), validateBody(actionSchema), async (req, res, next) => {
   try {
     const user = (req as any).user;
     if (user.role !== 'SUPER_ADMIN' && user.role !== 'MODERATOR') return res.status(403).json({ message: 'Forbidden' });

@@ -23,6 +23,9 @@ import { cosmeticsRouter } from './routes/cosmetics.js';
 import { voteRouter } from './routes/vote.js';
 import { minecraftRouter } from './routes/minecraft.js';
 import { aiRouter } from './routes/ai.js';
+import { usersRouter } from './routes/users.js';
+import { activityLogRouter } from './routes/activityLog.js';
+import { pendingActionsRouter } from './routes/pendingActions.js';
 import { weekThemeRouter } from './routes/weekTheme.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
@@ -79,6 +82,9 @@ app.use('/api/cosmetics', cosmeticsRouter);
 app.use('/api/vote', voteRouter);
 app.use('/api/minecraft', minecraftRouter);
 app.use('/api/ai', aiRouter);
+app.use('/api/users', usersRouter);
+app.use('/api/activity-log', activityLogRouter);
+app.use('/api/pending-actions', pendingActionsRouter);
 app.use('/api/ai/week-theme', weekThemeRouter);
 
 app.use(notFoundMiddleware);
@@ -90,4 +96,5 @@ if (process.env.NODE_ENV !== 'test') {
   });
 }
 
+export { app };
 export default app;

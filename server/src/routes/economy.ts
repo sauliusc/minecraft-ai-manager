@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const economyRouter = Router();
@@ -100,7 +101,7 @@ const adjustSchema = z.object({
 });
 
 // POST /api/economy/adjust — JWT + SUPER_ADMIN
-economyRouter.post('/adjust', authMiddleware, validateBody(adjustSchema), async (req: Request, res: Response, next: NextFunction) => {
+economyRouter.post('/adjust', authMiddleware, adminActionMiddleware({ resource: 'economy' }), validateBody(adjustSchema), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const { playerId, currency, delta, reason } = req.body as z.infer<typeof adjustSchema>;
@@ -279,7 +280,7 @@ economyRouter.post('/market/listings/:id/buy', serviceTokenMiddleware, validateB
 });
 
 // DELETE /api/economy/market/listings/:id — JWT + SUPER_ADMIN
-economyRouter.delete('/market/listings/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+economyRouter.delete('/market/listings/:id', authMiddleware, adminActionMiddleware({ resource: 'economy' }), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const { id } = req.params as { id: string };

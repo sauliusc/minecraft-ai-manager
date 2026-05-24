@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const clansRouter = Router();
@@ -517,7 +518,7 @@ clansRouter.get('/', authMiddleware, async (req: Request, res: Response, next: N
 });
 
 // DELETE /api/clans/:id — JWT + SUPER_ADMIN
-clansRouter.delete('/:id', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+clansRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'clan' }), async (req: Request, res: Response, next: NextFunction) => {
   if (!requireAdmin(req, res)) return;
   try {
     const { id } = req.params as { id: string };

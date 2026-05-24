@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const npcsRouter = Router();
@@ -60,7 +61,7 @@ npcsRouter.get('/:id', authMiddleware, async (req, res, next) => {
 });
 
 // POST /api/npcs — create NPC (SUPER_ADMIN only)
-npcsRouter.post('/', authMiddleware, validateBody(npcSchema), async (req, res, next) => {
+npcsRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'npc' }), validateBody(npcSchema), async (req, res, next) => {
   try {
     if (!requireSuperAdmin(req, res)) return;
     const data = req.body as z.infer<typeof npcSchema>;
@@ -70,7 +71,7 @@ npcsRouter.post('/', authMiddleware, validateBody(npcSchema), async (req, res, n
 });
 
 // PATCH /api/npcs/:id — update NPC (SUPER_ADMIN only)
-npcsRouter.patch('/:id', authMiddleware, validateBody(npcSchema.partial()), async (req, res, next) => {
+npcsRouter.patch('/:id', authMiddleware, adminActionMiddleware({ resource: 'npc' }), validateBody(npcSchema.partial()), async (req, res, next) => {
   try {
     if (!requireSuperAdmin(req, res)) return;
     const data = req.body as Partial<z.infer<typeof npcSchema>>;
@@ -83,7 +84,7 @@ npcsRouter.patch('/:id', authMiddleware, validateBody(npcSchema.partial()), asyn
 });
 
 // DELETE /api/npcs/:id — delete NPC (SUPER_ADMIN only)
-npcsRouter.delete('/:id', authMiddleware, async (req, res, next) => {
+npcsRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'npc' }), async (req, res, next) => {
   try {
     if (!requireSuperAdmin(req, res)) return;
     await prisma.npcDefinition.delete({ where: { id: req.params.id as string } });

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
+import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
 export const cosmeticsRouter = Router();
@@ -39,7 +40,7 @@ cosmeticsRouter.get('/titles', async (req, res, next) => {
 });
 
 // POST /api/cosmetics/titles — JWT SUPER_ADMIN (admin creates titles)
-cosmeticsRouter.post('/titles', authMiddleware, validateBody(titleSchema), async (req, res, next) => {
+cosmeticsRouter.post('/titles', authMiddleware, adminActionMiddleware({ resource: 'cosmetic' }), validateBody(titleSchema), async (req, res, next) => {
   try {
     const user = (req as any).user;
     if (user?.role !== 'SUPER_ADMIN') {
@@ -59,7 +60,7 @@ cosmeticsRouter.post('/titles', authMiddleware, validateBody(titleSchema), async
 });
 
 // DELETE /api/cosmetics/titles/:id — JWT SUPER_ADMIN
-cosmeticsRouter.delete('/titles/:id', authMiddleware, async (req, res, next) => {
+cosmeticsRouter.delete('/titles/:id', authMiddleware, adminActionMiddleware({ resource: 'cosmetic' }), async (req, res, next) => {
   try {
     const user = (req as any).user;
     if (user?.role !== 'SUPER_ADMIN') {
