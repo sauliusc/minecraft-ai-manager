@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import Dockerode from 'dockerode';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { withRcon } from '../lib/rcon.js';
+import { prisma } from '../lib/prisma.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -124,7 +125,7 @@ router.post('/power', async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-  const user = (req as Request & { user: { role: string } }).user;
+  const user = (req as Request & { user: { role: string; email: string } }).user;
   if (user.role !== 'SUPER_ADMIN') {
     res.status(403).json({ error: 'FORBIDDEN', message: 'Power control requires SUPER_ADMIN' });
     return;
@@ -140,6 +141,16 @@ router.post('/power', async (req: Request, res: Response): Promise<void> => {
     if (action === 'start') await container.start();
     else if (action === 'stop') await container.stop({ t: 10 });
     else await container.restart({ t: 10 });
+
+    // Record in update history (fire-and-forget — don't block the response)
+    prisma.deployment.create({
+      data: {
+        imageTag:    info.Id.slice(0, 7),
+        triggeredBy: user.email,
+        action,
+        notes:       `Manual ${action} via admin panel`,
+      },
+    }).catch(() => {});
 
     res.json({ ok: true, action });
   } catch (err) {

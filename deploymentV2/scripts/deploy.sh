@@ -113,6 +113,24 @@ until docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" 
 done
 ok "API is healthy"
 
+# ── Record deployment in update history ───────────────────────────────────────
+step "Recording deployment"
+BRIDGE_SECRET_VAL=$(grep '^BRIDGE_SECRET=' "$ENV_FILE" | cut -d= -f2-)
+ACTOR="${TRIGGERED_BY:-ci}"
+NOTES="${DEPLOY_NOTES:-}"
+docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+  exec -T \
+  -e CC_IMAGE_TAG="${IMAGE_TAG}" \
+  -e CC_ACTOR="${ACTOR}" \
+  -e CC_NOTES="${NOTES}" \
+  -e CC_SECRET="${BRIDGE_SECRET_VAL}" \
+  api node -e "
+    const http = require('http');
+    const body = JSON.stringify({imageTag:process.env.CC_IMAGE_TAG,triggeredBy:process.env.CC_ACTOR,action:'deploy',notes:process.env.CC_NOTES||undefined});
+    const req = http.request({hostname:'localhost',port:3000,path:'/api/deployments',method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+process.env.CC_SECRET,'Content-Length':Buffer.byteLength(body)}},r=>{process.exit(r.statusCode>=200&&r.statusCode<300?0:1)});
+    req.on('error',()=>process.exit(1));req.write(body);req.end();
+  " && ok "Deployment recorded" || warn "Failed to record deployment (non-fatal)"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 source "$ENV_FILE"
 HTTP_PORT="${HTTP_PORT:-80}"

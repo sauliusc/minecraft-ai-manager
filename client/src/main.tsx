@@ -32,6 +32,7 @@ import { Users } from './pages/Users.js';
 import { ActivityLog } from './pages/ActivityLog.js';
 import { PendingActions } from './pages/PendingActions.js';
 import { WeekTheme } from './pages/WeekTheme.js';
+import { UpdateHistory } from './pages/UpdateHistory.js';
 import { NotFound } from './pages/NotFound.js';
 
 const queryClient = new QueryClient({
@@ -66,6 +67,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/cosmetics" element={<Cosmetics />} />
                 <Route path="/clans" element={<Clans />} />
                 <Route path="/server" element={<MinecraftServer />} />
+                <Route path="/updates" element={<UpdateHistory />} />
                 <Route path="/ai" element={<AiConfig />} />
                 <Route path="/ai/week-theme" element={<WeekTheme />} />
 
