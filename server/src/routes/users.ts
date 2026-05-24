@@ -26,8 +26,8 @@ const updateUserSchema = z.object({
   password: z.string().min(8).optional(),
 });
 
-function omitHash(user: any) {
-  const { passwordHash, ...rest } = user;
+function omitHash({ passwordHash: _pw, ...rest }: any) {
+  void _pw;
   return rest;
 }
 

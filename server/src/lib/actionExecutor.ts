@@ -9,7 +9,7 @@ export interface ExecutorResult {
 
 export async function executeStoredAction(
   pendingId: string,
-  reviewerUserId: string
+  _reviewerUserId: string
 ): Promise<ExecutorResult> {
   const pending = await prisma.pendingAction.findUniqueOrThrow({ where: { id: pendingId } });
   const originalUser = await prisma.user.findUniqueOrThrow({ where: { id: pending.userId } });
