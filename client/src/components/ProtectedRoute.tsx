@@ -3,6 +3,16 @@ import { useAuthStore } from '../store/auth.js';
 
 export function ProtectedRoute() {
   const token = useAuthStore((s) => s.accessToken);
+  const hydrating = useAuthStore((s) => s.hydrating);
+
+  if (hydrating) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-100">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-indigo-600" />
+      </div>
+    );
+  }
+
   return token ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
