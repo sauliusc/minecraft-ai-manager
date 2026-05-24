@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .finally(() => {
         setHydrating(false);
       });
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // run once on mount only
 
   return <>{children}</>;
 }
