@@ -35,16 +35,17 @@ public class QuestRepository {
                     List<QuestData> quests = new ArrayList<>();
                     for (var el : arr) {
                         JsonObject o = el.getAsJsonObject();
-                        JsonObject cfg = o.has("config") ? o.getAsJsonObject("config") : new JsonObject();
-                        String catStr = o.has("questCategory") ? o.get("questCategory").getAsString() : "SIDE";
+                        JsonObject cfg = o.has("config") && !o.get("config").isJsonNull() ? o.getAsJsonObject("config") : new JsonObject();
+                        String catStr = o.has("questCategory") && !o.get("questCategory").isJsonNull()
+                            ? o.get("questCategory").getAsString() : "SIDE";
                         QuestCategory cat;
                         try { cat = QuestCategory.valueOf(catStr); } catch (Exception e) { cat = QuestCategory.SIDE; }
                         quests.add(new QuestData(
                             o.get("id").getAsString(),
-                            o.has("title") ? o.get("title").getAsString() : "Quest",
-                            o.has("description") ? o.get("description").getAsString() : "",
+                            o.has("title") && !o.get("title").isJsonNull() ? o.get("title").getAsString() : "Quest",
+                            o.has("description") && !o.get("description").isJsonNull() ? o.get("description").getAsString() : "",
                             cat,
-                            o.has("type") ? o.get("type").getAsString() : "CUSTOM",
+                            o.has("type") && !o.get("type").isJsonNull() ? o.get("type").getAsString() : "CUSTOM",
                             cfg.has("target_material") ? cfg.get("target_material").getAsString() : "",
                             cfg.has("target_entity") ? cfg.get("target_entity").getAsString() : "",
                             cfg.has("target_count") ? cfg.get("target_count").getAsInt() : 1,
