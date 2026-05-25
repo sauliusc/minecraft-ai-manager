@@ -93,21 +93,30 @@ if echo "$MIGRATE_STATUS" | grep -q "P3005"; then
   ok "Baseline complete"
 fi
 
-# P3009: a previous migration started but failed — mark each as rolled-back so migrate deploy retries it.
-# Migrations use IF NOT EXISTS DDL so re-running is safe even if objects were partially created.
-if echo "$MIGRATE_STATUS" | grep -q "P3009"; then
-  warn "Found failed migration(s) — marking as rolled back for retry..."
-  while IFS= read -r failed_name; do
-    [[ -z "$failed_name" ]] && continue
-    info "Resolving failed migration: $failed_name"
-    docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
-      exec -T api npx prisma migrate resolve --rolled-back "$failed_name" || true
-  done < <(echo "$MIGRATE_STATUS" | grep -oP "(?<=The \`)[^\`]+(?=\` migration started at)" || true)
-  ok "Failed migrations resolved — will retry on deploy"
-fi
+# Run migrations; P3009 (a previous migration left a "failed" record in _prisma_migrations)
+# only surfaces in `migrate deploy` output — not in `migrate status` — so we catch it here.
+# Migrations use IF NOT EXISTS DDL, so re-running after resolving as rolled-back is safe.
+_run_migrate_deploy() {
+  docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+    exec -T api npx prisma migrate deploy
+}
 
-docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
-  exec -T api npx prisma migrate deploy
+if ! DEPLOY_OUT=$(_run_migrate_deploy 2>&1); then
+  printf '%s\n' "$DEPLOY_OUT"
+  if echo "$DEPLOY_OUT" | grep -q "P3009"; then
+    warn "P3009: failed migration record detected — resolving and retrying..."
+    while IFS= read -r failed_name; do
+      [[ -z "$failed_name" ]] && continue
+      info "Resolving failed migration: $failed_name"
+      docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+        exec -T api npx prisma migrate resolve --rolled-back "$failed_name" || true
+    done < <(echo "$DEPLOY_OUT" | grep -oP "(?<=The \`)[^\`]+(?=\` migration started at)" || true)
+    ok "Resolved — retrying migrations..."
+    _run_migrate_deploy
+  else
+    exit 1
+  fi
+fi
 ok "Migrations applied"
 
 # ── Wait for API health ───────────────────────────────────────────────────────
