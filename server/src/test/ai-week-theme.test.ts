@@ -166,7 +166,7 @@ describe('generateWeekTheme', () => {
       },
     }) as any);
 
-    await expect(generateWeekTheme('Test', new Date(), [])).rejects.toThrow('Failed to parse LLM response as JSON');
+    await expect(generateWeekTheme('Test', new Date(), [], { retryDelayMs: 0 })).rejects.toThrow('Failed to parse LLM response as JSON');
   });
 
   it('throws when daily challenges count is wrong', async () => {
@@ -183,7 +183,7 @@ describe('generateWeekTheme', () => {
       },
     }) as any);
 
-    await expect(generateWeekTheme('Test', new Date(), [])).rejects.toThrow('Expected 7 daily challenges');
+    await expect(generateWeekTheme('Test', new Date(), [], { retryDelayMs: 0 })).rejects.toThrow('Expected 7 daily challenges');
   });
 
   it('throws when rewards count is wrong', async () => {
@@ -200,7 +200,7 @@ describe('generateWeekTheme', () => {
       },
     }) as any);
 
-    await expect(generateWeekTheme('Test', new Date(), [])).rejects.toThrow('Expected 4 rewards');
+    await expect(generateWeekTheme('Test', new Date(), [], { retryDelayMs: 0 })).rejects.toThrow('Expected 4 rewards');
   });
 
   it('throws when NPC dialogue lines count is wrong', async () => {
@@ -220,7 +220,7 @@ describe('generateWeekTheme', () => {
       },
     }) as any);
 
-    await expect(generateWeekTheme('Test', new Date(), [])).rejects.toThrow('Expected 5 NPC dialogue lines');
+    await expect(generateWeekTheme('Test', new Date(), [], { retryDelayMs: 0 })).rejects.toThrow('Expected 5 NPC dialogue lines');
   });
 
   it('strips markdown code fences from LLM response', async () => {
