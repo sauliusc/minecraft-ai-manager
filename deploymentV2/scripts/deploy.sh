@@ -93,6 +93,19 @@ if echo "$MIGRATE_STATUS" | grep -q "P3005"; then
   ok "Baseline complete"
 fi
 
+# P3009: a previous migration started but failed — mark each as rolled-back so migrate deploy retries it.
+# Migrations use IF NOT EXISTS DDL so re-running is safe even if objects were partially created.
+if echo "$MIGRATE_STATUS" | grep -q "P3009"; then
+  warn "Found failed migration(s) — marking as rolled back for retry..."
+  while IFS= read -r failed_name; do
+    [[ -z "$failed_name" ]] && continue
+    info "Resolving failed migration: $failed_name"
+    docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
+      exec -T api npx prisma migrate resolve --rolled-back "$failed_name" || true
+  done < <(echo "$MIGRATE_STATUS" | grep -oP "(?<=The \`)[^\`]+(?=\` migration started at)" || true)
+  ok "Failed migrations resolved — will retry on deploy"
+fi
+
 docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
   exec -T api npx prisma migrate deploy
 ok "Migrations applied"

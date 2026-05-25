@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "Deployment" (
+CREATE TABLE IF NOT EXISTS "Deployment" (
     "id" TEXT NOT NULL,
     "imageTag" TEXT NOT NULL,
     "triggeredBy" TEXT NOT NULL,
@@ -11,4 +11,4 @@ CREATE TABLE "Deployment" (
 );
 
 -- CreateIndex
-CREATE INDEX "Deployment_createdAt_idx" ON "Deployment"("createdAt");
+CREATE INDEX IF NOT EXISTS "Deployment_createdAt_idx" ON "Deployment"("createdAt");
