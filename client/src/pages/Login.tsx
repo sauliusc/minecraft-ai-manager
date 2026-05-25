@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { useAuthStore } from '../store/auth.js';
 
+const SERVER_ADDRESS = '78.63.139.139';
+
 export function Login() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
@@ -11,12 +13,20 @@ export function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [registerAvailable, setRegisterAvailable] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     axios.get('/api/auth/register-available').then((r) => {
       setRegisterAvailable(r.data.available === true);
     }).catch(() => {});
   }, []);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(SERVER_ADDRESS).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -34,7 +44,27 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 gap-4 px-4">
+
+      {/* ── Minecraft server address card ── */}
+      <div className="bg-white rounded-lg shadow p-6 w-full max-w-sm text-center border-t-4 border-green-500">
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <span className="text-2xl">⛏</span>
+          <h2 className="text-lg font-bold text-gray-800">Join the Server</h2>
+        </div>
+        <p className="text-sm text-gray-500 mb-3">Open Minecraft → Multiplayer → Add Server</p>
+        <div className="flex items-center justify-between bg-gray-100 rounded px-3 py-2 font-mono text-base font-semibold text-gray-800">
+          <span>{SERVER_ADDRESS}</span>
+          <button
+            onClick={handleCopy}
+            className="ml-3 text-xs font-sans font-medium text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            {copied ? '✓ Copied!' : 'Copy'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Admin login card ── */}
       <div className="bg-white rounded-lg shadow p-8 w-full max-w-sm">
         <h1 className="text-2xl font-bold text-gray-800 mb-6">CraftControl</h1>
         {registerAvailable && (
