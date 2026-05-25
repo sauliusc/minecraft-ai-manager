@@ -39,7 +39,24 @@ npcsRouter.get('/sync', async (req, res, next) => {
       return;
     }
     const npcs = await prisma.npcDefinition.findMany({ orderBy: { createdAt: 'asc' } });
-    res.json(npcs);
+
+    // Enrich each NPC with questTitles so the plugin can display names instead of raw IDs
+    const allQuestIds = npcs.flatMap((n: any) => n.questIds ?? []);
+    const titleMap = new Map<string, string>();
+    if (allQuestIds.length > 0) {
+      const challenges = await prisma.challenge.findMany({
+        where: { id: { in: allQuestIds } },
+        select: { id: true, title: true },
+      });
+      for (const c of challenges) titleMap.set(c.id, c.title);
+    }
+
+    const result = npcs.map((n: any) => ({
+      ...n,
+      questTitles: (n.questIds ?? []).map((id: string) => titleMap.get(id) ?? id),
+    }));
+
+    res.json(result);
   } catch (err) { next(err); }
 });
 
@@ -102,7 +119,8 @@ npcsRouter.get('/:npcId/relationship/:playerId', authMiddleware, async (req, res
       create: { playerId, npcId, completedQuestIds: [] },
       update: {},
     });
-    res.json(relationship);
+    // Include tier (= number of completed quests) so the plugin can unlock quests in order
+    res.json({ ...relationship, tier: (relationship.completedQuestIds ?? []).length });
   } catch (err) { next(err); }
 });
 
