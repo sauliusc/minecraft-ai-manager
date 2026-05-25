@@ -26,6 +26,11 @@ public class NpcListener implements Listener {
     private final NpcPlugin plugin;
     private static final MiniMessage MM = MiniMessage.miniMessage();
 
+    /** Cached active event title — shared across all NPC interactions, refreshed every 5 seconds. */
+    private volatile String cachedEventTitle = null;
+    private volatile long cacheExpiry = 0L;
+    private volatile boolean fetchInFlight = false;
+
     public NpcListener(NpcManager npcManager, NpcPlugin plugin) {
         this.npcManager = npcManager;
         this.plugin = plugin;
@@ -39,24 +44,44 @@ public class NpcListener implements Listener {
         event.setCancelled(true);
         Player player = event.getPlayer();
 
+        long now = System.currentTimeMillis();
+        if (now < cacheExpiry) {
+            // Cache is still valid — use it immediately without an HTTP call
+            handleAfterEvents(player, def, cachedEventTitle);
+            return;
+        }
+
         if (BridgePlugin.getInstance() != null) {
+            // If another interaction already kicked off a fetch, use the stale cached value
+            // rather than piling on another concurrent request.
+            if (fetchInFlight) {
+                handleAfterEvents(player, def, cachedEventTitle);
+                return;
+            }
+            fetchInFlight = true;
             BridgePlugin.getInstance().getApiClient().get("/events/active", new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    handleAfterEvents(player, def, null);
+                    fetchInFlight = false;
+                    handleAfterEvents(player, def, cachedEventTitle);
                 }
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
-                    String activeEventTitle = null;
+                    String activeEventTitle = cachedEventTitle;
                     try (response) {
                         if (response.isSuccessful() && response.body() != null) {
                             JsonArray arr = JsonParser.parseString(response.body().string()).getAsJsonArray();
                             if (arr.size() > 0) {
                                 JsonObject first = arr.get(0).getAsJsonObject();
                                 activeEventTitle = first.has("title") ? first.get("title").getAsString() : null;
+                            } else {
+                                activeEventTitle = null;
                             }
                         }
                     } catch (Exception ignored) {}
+                    cachedEventTitle = activeEventTitle;
+                    cacheExpiry = System.currentTimeMillis() + 5_000L; // 5-second TTL
+                    fetchInFlight = false;
                     final String eventTitle = activeEventTitle;
                     handleAfterEvents(player, def, eventTitle);
                 }
@@ -125,15 +150,19 @@ public class NpcListener implements Listener {
         List<String> questIds = def.questIds;
         if (questIds == null || questIds.isEmpty()) return;
 
+        // Use human-readable titles when available; fall back to raw ID if titles not synced yet
+        List<String> titles = (def.questTitles != null && def.questTitles.size() == questIds.size())
+            ? def.questTitles : questIds;
+
         player.sendMessage(MM.deserialize("<gold>— Quests —</gold>"));
         for (int i = 0; i < questIds.size(); i++) {
-            String questId = questIds.get(i);
+            String label = titles.get(i);
             if (i < tier) {
-                player.sendMessage(MM.deserialize("<gray>✓ <strikethrough>" + questId + "</strikethrough> <dark_gray>(completed)"));
+                player.sendMessage(MM.deserialize("<gray>✓ <strikethrough>" + label + "</strikethrough> <dark_gray>(completed)"));
             } else if (i == tier) {
-                player.sendMessage(MM.deserialize("<green>➤ " + questId + " <yellow>(available)"));
+                player.sendMessage(MM.deserialize("<green>➤ " + label + " <yellow>(available)"));
             } else {
-                player.sendMessage(MM.deserialize("<dark_gray>🔒 " + questId + " <gray>(locked — complete previous quest first)"));
+                player.sendMessage(MM.deserialize("<dark_gray>🔒 " + label + " <gray>(locked — complete previous quest first)"));
             }
         }
         if (tier >= questIds.size()) {

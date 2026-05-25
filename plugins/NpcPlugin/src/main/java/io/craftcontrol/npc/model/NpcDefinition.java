@@ -13,4 +13,6 @@ public class NpcDefinition {
     public String type; // GUIDE, QUEST_GIVER, MERCHANT
     public List<String> dialogueLines;
     public List<String> questIds;
+    /** Human-readable quest names aligned by index with questIds (populated by /npcs/sync). */
+    public List<String> questTitles;
 }
