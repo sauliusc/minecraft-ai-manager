@@ -330,19 +330,19 @@ export interface WeekThemePayload {
 export async function generateWeekTheme(
   theme: string,
   startDate: Date,
-  existingChallengeTitles: string[]
+  existingChallengeTitles: string[],
+  { retryDelayMs = 2000 }: { retryDelayMs?: number } = {}
 ): Promise<WeekThemePayload> {
   const cfg = await getAiConfig();
   const model = resolveModel(cfg, 'generator');
 
   const endDate = new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-  const raw = await callLLM(cfg, {
-    model,
-    maxTokens: 4000,
-    system: `You are a Minecraft server content creator. Generate a full week-theme content package for a Paper 1.21 Minecraft server.
-Always respond with valid JSON only — no markdown, no explanation outside the JSON object.`,
-    user: `Generate a complete week theme content package for the theme: "${theme}"
+  const systemPrompt = `You are a Minecraft server content creator. Generate a full week-theme content package for a Paper 1.21 Minecraft server.
+Always respond with valid, complete JSON only — no markdown fences, no explanation, no trailing text.
+Every JSON object MUST be properly closed with a matching } before the next element begins.`;
+
+  const userPrompt = `Generate a complete week theme content package for the theme: "${theme}"
 
 Start date: ${startDate.toISOString()}
 End date: ${endDate.toISOString()}
@@ -354,7 +354,7 @@ Return a single JSON object with exactly this structure:
 {
   "description": "2-3 sentence flavour blurb about the theme",
   "event": {
-    "type": "BOSS_RAID" | "TREASURE_HUNT" | "BUILD_BATTLE" | "CLAN_WAR",
+    "type": "BOSS_RAID",
     "title": "string",
     "config": {}
   },
@@ -363,70 +363,91 @@ Return a single JSON object with exactly this structure:
       "dayOffset": 0,
       "title": "string",
       "description": "string",
-      "type": "BLOCK_BREAK" | "KILL_MOB" | "CRAFT_ITEM" | "TRAVEL" | "CUSTOM",
-      "difficulty": 1-4,
-      "config": {}
+      "type": "BLOCK_BREAK",
+      "difficulty": 1,
+      "config": { "block": "STONE", "amount": 100 }
     }
-    // exactly 7 entries, dayOffset 0 (Monday) through 6 (Sunday)
   ],
   "weeklyChallenge": {
     "title": "string",
     "description": "string",
-    "type": "BLOCK_BREAK" | "KILL_MOB" | "CRAFT_ITEM" | "TRAVEL" | "CUSTOM",
+    "type": "KILL_MOB",
     "difficulty": 5,
-    "config": {}
+    "config": { "mob": "ZOMBIE", "amount": 50 }
   },
   "npc": {
     "name": "string",
     "title": "string",
-    "type": "GUIDE" | "QUEST_GIVER" | "MERCHANT",
+    "type": "GUIDE",
     "dialogueLines": ["line1", "line2", "line3", "line4", "line5"]
   },
   "rewards": [
     {
       "name": "string",
-      "type": "ITEM" | "XP" | "COMMAND" | "CURRENCY" | "MYSTERY_BOX",
-      "rarity": "COMMON" | "RARE" | "EPIC" | "LEGENDARY",
-      "config": {}
+      "type": "ITEM",
+      "rarity": "COMMON",
+      "config": { "material": "DIAMOND", "amount": 1 }
     }
-    // exactly 4 rewards
   ],
-  "announcementText": "/say or /title command string for the announcement"
+  "announcementText": "string"
 }
 
-Config shapes per challenge type:
-- BLOCK_BREAK: { "block": "STONE", "amount": 100 }
-- KILL_MOB: { "mob": "ZOMBIE", "amount": 20 }
-- CRAFT_ITEM: { "item": "IRON_SWORD", "amount": 1 }
-- TRAVEL: { "distance": 1000 }
-- CUSTOM: { "metric": "string", "target": 1 }
+Rules:
+- event.type must be one of: BOSS_RAID, TREASURE_HUNT, BUILD_BATTLE, CLAN_WAR
+- dailyChallenges: exactly 7 objects, dayOffset 0 (Monday) through 6 (Sunday)
+- each challenge type is one of: BLOCK_BREAK, KILL_MOB, CRAFT_ITEM, TRAVEL, CUSTOM
+- npc.type is one of: GUIDE, QUEST_GIVER, MERCHANT
+- npc.dialogueLines: exactly 5 strings
+- rewards: exactly 4 objects; type is one of: ITEM, XP, COMMAND, CURRENCY, MYSTERY_BOX
+- reward rarity is one of: COMMON, RARE, EPIC, LEGENDARY
+- All content must be thematically consistent with: "${theme}"`;
 
-Requirements:
-- dailyChallenges must have exactly 7 entries with dayOffset 0-6
-- npc.dialogueLines must have exactly 5 lines
-- rewards must have exactly 4 entries
-- All content must be thematically consistent with: "${theme}"`,
-  });
+  const MAX_ATTEMPTS = 3;
+  let lastError: Error | null = null;
 
-  let parsed: WeekThemePayload;
-  try {
-    parsed = JSON.parse(stripJsonFences(raw));
-  } catch (err) {
-    throw new Error(`Failed to parse LLM response as JSON: ${String(err)}\nRaw response: ${raw.slice(0, 500)}`);
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let raw: string;
+    try {
+      raw = await callLLM(cfg, { model, maxTokens: 8000, system: systemPrompt, user: userPrompt });
+    } catch (err) {
+      throw err; // network/API errors are not retryable
+    }
+
+    let parsed: WeekThemePayload;
+    try {
+      parsed = JSON.parse(stripJsonFences(raw));
+    } catch (err) {
+      lastError = new Error(`Failed to parse LLM response as JSON (attempt ${attempt}/${MAX_ATTEMPTS}): ${String(err)}\nRaw response: ${raw.slice(0, 500)}`);
+      if (attempt < MAX_ATTEMPTS) {
+        if (retryDelayMs > 0) await new Promise((r) => setTimeout(r, attempt * retryDelayMs));
+        continue;
+      }
+      throw lastError;
+    }
+
+    // Validate counts — if wrong, retry so the LLM gets another chance
+    const dcLen = parsed.dailyChallenges?.length ?? 0;
+    const rwLen = parsed.rewards?.length ?? 0;
+    const dlLen = parsed.npc?.dialogueLines?.length ?? 0;
+    if (dcLen !== 7) {
+      lastError = new Error(`Expected 7 daily challenges, got ${dcLen} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+    } else if (rwLen !== 4) {
+      lastError = new Error(`Expected 4 rewards, got ${rwLen} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+    } else if (dlLen !== 5) {
+      lastError = new Error(`Expected 5 NPC dialogue lines, got ${dlLen} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+    }
+    if (lastError) {
+      if (attempt < MAX_ATTEMPTS) {
+        if (retryDelayMs > 0) await new Promise((r) => setTimeout(r, attempt * retryDelayMs));
+        continue;
+      }
+      throw lastError;
+    }
+
+    return parsed;
   }
 
-  // Validate structure
-  if (!parsed.dailyChallenges || parsed.dailyChallenges.length !== 7) {
-    throw new Error(`Expected 7 daily challenges, got ${parsed.dailyChallenges?.length ?? 0}`);
-  }
-  if (!parsed.rewards || parsed.rewards.length !== 4) {
-    throw new Error(`Expected 4 rewards, got ${parsed.rewards?.length ?? 0}`);
-  }
-  if (!parsed.npc?.dialogueLines || parsed.npc.dialogueLines.length !== 5) {
-    throw new Error(`Expected 5 NPC dialogue lines, got ${parsed.npc?.dialogueLines?.length ?? 0}`);
-  }
-
-  return parsed;
+  throw lastError!;
 }
 
 // ── Chat Moderation Scanner ────────────────────────────────────────────────────
