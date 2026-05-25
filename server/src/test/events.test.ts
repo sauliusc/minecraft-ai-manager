@@ -245,7 +245,7 @@ describe('GET /api/events/upcoming', () => {
     expect(res.body).toEqual([]);
   });
 
-  it('queries state in UPCOMING and ACTIVE with lte lookahead', async () => {
+  it('queries using OR with lookback+lookahead for UPCOMING and unrestricted ACTIVE', async () => {
     vi.mocked(prisma.gameEvent.findMany).mockResolvedValueOnce([] as any);
 
     await request(app)
@@ -255,11 +255,34 @@ describe('GET /api/events/upcoming', () => {
     expect(prisma.gameEvent.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          state: { in: ['UPCOMING', 'ACTIVE'] },
-          scheduledAt: expect.objectContaining({ lte: expect.any(Date) }),
+          OR: expect.arrayContaining([
+            { state: 'ACTIVE' },
+            expect.objectContaining({
+              state: 'UPCOMING',
+              scheduledAt: expect.objectContaining({ gte: expect.any(Date), lte: expect.any(Date) }),
+            }),
+          ]),
         }),
       })
     );
+  });
+
+  it('does not return stale UPCOMING events older than 15 min (handled by lookback filter)', async () => {
+    // A stale event scheduled 2 hours ago — should NOT appear (filtered by gte: lookback)
+    // We verify the query includes a gte bound so the DB filters it out
+    vi.mocked(prisma.gameEvent.findMany).mockResolvedValueOnce([] as any);
+
+    await request(app)
+      .get('/api/events/upcoming')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`);
+
+    const call = vi.mocked(prisma.gameEvent.findMany).mock.calls[0][0] as any;
+    const upcomingClause = call.where.OR.find((c: any) => c.state === 'UPCOMING');
+    expect(upcomingClause).toBeDefined();
+    // gte should be ~15 min ago (within 30 s tolerance)
+    const now = Date.now();
+    expect(upcomingClause.scheduledAt.gte.getTime()).toBeGreaterThan(now - 16 * 60 * 1000);
+    expect(upcomingClause.scheduledAt.gte.getTime()).toBeLessThan(now - 14 * 60 * 1000);
   });
 
   it('returns 403 with JWT token', async () => {

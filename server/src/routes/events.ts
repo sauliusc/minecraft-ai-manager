@@ -80,10 +80,22 @@ eventsRouter.get('/upcoming', serviceTokenMiddleware, async (_req, res, next) =>
   try {
     const now = new Date();
     const lookahead = new Date(now.getTime() + 35 * 60 * 1000); // 35 min ahead
+    const lookback  = new Date(now.getTime() - 15 * 60 * 1000); // 15 min grace window
+
+    // Return:
+    //  - ACTIVE events regardless of time (for resumption tracking)
+    //  - UPCOMING events scheduled within the last 15 min or the next 35 min
+    //    (events more than 15 min overdue are considered missed/stale and
+    //     must NOT be auto-spawned on server restart)
     const events = await prisma.gameEvent.findMany({
       where: {
-        state: { in: ['UPCOMING', 'ACTIVE'] },
-        scheduledAt: { lte: lookahead },
+        OR: [
+          { state: 'ACTIVE' },
+          {
+            state: 'UPCOMING',
+            scheduledAt: { gte: lookback, lte: lookahead },
+          },
+        ],
       },
       orderBy: { scheduledAt: 'asc' },
     });
