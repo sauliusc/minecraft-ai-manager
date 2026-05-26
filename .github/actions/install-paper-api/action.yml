@@ -4,25 +4,25 @@ description: >
   builds an uber-JAR with Adventure classes, and installs it into the local
   Maven repository so plugin builds work on GitHub-hosted runners (which
   cannot reach repo.papermc.io).
+  settings.xml is written ONLY after the JAR is confirmed installed, so a
+  failed download never leaves Maven pointing at an empty local mirror.
 
 runs:
   using: composite
   steps:
     - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
-      continue-on-error: true
       shell: bash
       run: |
         set -euo pipefail
-        STEP="init"
-        trap 'echo "::warning::pre-install failed at step=$STEP — custom plugins will not be compiled"' ERR
 
         PAPER_VERSION="26.1.2-R0.1-SNAPSHOT"
+        MC_VERSION="26.1.2"
         PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}/paper-api-${PAPER_VERSION}.jar"
 
-        # Always write settings.xml so Maven mirrors point to local repo for papermc/spigotmc
-        STEP="write-settings"
-        mkdir -p ~/.m2
-        cat > ~/.m2/settings.xml << 'SETTINGS'
+        # ── Helper: write settings.xml so Maven uses the local file mirror ──
+        write_settings() {
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml << 'SETTINGS'
         <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
           <mirrors>
             <mirror>
@@ -38,68 +38,68 @@ runs:
           </mirrors>
         </settings>
         SETTINGS
+        }
 
+        # ── Cache hit: JAR already in local repo ──────────────────────────────
         if [ -f "$PAPER_INSTALLED" ]; then
-          echo "::notice::step=cache-hit Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), skipping download"
+          echo "::notice::Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), writing settings.xml and skipping download"
+          write_settings
           exit 0
         fi
 
-        STEP="fetch-build-info"
-        BUILD_INFO=$(curl -sf --max-time 20 "https://api.papermc.io/v2/projects/paper/versions/26.1.2/builds")
+        # ── Fetch build info ──────────────────────────────────────────────────
+        echo "Fetching Paper build info for MC ${MC_VERSION}…"
+        BUILD_INFO=$(curl -sf --max-time 20 \
+          "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds") || {
+          echo "::error::PaperMC API returned an error for version '${MC_VERSION}'."
+          echo "::error::Check https://api.papermc.io/v2/projects/paper/versions to see available versions."
+          exit 1
+        }
         BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
         FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
-        URL="https://api.papermc.io/v2/projects/paper/versions/26.1.2/builds/${BUILD}/downloads/${FILENAME}"
-        echo "::notice::step=fetch-build-info build=$BUILD filename=$FILENAME"
+        URL="https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/${FILENAME}"
+        echo "::notice::build=$BUILD filename=$FILENAME"
 
-        STEP="download-bundler"
+        # ── Download Paperclip bundler ────────────────────────────────────────
         wget -q "$URL" -O paperclip.jar
-        echo "::notice::step=download-bundler size=$(du -sh paperclip.jar | cut -f1)"
+        echo "::notice::downloaded size=$(du -sh paperclip.jar | cut -f1)"
 
-        STEP="extract-libraries"
+        # ── Extract paper-api + Adventure JARs from bundler ──────────────────
         WORKSPACE=$(pwd)
         mkdir -p /tmp/paper-extract
         cd /tmp/paper-extract
         ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
           | grep -E "META-INF/libraries/.*\.jar$" \
           | grep -Ev "sources|javadoc" || true)
-        ENTRY_COUNT=$(echo "$ENTRIES" | grep -c "." || echo 0)
-        echo "::notice::step=list-bundler relevant_jars=$ENTRY_COUNT"
         while IFS= read -r entry; do
           [ -n "$entry" ] || continue
           jar xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
         done <<< "$ENTRIES"
         cd -
-        LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l || echo 0)
-        echo "::notice::step=extract-libraries lib_jars=$LIB_COUNT"
 
-        STEP="find-paper-api"
+        # ── Find paper-api JAR ────────────────────────────────────────────────
         PAPER_API_JAR=$(find /tmp/paper-extract -name "paper-api-*.jar" \
           ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null | head -1 || true)
-        echo "::notice::step=find-paper-api jar=${PAPER_API_JAR:-NONE}"
-        [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found in bundler"; exit 1; }
+        echo "::notice::paper-api jar=${PAPER_API_JAR:-NONE}"
+        if [ -z "$PAPER_API_JAR" ]; then
+          echo "::error::paper-api JAR not found inside Paperclip bundler for version ${MC_VERSION}"
+          exit 1
+        fi
 
-        STEP="build-uber-jar"
+        # ── Build uber-JAR (paper-api + Adventure classes) ────────────────────
         mkdir -p /tmp/uber-api
         cd /tmp/uber-api
         jar xf "$PAPER_API_JAR"
-        KYORI=0
         while IFS= read -r ajar; do
           jar xf "$ajar" 2>/dev/null || true
-          KYORI=$((KYORI + 1))
         done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
           ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
         cd -
         jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
         rm paperclip.jar
-        echo "::notice::step=build-uber-jar kyori_jars=$KYORI size=$(du -sh /tmp/paper-api-uber.jar)"
+        echo "::notice::uber-jar size=$(du -sh /tmp/paper-api-uber.jar)"
 
-        STEP="verify-uber-jar"
-        BUKKIT=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "^org/bukkit" || true)
-        CFG=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
-        ADV=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "net/kyori/adventure" || true)
-        echo "::notice::step=verify bukkit=$BUKKIT config=$CFG adventure=$ADV"
-
-        STEP="mvn-install"
+        # ── Install into local Maven repo ─────────────────────────────────────
         mvn install:install-file \
           -Dfile="/tmp/paper-api-uber.jar" \
           -DgroupId=io.papermc.paper \
@@ -108,18 +108,22 @@ runs:
           -Dpackaging=jar \
           -DgeneratePom=true \
           --no-transfer-progress
-        echo "::notice::step=done installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
+
+        echo "::notice::installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
+
+        # ── Write settings.xml NOW — JAR is confirmed present ─────────────────
+        # IMPORTANT: settings.xml is written here, AFTER successful installation.
+        # If it were written earlier and the download failed, Maven would point at
+        # an empty local mirror and cache a negative resolution result.
+        write_settings
+        echo "::notice::settings.xml written — Maven will use local mirror for papermc/spigotmc repos"
 
     - name: Pre-install BungeeCord Chat stubs (not in Paper bundler)
-      continue-on-error: true
       shell: bash
       run: |
         set -euo pipefail
-        # bungeecord-chat:26.1.2-R0.1-SNAPSHOT is Paper's private build at repo.papermc.io
-        # (blocked on GHA runners) and is absent from the Paperclip bundler libraries.
-        # paper-api method signatures reference these types, so the compiler needs them.
-        # We create minimal compile-only stubs; they are 'provided' scope and never
-        # shipped in plugin JARs.
+        # bungeecord-chat is Paper's private build at repo.papermc.io (blocked on GHA runners)
+        # and is absent from the Paperclip bundler. We create minimal compile-only stubs.
         rm -rf ~/.m2/repository/net/md_5/bungee/bungeecord-chat 2>/dev/null || true
 
         mkdir -p /tmp/bungee-src/net/md_5/bungee/api/chat \
@@ -220,7 +224,7 @@ runs:
           /tmp/bungee-src/net/md_5/bungee/api/chat/ComponentBuilder.java \
           /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java
         jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
-        echo "::notice::step=bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
+        echo "::notice::bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
         mvn install:install-file \
           -Dfile="/tmp/bungeecord-chat-stub.jar" \
           -DgroupId=net.md_5.bungee \

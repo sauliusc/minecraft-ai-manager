@@ -86,6 +86,9 @@ jobs:
       - name: Install Paper API + BungeeCord stubs
         uses: ./.github/actions/install-paper-api
 
+      - name: Clear Maven negative-cache entries before build
+        run: find ~/.m2 -name "*.lastUpdated" -delete 2>/dev/null || true
+
       - name: Build plugin JARs
         run: mvn -f plugins/pom.xml clean package -DskipTests -q
 
