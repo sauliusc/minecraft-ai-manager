@@ -83,6 +83,9 @@ jobs:
           distribution: temurin
           cache: maven
 
+      - name: Install Paper API + BungeeCord stubs
+        uses: ./.github/actions/install-paper-api
+
       - name: Build plugin JARs
         run: mvn -f plugins/pom.xml clean package -DskipTests -q
 
