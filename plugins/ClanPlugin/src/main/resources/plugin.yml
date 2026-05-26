@@ -1,7 +1,7 @@
 name: ClanPlugin
 version: 1.0.0
 main: io.craftcontrol.clan.ClanPlugin
-api-version: '1.21'
+api-version: '26.1'
 depend:
   - BridgePlugin
 description: Clan system for CraftControl

@@ -1,7 +1,7 @@
 name: VotePlugin
 version: '${project.version}'
 main: io.craftcontrol.vote.VotePlugin
-api-version: '1.21'
+api-version: '26.1'
 depend:
   - BridgePlugin
 description: Server vote links and vote reward claiming for CraftControl
