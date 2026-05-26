@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authMiddleware } from '../middleware/auth.middleware.js';
+import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
@@ -110,7 +110,8 @@ npcsRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'npc
 });
 
 // GET /api/npcs/:npcId/relationship/:playerId — get or create PlayerNpcRelationship
-npcsRouter.get('/:npcId/relationship/:playerId', authMiddleware, async (req, res, next) => {
+// Plugin uses service token; this must not use authMiddleware (JWT) as the plugin has no user token
+npcsRouter.get('/:npcId/relationship/:playerId', serviceTokenMiddleware, async (req, res, next) => {
   try {
     const npcId = req.params.npcId as string;
     const playerId = req.params.playerId as string;
@@ -126,7 +127,8 @@ npcsRouter.get('/:npcId/relationship/:playerId', authMiddleware, async (req, res
 
 // POST /api/npcs/:npcId/relationship/:playerId/quest-complete
 // body: { questId: string } — increment score by 10, add questId to completedQuestIds
-npcsRouter.post('/:npcId/relationship/:playerId/quest-complete', authMiddleware, async (req, res, next) => {
+// Plugin uses service token; this must not use authMiddleware (JWT) as the plugin has no user token
+npcsRouter.post('/:npcId/relationship/:playerId/quest-complete', serviceTokenMiddleware, async (req, res, next) => {
   try {
     const npcId = req.params.npcId as string;
     const playerId = req.params.playerId as string;

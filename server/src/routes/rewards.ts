@@ -158,11 +158,12 @@ rewardsRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'rewar
 });
 
 // GET /api/rewards/pending/:playerId — serviceTokenMiddleware
+// Only returns undelivered rewards (deliveredAt IS NULL) to prevent re-delivery on every login
 rewardsRouter.get('/pending/:playerId', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const playerId = req.params.playerId as string;
     const records = await prisma.playerReward.findMany({
-      where: { playerId },
+      where: { playerId, deliveredAt: null },
       orderBy: { grantedAt: 'desc' },
       take: 10,
       include: { reward: true },
@@ -182,6 +183,25 @@ rewardsRouter.get('/pending/:playerId', serviceTokenMiddleware, async (req: Requ
 
     res.json(result);
   } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/rewards/:grantId/delivered — serviceTokenMiddleware
+// Plugin calls this after successfully delivering a reward to stamp deliveredAt
+rewardsRouter.patch('/:grantId/delivered', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const grantId = req.params.grantId as string;
+    await prisma.playerReward.update({
+      where: { id: grantId },
+      data: { deliveredAt: new Date() },
+    });
+    res.status(204).send();
+  } catch (err: any) {
+    if (err?.code === 'P2025') {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Reward grant not found', statusCode: 404 });
+      return;
+    }
     next(err);
   }
 });

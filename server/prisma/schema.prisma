@@ -69,15 +69,17 @@ model Reward {
 }
 
 model PlayerReward {
-  id        String   @id @default(cuid())
-  playerId  String
-  rewardId  String
-  grantedAt DateTime @default(now())
-  grantedBy String
-  player    Player   @relation(fields: [playerId], references: [username], onDelete: Cascade)
-  reward    Reward   @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  id          String    @id @default(cuid())
+  playerId    String
+  rewardId    String
+  grantedAt   DateTime  @default(now())
+  grantedBy   String
+  deliveredAt DateTime?
+  player      Player    @relation(fields: [playerId], references: [username], onDelete: Cascade)
+  reward      Reward    @relation(fields: [rewardId], references: [id], onDelete: Restrict)
 
   @@index([playerId])
+  @@index([playerId, deliveredAt])
 }
 
 model User {
