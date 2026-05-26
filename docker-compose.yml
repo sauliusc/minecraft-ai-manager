@@ -116,7 +116,7 @@ services:
     environment:
       EULA:          "TRUE"
       TYPE:          PAPER
-      VERSION:       "1.21.4"
+      VERSION:       "1.21.11"
       MEMORY:        ${MINECRAFT_MEMORY:-4G}
       ENABLE_RCON:   "true"
       RCON_PORT:     ${RCON_PORT:-25575}
