@@ -38,7 +38,9 @@ public class RewardListener implements Listener {
                     return;
                 }
                 try (response) {
-                    JsonArray grants = gson.fromJson(response.body().string(), JsonArray.class);
+                    JsonElement parsed = gson.fromJson(response.body().string(), JsonElement.class);
+                    if (parsed == null || !parsed.isJsonArray()) return;
+                    JsonArray grants = parsed.getAsJsonArray();
                     for (JsonElement el : grants) {
                         JsonObject g = el.getAsJsonObject();
                         RewardGrant grant = new RewardGrant(
@@ -55,7 +57,11 @@ public class RewardListener implements Listener {
                         RewardPlugin.getInstance().getServer().getScheduler().runTask(
                             RewardPlugin.getInstance(),
                             () -> {
-                                if (player.isOnline()) delivery.deliver(player, grant);
+                                if (player.isOnline()) {
+                                    delivery.deliver(player, grant);
+                                    // Stamp deliveredAt so this reward is not re-delivered on next login
+                                    acknowledgeDelivery(api, grant.grantId());
+                                }
                             }
                         );
                     }
@@ -67,6 +73,23 @@ public class RewardListener implements Listener {
             @Override
             public void onFailure(Call call, IOException e) {
                 log.warning("Failed to fetch pending rewards for " + playerId);
+            }
+        });
+    }
+
+    /** Calls PATCH /rewards/{grantId}/delivered so the server stamps deliveredAt. */
+    private void acknowledgeDelivery(ApiClient api, String grantId) {
+        api.patch("/rewards/" + grantId + "/delivered", "{}", new Callback() {
+            @Override
+            public void onResponse(Call call, Response response) {
+                response.close();
+                if (!response.isSuccessful()) {
+                    log.warning("Failed to acknowledge reward delivery for grant " + grantId + ": HTTP " + response.code());
+                }
+            }
+            @Override
+            public void onFailure(Call call, IOException e) {
+                log.warning("Failed to acknowledge reward delivery for grant " + grantId + ": " + e.getMessage());
             }
         });
     }
