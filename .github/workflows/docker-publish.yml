@@ -125,18 +125,16 @@ jobs:
           cache: maven
 
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
-        continue-on-error: true
         run: |
           set -euo pipefail
-          STEP="init"
-          trap 'echo "::warning::pre-install failed at step=$STEP — custom plugins will not be compiled"' ERR
 
-          PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/26.1.2-R0.1-SNAPSHOT/paper-api-26.1.2-R0.1-SNAPSHOT.jar"
+          PAPER_VERSION="26.1.2-R0.1-SNAPSHOT"
+          MC_VERSION="26.1.2"
+          PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}/paper-api-${PAPER_VERSION}.jar"
 
-          # Always write settings.xml so Maven mirrors point to local repo for papermc/spigotmc
-          STEP="write-settings"
-          mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'SETTINGS'
+          write_settings() {
+            mkdir -p ~/.m2
+            cat > ~/.m2/settings.xml << 'SETTINGS'
           <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0">
             <mirrors>
               <mirror>
@@ -152,83 +150,72 @@ jobs:
             </mirrors>
           </settings>
           SETTINGS
+          }
 
           if [ -f "$PAPER_INSTALLED" ]; then
-            echo "::notice::step=cache-hit Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), skipping download"
+            echo "::notice::Paper API already installed, writing settings.xml and skipping download"
+            write_settings
             exit 0
           fi
 
-          STEP="fetch-build-info"
-          BUILD_INFO=$(curl -sf --max-time 20 "https://api.papermc.io/v2/projects/paper/versions/26.1.2/builds")
+          echo "Fetching Paper build info for MC ${MC_VERSION}…"
+          BUILD_INFO=$(curl -sf --max-time 20 \
+            "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds") || {
+            echo "::error::PaperMC API returned an error for version '${MC_VERSION}'."
+            echo "::error::Visit https://api.papermc.io/v2/projects/paper/versions to see valid versions."
+            exit 1
+          }
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
-          URL="https://api.papermc.io/v2/projects/paper/versions/26.1.2/builds/${BUILD}/downloads/${FILENAME}"
-          echo "::notice::step=fetch-build-info build=$BUILD filename=$FILENAME"
+          URL="https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/${FILENAME}"
+          echo "::notice::build=$BUILD filename=$FILENAME"
 
-          STEP="download-bundler"
           wget -q "$URL" -O paperclip.jar
-          echo "::notice::step=download-bundler size=$(du -sh paperclip.jar | cut -f1)"
+          echo "::notice::downloaded size=$(du -sh paperclip.jar | cut -f1)"
 
-          STEP="extract-libraries"
-          # jar xf with an exact entry name correctly extracts that specific file.
-          # We use 'jar tf | grep' to list all paper-api and net.kyori entries, then
-          # extract each one individually. Avoids unzip glob issues (* doesn't cross /)
-          # and Python heredoc YAML-processing ambiguities.
           WORKSPACE=$(pwd)
           mkdir -p /tmp/paper-extract
           cd /tmp/paper-extract
           ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
             | grep -E "META-INF/libraries/.*\.jar$" \
             | grep -Ev "sources|javadoc" || true)
-          ENTRY_COUNT=$(echo "$ENTRIES" | grep -c "." || echo 0)
-          echo "::notice::step=list-bundler relevant_jars=$ENTRY_COUNT"
           while IFS= read -r entry; do
             [ -n "$entry" ] || continue
             jar xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
           done <<< "$ENTRIES"
           cd -
-          LIB_COUNT=$(find /tmp/paper-extract -name "*.jar" 2>/dev/null | wc -l || echo 0)
-          echo "::notice::step=extract-libraries lib_jars=$LIB_COUNT"
 
-          STEP="find-paper-api"
           PAPER_API_JAR=$(find /tmp/paper-extract -name "paper-api-*.jar" \
             ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null | head -1 || true)
-          echo "::notice::step=find-paper-api jar=${PAPER_API_JAR:-NONE}"
+          echo "::notice::paper-api jar=${PAPER_API_JAR:-NONE}"
           [ -n "$PAPER_API_JAR" ] || { echo "::error::paper-api JAR not found in bundler"; exit 1; }
 
-          STEP="build-uber-jar"
-          # Merge paper-api + all net.kyori (Adventure) classes into one JAR.
-          # Avoids needing transitive POM resolution since the blank generated POM has no deps.
           mkdir -p /tmp/uber-api
           cd /tmp/uber-api
           jar xf "$PAPER_API_JAR"
-          KYORI=0
           while IFS= read -r ajar; do
             jar xf "$ajar" 2>/dev/null || true
-            KYORI=$((KYORI + 1))
           done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
             ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
           cd -
           jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
           rm paperclip.jar
-          echo "::notice::step=build-uber-jar kyori_jars=$KYORI size=$(du -sh /tmp/paper-api-uber.jar)"
+          echo "::notice::uber-jar size=$(du -sh /tmp/paper-api-uber.jar)"
 
-          STEP="verify-uber-jar"
-          BUKKIT=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "^org/bukkit" || true)
-          CFG=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "org/bukkit/configuration/file" || true)
-          ADV=$(jar tf /tmp/paper-api-uber.jar 2>/dev/null | grep -c "net/kyori/adventure" || true)
-          echo "::notice::step=verify bukkit=$BUKKIT config=$CFG adventure=$ADV"
-
-          STEP="mvn-install"
           mvn install:install-file \
             -Dfile="/tmp/paper-api-uber.jar" \
             -DgroupId=io.papermc.paper \
             -DartifactId=paper-api \
-            -Dversion=26.1.2-R0.1-SNAPSHOT \
+            -Dversion="${PAPER_VERSION}" \
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress
-          echo "::notice::step=done installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
+          echo "::notice::installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
+
+          # Write settings.xml ONLY after JAR is confirmed installed.
+          # Writing it earlier and then failing leaves Maven pointing at an empty
+          # local mirror, causing a cached negative-resolution failure.
+          write_settings
 
       - name: Pre-install BungeeCord Chat stubs (not in Paper bundler)
         continue-on-error: true
@@ -348,6 +335,9 @@ jobs:
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress
+
+      - name: Clear Maven negative-cache entries before build
+        run: find ~/.m2 -name "*.lastUpdated" -delete 2>/dev/null || true
 
       - name: Build plugins
         run: |
