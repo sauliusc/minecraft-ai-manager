@@ -125,6 +125,7 @@ jobs:
           cache: maven
 
       - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
+        continue-on-error: true
         run: |
           set -euo pipefail
 
