@@ -159,19 +159,25 @@ jobs:
             exit 0
           fi
 
-          echo "Fetching Paper build info for MC ${MC_VERSION}…"
+          # Fill v3 API — v2 stopped receiving new builds Dec 31 2025
+          PAPERMC_UA="craftcontrol-preinstall/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
+          echo "Fetching Paper build info for MC ${MC_VERSION} via Fill v3 API…"
           BUILD_INFO=$(curl -sf --max-time 20 \
-            "https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds") || {
-            echo "::error::PaperMC API returned an error for version '${MC_VERSION}'."
-            echo "::error::Visit https://api.papermc.io/v2/projects/paper/versions to see valid versions."
+            -H "User-Agent: ${PAPERMC_UA}" \
+            "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
+            echo "::error::Fill v3 API returned an error for version '${MC_VERSION}'."
+            echo "::error::Check https://fill.papermc.io/v3/projects/paper/versions for valid versions."
             exit 1
           }
-          BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
-          FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
-          URL="https://api.papermc.io/v2/projects/paper/versions/${MC_VERSION}/builds/${BUILD}/downloads/${FILENAME}"
-          echo "::notice::build=$BUILD filename=$FILENAME"
+          URL=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .downloads."server:default".url')
+          BUILD=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .build')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
+            exit 1
+          fi
+          echo "::notice::build=${BUILD} url=${URL}"
 
-          wget -q "$URL" -O paperclip.jar
+          curl -fsSL --max-time 300 -H "User-Agent: ${PAPERMC_UA}" -o paperclip.jar "$URL"
           echo "::notice::downloaded size=$(du -sh paperclip.jar | cut -f1)"
 
           WORKSPACE=$(pwd)
