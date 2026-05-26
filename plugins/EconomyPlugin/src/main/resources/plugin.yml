@@ -1,7 +1,7 @@
 name: EconomyPlugin
 version: 1.0.0
 main: io.craftcontrol.economy.EconomyPlugin
-api-version: '1.21'
+api-version: '26.1'
 depend:
   - BridgePlugin
 description: Dual currency economy for CraftControl

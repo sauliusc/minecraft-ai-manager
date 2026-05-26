@@ -3,7 +3,7 @@
 # Run from repo root:  bash minecraft/download-plugins.sh
 # Or from CI before docker build.
 #
-# Plugins NOT included (incompatible with Paper 1.21.11):
+# Plugins NOT included (incompatible with Paper 26.1.2):
 #   BuildCraft             — Forge only, last updated 1.12.2
 #   Waystones              — Forge/Fabric/NeoForge only (no Bukkit port)
 #   Domestication Innovation — Forge/NeoForge only, last updated 1.20.1
@@ -12,7 +12,7 @@
 set -euo pipefail
 
 OUTDIR="${1:-jars}"
-MC_VERSION="1.21.11"
+MC_VERSION="26.1.2"
 
 mkdir -p "$OUTDIR"
 

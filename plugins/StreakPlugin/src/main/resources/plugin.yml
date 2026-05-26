@@ -1,7 +1,7 @@
 name: StreakPlugin
 version: 1.0.0
 main: io.craftcontrol.streak.StreakPlugin
-api-version: '1.21'
+api-version: '26.1'
 depend:
   - BridgePlugin
 description: Daily login streak system for CraftControl

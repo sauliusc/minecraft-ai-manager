@@ -131,7 +131,7 @@ jobs:
           STEP="init"
           trap 'echo "::warning::pre-install failed at step=$STEP — custom plugins will not be compiled"' ERR
 
-          PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/1.21.11-R0.1-SNAPSHOT/paper-api-1.21.11-R0.1-SNAPSHOT.jar"
+          PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/26.1.2-R0.1-SNAPSHOT/paper-api-26.1.2-R0.1-SNAPSHOT.jar"
 
           # Always write settings.xml so Maven mirrors point to local repo for papermc/spigotmc
           STEP="write-settings"
@@ -159,10 +159,10 @@ jobs:
           fi
 
           STEP="fetch-build-info"
-          BUILD_INFO=$(curl -sf --max-time 20 "https://api.papermc.io/v2/projects/paper/versions/1.21.11/builds")
+          BUILD_INFO=$(curl -sf --max-time 20 "https://api.papermc.io/v2/projects/paper/versions/26.1.2/builds")
           BUILD=$(echo "$BUILD_INFO" | jq -r '.builds[-1].build')
           FILENAME=$(echo "$BUILD_INFO" | jq -r '.builds[-1].downloads.application.name')
-          URL="https://api.papermc.io/v2/projects/paper/versions/1.21.11/builds/${BUILD}/downloads/${FILENAME}"
+          URL="https://api.papermc.io/v2/projects/paper/versions/26.1.2/builds/${BUILD}/downloads/${FILENAME}"
           echo "::notice::step=fetch-build-info build=$BUILD filename=$FILENAME"
 
           STEP="download-bundler"
@@ -224,7 +224,7 @@ jobs:
             -Dfile="/tmp/paper-api-uber.jar" \
             -DgroupId=io.papermc.paper \
             -DartifactId=paper-api \
-            -Dversion=1.21.11-R0.1-SNAPSHOT \
+            -Dversion=26.1.2-R0.1-SNAPSHOT \
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress
@@ -234,7 +234,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          # bungeecord-chat:1.21.11-R0.1-SNAPSHOT is Paper's private build at repo.papermc.io
+          # bungeecord-chat:26.1.2-R0.1-SNAPSHOT is Paper's private build at repo.papermc.io
           # (blocked on GHA runners) and is absent from the Paperclip bundler libraries.
           # paper-api method signatures reference these types, so the compiler needs them.
           # We create minimal compile-only stubs; they are 'provided' scope and never
@@ -344,7 +344,7 @@ jobs:
             -Dfile="/tmp/bungeecord-chat-stub.jar" \
             -DgroupId=net.md_5.bungee \
             -DartifactId=bungeecord-chat \
-            -Dversion=1.21.11-R0.1-SNAPSHOT \
+            -Dversion=26.1.2-R0.1-SNAPSHOT \
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress

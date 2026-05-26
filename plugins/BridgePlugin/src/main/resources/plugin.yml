@@ -1,6 +1,6 @@
 name: BridgePlugin
 version: '${project.version}'
 main: io.craftcontrol.bridge.BridgePlugin
-api-version: '1.21'
+api-version: '26.1'
 description: HTTP gateway between CraftControl plugins and the web API
 authors: [CraftControl]

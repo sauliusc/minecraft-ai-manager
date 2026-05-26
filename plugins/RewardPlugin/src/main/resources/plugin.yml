@@ -1,7 +1,7 @@
 name: RewardPlugin
 version: 1.0.0
 main: io.craftcontrol.reward.RewardPlugin
-api-version: '1.21'
+api-version: '26.1'
 depend:
   - BridgePlugin
 description: Reward delivery for CraftControl
