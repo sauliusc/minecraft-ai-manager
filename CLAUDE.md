@@ -26,10 +26,17 @@ Two workflows running on the same PR can share a GHA cache (keyed by file hash).
 A step marked `continue-on-error: true` always shows a green tick even when it fails internally. When such a step is a prerequisite for a later step (e.g. pre-installing a library before `mvn`), a silent failure will cause the subsequent step to fail with a confusing cached-resolution error. Always trace the dependency chain: if step B requires step A to have succeeded, step A must **not** be `continue-on-error` unless step B has an explicit fallback.
 
 ### 4. Verify version strings exist before merging
-When updating a dependency or server version (e.g. Paper, a Docker base image), confirm the version actually exists in the target registry/repository before opening a PR. For Paper: check `https://api.papermc.io/v2/projects/paper/versions/<version>/builds`. A version that doesn't exist will cause a silent fallback or a failed download that `continue-on-error` swallows, making CI appear green while the server runs the wrong version.
+When updating a dependency or server version (e.g. Paper, a Docker base image), confirm the version actually exists in the target registry/repository before opening a PR. For Paper: check `https://fill.papermc.io/v3/projects/paper/versions` (Fill v3 API — the old `api.papermc.io/v2` stopped receiving new builds December 31, 2025 and is fully disabled July 1, 2026). A version that doesn't exist will cause a failed download, making CI fail.
 
 ### 5. Check post-merge deploy-v2 results, not just PR checks
-PR check runs only show checks for the PR head commit. The `deploy-v2` workflow runs on the **merge commit** on `main` and is not visible via `get_check_runs` on the PR. After every merge, poll `get_check_runs` on the merge commit SHA (returned by the merge API call) to verify the deploy and validate jobs passed.
+PR check runs only show checks for the PR head commit. The `deploy-v2` workflow runs on the **merge commit** on `main` and is not visible via `get_check_runs` on the PR. The `deploy-v2` workflow now has a `notify-failure` job that automatically opens a GitHub issue when any stage fails — watch for new issues with the `ci` label after a merge. Do NOT declare success until that issue either hasn't appeared (pipeline passed) or has been resolved.
+
+### 6. PaperMC API migration (v2 → Fill v3)
+PaperMC moved to a new download service. Always use `fill.papermc.io/v3`:
+- **Endpoint:** `https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds`
+- **Required header:** `User-Agent: <your-tool>/<version> (<contact-url>)`
+- **Response:** array of build objects; filter `channel == "STABLE"`, use `last`, extract `.downloads."server:default".url`
+- **Old endpoint** `api.papermc.io/v2` is dead for any version released after Dec 31, 2025
 
 ## Post-deploy validation
 
