@@ -45,6 +45,12 @@ echo "$IMAGE_TAG" > "$VERSION_FILE"
 
 export IMAGE_TAG
 
+# ── Prune old/unused images to free disk space ───────────────────────────────
+step "Pruning old unused Docker images"
+PRUNED=$(docker image prune -f 2>&1)
+RECLAIMED=$(echo "$PRUNED" | grep -oP "Total reclaimed space: \K.*" || echo "0B")
+ok "Old images pruned  (reclaimed: ${RECLAIMED})"
+
 # ── Pull images from GHCR ─────────────────────────────────────────────────────
 step "Pulling Docker images from GHCR  [tag: ${IMAGE_TAG}]"
 docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" pull
