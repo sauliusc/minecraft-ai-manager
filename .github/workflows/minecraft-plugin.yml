@@ -66,7 +66,17 @@ jobs:
           cat ~/.m2/settings.xml 2>&1 || echo "NO settings.xml"
 
       - name: Build all plugins
-        run: mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress
+        run: |
+          set +o pipefail
+          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress \
+            2>&1 | tee /tmp/mvn-build.log
+          MVN_RC=${PIPESTATUS[0]}
+          if [ "$MVN_RC" -ne 0 ]; then
+            echo "::error::Maven build failed (exit $MVN_RC) — first 50 error lines:"
+            grep -E '^\[ERROR\]' /tmp/mvn-build.log | head -50 | \
+              while IFS= read -r line; do echo "::error::${line}"; done
+          fi
+          exit "$MVN_RC"
 
       - name: Collect plugin JARs
         run: |
