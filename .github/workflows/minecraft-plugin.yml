@@ -33,15 +33,29 @@ jobs:
       - name: Install Paper API + BungeeCord stubs
         uses: ./.github/actions/install-paper-api
 
+      - name: Ensure Maven is available
+        run: |
+          if command -v mvn &>/dev/null; then
+            echo "Maven already on PATH: $(mvn --version 2>&1 | head -1)"
+          else
+            echo "mvn not in PATH — downloading Apache Maven 3.9.9"
+            curl -fsSL -o /tmp/maven.tar.gz \
+              "https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz"
+            tar -xzf /tmp/maven.tar.gz -C "${HOME}"
+            rm /tmp/maven.tar.gz
+            echo "${HOME}/apache-maven-3.9.9/bin" >> "$GITHUB_PATH"
+            echo "Installed: $("${HOME}/apache-maven-3.9.9/bin/mvn" --version 2>&1 | head -1)"
+          fi
+
       - name: Clear Maven negative-cache entries before build
         run: find ~/.m2 -name "*.lastUpdated" -delete 2>/dev/null || true
 
       - name: Diagnose build environment
         run: |
           echo "=== Java version ==="
-          java -version 2>&1
+          java -version 2>&1 || echo "java not found"
           echo "=== Maven version ==="
-          mvn --version 2>&1
+          mvn --version 2>&1 || echo "Maven not found"
           echo "=== JAVA_HOME ==="
           echo "JAVA_HOME=${JAVA_HOME}"
           echo "=== Paper API JAR presence ==="
