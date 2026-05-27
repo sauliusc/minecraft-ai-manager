@@ -71,9 +71,22 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
-        URL=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .downloads."server:default".url')
-        BUILD=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .build')
-        if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+        URL=$(echo "$BUILD_INFO" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+stable = [x for x in data if x.get('channel') == 'STABLE']
+if not stable: sys.exit(1)
+last = stable[-1]
+print(last['downloads']['server:default']['url'])
+")
+        BUILD=$(echo "$BUILD_INFO" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+stable = [x for x in data if x.get('channel') == 'STABLE']
+if not stable: sys.exit(1)
+print(stable[-1]['build'])
+")
+        if [ -z "$URL" ]; then
           echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
           exit 1
         fi
@@ -87,12 +100,12 @@ runs:
         WORKSPACE=$(pwd)
         mkdir -p /tmp/paper-extract
         cd /tmp/paper-extract
-        ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
+        ENTRIES=$("${JAVA_HOME}/bin/jar" tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
           | grep -E "META-INF/libraries/.*\.jar$" \
           | grep -Ev "sources|javadoc" || true)
         while IFS= read -r entry; do
           [ -n "$entry" ] || continue
-          jar xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
+          "${JAVA_HOME}/bin/jar" xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
         done <<< "$ENTRIES"
         cd -
 
@@ -108,13 +121,13 @@ runs:
         # ── Build uber-JAR (paper-api + Adventure classes) ────────────────────
         mkdir -p /tmp/uber-api
         cd /tmp/uber-api
-        jar xf "$PAPER_API_JAR"
+        "${JAVA_HOME}/bin/jar" xf "$PAPER_API_JAR"
         while IFS= read -r ajar; do
-          jar xf "$ajar" 2>/dev/null || true
+          "${JAVA_HOME}/bin/jar" xf "$ajar" 2>/dev/null || true
         done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
           ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
         cd -
-        jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
+        "${JAVA_HOME}/bin/jar" cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
         rm paperclip.jar
         echo "::notice::uber-jar size=$(du -sh /tmp/paper-api-uber.jar)"
 
@@ -233,7 +246,7 @@ runs:
         }
         JAVASRC
 
-        javac -d /tmp/bungee-classes \
+        "${JAVA_HOME}/bin/javac" -d /tmp/bungee-classes \
           /tmp/bungee-src/net/md_5/bungee/api/ChatColor.java \
           /tmp/bungee-src/net/md_5/bungee/api/ChatMessageType.java \
           /tmp/bungee-src/net/md_5/bungee/api/chat/BaseComponent.java \
@@ -242,7 +255,7 @@ runs:
           /tmp/bungee-src/net/md_5/bungee/api/chat/TextComponent.java \
           /tmp/bungee-src/net/md_5/bungee/api/chat/ComponentBuilder.java \
           /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java
-        jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
+        "${JAVA_HOME}/bin/jar" cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
         echo "::notice::bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
         mvn install:install-file \
           -Dfile="/tmp/bungeecord-chat-stub.jar" \
