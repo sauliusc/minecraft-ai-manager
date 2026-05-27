@@ -1,15 +1,27 @@
 name: Install Paper API for Maven
 description: >
-  Downloads the Paper server JAR from api.papermc.io, extracts paper-api,
-  builds an uber-JAR with Adventure classes, and installs it into the local
-  Maven repository so plugin builds work on GitHub-hosted runners (which
-  cannot reach repo.papermc.io).
-  settings.xml is written ONLY after the JAR is confirmed installed, so a
-  failed download never leaves Maven pointing at an empty local mirror.
+  Restores the Paper API JAR from the GHA cache (seeded by the ct102 self-hosted
+  runner via seed-paper-api.yml). Falls back to downloading directly from
+  fill.papermc.io when the cache is cold (accessible on ct102, blocked on
+  standard GitHub-hosted runners).
+  Builds an uber-JAR (paper-api + Adventure), installs it into the local Maven
+  repository, and writes settings.xml ONLY after a confirmed installation so
+  that a failed download never leaves Maven pointing at an empty local mirror.
 
 runs:
   using: composite
   steps:
+    # ── 1. Restore from GHA cache (seeded by ct102 via seed-paper-api.yml) ─────
+    - name: Restore Paper API from GHA cache
+      id: paper-cache
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.m2/repository/io/papermc/paper/paper-api
+        key: paper-api-26.1.2-R0.1-SNAPSHOT-${{ runner.os }}
+        restore-keys: |
+          paper-api-26.1.2-R0.1-SNAPSHOT-
+
+    # ── 2. Install Paper API (skip if cache hit) ──────────────────────────────
     - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
       shell: bash
       run: |
@@ -55,6 +67,7 @@ runs:
           "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
           echo "::error::Fill v3 API returned an error for version '${MC_VERSION}'."
           echo "::error::Check https://fill.papermc.io/v3/projects/paper/versions for valid versions."
+          echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
         URL=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .downloads."server:default".url')

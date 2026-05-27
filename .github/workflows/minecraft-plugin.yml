@@ -29,6 +29,11 @@ jobs:
           cache: maven
 
       - name: Install Paper API + BungeeCord stubs
+        # Cache is seeded by seed-paper-api.yml via the ct102 self-hosted runner.
+        # If the cache is cold (first run before seeding), fill.papermc.io is
+        # blocked on ubuntu-latest and this step will fail — trigger
+        # seed-paper-api.yml manually (workflow_dispatch) to bootstrap the cache.
+        continue-on-error: true
         uses: ./.github/actions/install-paper-api
 
       - name: Clear Maven negative-cache entries before build
