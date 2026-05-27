@@ -131,13 +131,14 @@ runs:
           exit 1
         fi
 
-        # ── Build uber-JAR (paper-api + Adventure classes) ────────────────────
+        # ── Build uber-JAR (paper-api + Adventure + Gson classes) ───────────────
         mkdir -p /tmp/uber-api
         cd /tmp/uber-api
         jar xf "$PAPER_API_JAR"
         while IFS= read -r ajar; do
           jar xf "$ajar" 2>/dev/null || true
-        done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
+        done < <(find /tmp/paper-extract \
+          \( -path "*/net/kyori/*.jar" -o -name "gson-*.jar" \) \
           ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
         cd -
         jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
