@@ -38,6 +38,10 @@
             <groupId>org.nanohttpd</groupId>
             <artifactId>nanohttpd</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.google.code.gson</groupId>
+            <artifactId>gson</artifactId>
+        </dependency>
     </dependencies>
 
     <build>
