@@ -11,9 +11,10 @@ description: >
 runs:
   using: composite
   steps:
-    # ── 1. Restore from GHA cache (seeded by ct102 via seed-paper-api.yml) ─────
+    # ── 1. Restore from GHA cache (optional — may not be accessible on self-hosted runners) ──
     - name: Restore Paper API from GHA cache
       id: paper-cache
+      continue-on-error: true   # cache service may be unavailable on self-hosted runners
       uses: actions/cache/restore@v4
       with:
         path: ~/.m2/repository/io/papermc/paper/paper-api

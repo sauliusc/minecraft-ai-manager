@@ -40,6 +40,7 @@ jobs:
         uses: ./.github/actions/install-paper-api
 
       - name: Save Paper API JAR to GHA cache
+        continue-on-error: true   # GHA cache service may not be reachable from ct102
         uses: actions/cache/save@v4
         with:
           path: ~/.m2/repository/io/papermc/paper/paper-api
