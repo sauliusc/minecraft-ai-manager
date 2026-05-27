@@ -75,27 +75,30 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
-        # ── Diagnose raw API response ─────────────────────────────────────────
-        echo "::notice::api-raw=$(echo "$BUILD_INFO" | tr -d '\n' | cut -c1-400)"
-
         # ── Parse Fill v3 JSON with POSIX tools (jq/python3 absent on ct102) ───
-        # Strategy: compact to one line, split objects on "},{", grep for STABLE,
-        # then extract "server:default" download URL via grep -o + sed.
+        # Strategy: compact to one line, split objects on "},{", take the LAST
+        # build entry (most recent), then extract the server:default URL via
+        # grep -o + sed.  We do NOT filter by channel="STABLE" because the Fill
+        # v3 API for this version uses a different channel label (confirmed by
+        # diagnostics showing an empty STABLE match despite valid build data).
         # set +o pipefail so grep returning 1 (no match) doesn't abort the script.
         set +o pipefail
-        URL=$(echo "$BUILD_INFO" | tr -d '\n' | sed 's/},{/}\n{/g' \
-          | grep '"STABLE"' | tail -1 \
+        LAST_BUILD_LINE=$(echo "$BUILD_INFO" | tr -d '\n' | sed 's/},{/}\n{/g' | tail -1)
+        URL=$(echo "$LAST_BUILD_LINE" \
           | grep -o '"server:default":{[^}]*}' \
           | grep -o '"url":"[^"]*"' \
           | sed 's/"url":"//;s/"$//')
-        BUILD=$(echo "$BUILD_INFO" | tr -d '\n' | sed 's/},{/}\n{/g' \
-          | grep '"STABLE"' | tail -1 \
+        BUILD=$(echo "$LAST_BUILD_LINE" \
           | grep -oE '"build"[[:space:]]*:[[:space:]]*[0-9]+' \
-          | sed -E 's/"build"[[:space:]]*:[[:space:]]*//')
+          | head -1 \
+          | grep -oE '[0-9]+$')
+        CHANNEL=$(echo "$LAST_BUILD_LINE" \
+          | grep -oE '"channel"[[:space:]]*:[[:space:]]*"[^"]+"' \
+          | sed -E 's/.*"([^"]+)"$/\1/')
         set -o pipefail
-        echo "::notice::parsed BUILD=${BUILD} URL=${URL}"
+        echo "::notice::build=${BUILD} channel=${CHANNEL} url=${URL}"
         if [ -z "$URL" ]; then
-          echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
+          echo "::error::No build URL found for Paper ${MC_VERSION} in Fill v3 API (last build: ${BUILD}, channel: ${CHANNEL})"
           exit 1
         fi
         echo "::notice::build=${BUILD} url=${URL}"
