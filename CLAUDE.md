@@ -35,7 +35,8 @@ PR check runs only show checks for the PR head commit. The `deploy-v2` workflow 
 PaperMC moved to a new download service. Always use `fill.papermc.io/v3`:
 - **Endpoint:** `https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds`
 - **Required header:** `User-Agent: <your-tool>/<version> (<contact-url>)`
-- **Response:** array of build objects; filter `channel == "STABLE"`, use `last`, extract `.downloads."server:default".url`
+- **Response:** array of build objects ordered **newest-first**; use `head -1` (first element) to get the most recent build; extract `.downloads."server:default".url`
+- **TRAP:** using `tail -1` picks the **oldest** build. The install-paper-api action and entrypoint.sh both use `head -1` — keep them in sync.
 - **Old endpoint** `api.papermc.io/v2` is dead for any version released after Dec 31, 2025
 
 ## Updating the Minecraft / Paper server version

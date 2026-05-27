@@ -57,9 +57,10 @@ services:
       JWT_REFRESH_EXPIRES_IN:   ${JWT_REFRESH_EXPIRES_IN:-7d}
       BRIDGE_SECRET:            ${BRIDGE_SECRET}
       MINECRAFT_BRIDGE_URL:     http://minecraft:25580
-      RCON_HOST:                minecraft
+      MINECRAFT_HOST:           minecraft
       RCON_PORT:                ${RCON_PORT:-25575}
-      RCON_PASSWORD:            ${RCON_PASSWORD}
+      # RCON port is not exposed externally; internal default is safe if not set in .env.
+      RCON_PASSWORD:            ${RCON_PASSWORD:-craftcontrol-rcon-internal}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
       interval: 30s
@@ -118,7 +119,7 @@ services:
       MEMORY:                ${MINECRAFT_MEMORY:-4G}
       ENABLE_RCON:           "true"
       RCON_PORT:             ${RCON_PORT:-25575}
-      RCON_PASSWORD:         ${RCON_PASSWORD}
+      RCON_PASSWORD:         ${RCON_PASSWORD:-craftcontrol-rcon-internal}
       REPLACE_ENV_VARIABLES: "TRUE"
       CFG_BRIDGE_SECRET:     ${BRIDGE_SECRET}
       CFG_BRIDGE_API_URL:    http://api:3000
