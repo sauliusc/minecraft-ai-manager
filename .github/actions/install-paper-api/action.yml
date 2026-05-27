@@ -32,6 +32,10 @@ runs:
         MC_VERSION="26.1.2"
         PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}/paper-api-${PAPER_VERSION}.jar"
 
+        echo "::notice::diag HOME=${HOME} JAVA_HOME=${JAVA_HOME:-UNSET} PATH=${PATH}"
+        echo "::notice::diag paper-api exists=$([ -f "$PAPER_INSTALLED" ] && echo YES || echo NO)"
+        java -version 2>&1 | head -1 || echo "java not found"
+
         # ── Helper: write settings.xml so Maven uses the local file mirror ──
         write_settings() {
           mkdir -p ~/.m2
@@ -141,6 +145,9 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        echo "::notice::diag-bungee HOME=${HOME} JAVA_HOME=${JAVA_HOME:-UNSET}"
+        echo "::notice::diag-bungee javac=$(which javac 2>/dev/null || echo MISSING) jar=$(which jar 2>/dev/null || echo MISSING)"
+        javac -version 2>&1 | head -1 || echo "javac not found"
         # bungeecord-chat is Paper's private build at repo.papermc.io (blocked on GHA runners)
         # and is absent from the Paperclip bundler. We create minimal compile-only stubs.
         rm -rf ~/.m2/repository/net/md_5/bungee/bungeecord-chat 2>/dev/null || true
