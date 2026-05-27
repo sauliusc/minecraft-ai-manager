@@ -37,7 +37,7 @@ public class ModerationCommand implements CommandExecutor {
     }
 
     private void handleReport(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 2) { player.sendMessage(Component.text("Usage: /report <player> <reason>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -47,7 +47,7 @@ public class ModerationCommand implements CommandExecutor {
     }
 
     private void handleBlock(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 1) { player.sendMessage(Component.text("Usage: /block <player>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -57,7 +57,7 @@ public class ModerationCommand implements CommandExecutor {
     }
 
     private void handleUnblock(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 1) { player.sendMessage(Component.text("Usage: /unblock <player>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -66,7 +66,7 @@ public class ModerationCommand implements CommandExecutor {
     }
 
     private void handleSafechat(CommandSender sender) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         boolean current = modManager.isSafechatEnabled(player.getUniqueId());
         modManager.setSafechat(player, !current);
         player.sendMessage(Component.text("Safe chat " + (!current ? "enabled" : "disabled") + ".", !current ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
@@ -74,7 +74,7 @@ public class ModerationCommand implements CommandExecutor {
 
     private void handleMute(CommandSender sender, String[] args) {
         if (!sender.hasPermission("craftcontrol.mod")) { sender.sendMessage(Component.text("No permission.", NamedTextColor.RED)); return; }
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 3) { player.sendMessage(Component.text("Usage: /mute <player> <duration> <reason>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -86,7 +86,7 @@ public class ModerationCommand implements CommandExecutor {
 
     private void handleUnmute(CommandSender sender, String[] args) {
         if (!sender.hasPermission("craftcontrol.mod")) { sender.sendMessage(Component.text("No permission.", NamedTextColor.RED)); return; }
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 1) { player.sendMessage(Component.text("Usage: /unmute <player>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -96,7 +96,7 @@ public class ModerationCommand implements CommandExecutor {
 
     private void handleKick(CommandSender sender, String[] args) {
         if (!sender.hasPermission("craftcontrol.mod")) { sender.sendMessage(Component.text("No permission.", NamedTextColor.RED)); return; }
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 2) { player.sendMessage(Component.text("Usage: /kick <player> <reason>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -107,7 +107,7 @@ public class ModerationCommand implements CommandExecutor {
 
     private void handleBan(CommandSender sender, String[] args) {
         if (!sender.hasPermission("craftcontrol.mod")) { sender.sendMessage(Component.text("No permission.", NamedTextColor.RED)); return; }
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 3) { player.sendMessage(Component.text("Usage: /ban <player> <duration> <reason>", NamedTextColor.RED)); return; }
         Player target = plugin.getServer().getPlayer(args[0]);
         if (target == null) { player.sendMessage(Component.text("Player not online.", NamedTextColor.RED)); return; }
@@ -119,7 +119,7 @@ public class ModerationCommand implements CommandExecutor {
 
     private void handleUnban(CommandSender sender, String[] args) {
         if (!sender.hasPermission("craftcontrol.mod")) { sender.sendMessage(Component.text("No permission.", NamedTextColor.RED)); return; }
-        if (!(sender instanceof Player player)) { sender.sendMessage("Only players can use this."); return; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Only players can use this.")); return; }
         if (args.length < 1) { player.sendMessage(Component.text("Usage: /unban <player>", NamedTextColor.RED)); return; }
         String targetName = args[0];
         modManager.adminUnban(player, targetName);

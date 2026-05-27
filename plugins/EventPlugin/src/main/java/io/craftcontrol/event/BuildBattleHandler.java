@@ -99,7 +99,8 @@ public class BuildBattleHandler {
         setupScoreboard();
 
         int buildMinutes = plugin.getConfig().getInt("build_battle.build_time_minutes", 20);
-        Bukkit.broadcastMessage("§a§l[Build Battle] §eStarted! You have §6" + buildMinutes + " minutes §eto build!");
+        Bukkit.getServer().broadcast(Component.text("[Build Battle] ", NamedTextColor.GREEN)
+                .append(Component.text("Started! You have " + buildMinutes + " minutes to build!", NamedTextColor.YELLOW)));
         scheduleBuildPhaseEnd(buildMinutes);
     }
 
@@ -154,7 +155,8 @@ public class BuildBattleHandler {
             objective.getScore("§bVoting Phase!").setScore(1);
         }
 
-        Bukkit.broadcastMessage("§b§l[Build Battle] §eBuild phase over! Voting begins now!");
+        Bukkit.getServer().broadcast(Component.text("[Build Battle] ", NamedTextColor.AQUA)
+                .append(Component.text("Build phase over! Voting begins now!", NamedTextColor.YELLOW)));
         hasVoted.clear();
         currentBuilderIndex = 0;
         advanceToNextBuild();
@@ -231,7 +233,7 @@ public class BuildBattleHandler {
         }
         averages.sort(Map.Entry.<UUID, Double>comparingByValue().reversed());
 
-        Bukkit.broadcastMessage("§6§l====[ Build Battle Results ]====");
+        Bukkit.getServer().broadcast(Component.text("====[ Build Battle Results ]====").color(NamedTextColor.GOLD));
         String[] medals = {"§6§l1st", "§7§l2nd", "§c§l3rd"};
         String[] rewardIds = {
             plugin.getConfig().getString("build_battle.rewards.first_place_id", "build_battle_first"),
@@ -243,7 +245,7 @@ public class BuildBattleHandler {
             UUID uid = averages.get(i).getKey();
             double avg = averages.get(i).getValue();
             String name = getPlayerName(uid);
-            Bukkit.broadcastMessage(medals[i] + " §e" + name + " §7— avg score: §f" + String.format("%.2f", avg));
+            Bukkit.getServer().broadcast(Component.text(medals[i] + " " + name + " — avg score: " + String.format("%.2f", avg)).color(NamedTextColor.YELLOW));
             grantReward(uid, rewardIds[i], eventId);
         }
 

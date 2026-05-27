@@ -19,9 +19,13 @@ import org.bukkit.inventory.ItemStack;
 import net.kyori.adventure.resource.ResourcePackInfo;
 import net.kyori.adventure.resource.ResourcePackRequest;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.title.Title;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -82,13 +86,12 @@ public class PlayerJoinListener implements Listener {
     private void handleFirstJoin(Player player, FileConfiguration cfg) {
         String message = cfg.getString("greeting.first_join_message", "Welcome, {player}!")
                 .replace("{player}", player.getName());
-        player.sendMessage(message);
+        player.sendMessage(LegacyComponentSerializer.legacySection().deserialize(message));
 
-        player.sendTitle(
-                "§6" + player.getName(),
-                "§eWelcome to the server!",
-                10, 70, 20
-        );
+        player.showTitle(Title.title(
+                Component.text(player.getName()).color(NamedTextColor.GOLD),
+                Component.text("Welcome to the server!").color(NamedTextColor.YELLOW),
+                Title.Times.times(Duration.ofMillis(500), Duration.ofMillis(3500), Duration.ofMillis(1000))));
 
         try {
             player.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0f, 1.0f);
@@ -101,7 +104,7 @@ public class PlayerJoinListener implements Listener {
         if (cfg.getBoolean("greeting.broadcast_first_join", true)) {
             String broadcast = cfg.getString("greeting.broadcast_message", "{player} joined for the first time!")
                     .replace("{player}", player.getName());
-            plugin.getServer().broadcastMessage("§a" + broadcast);
+            plugin.getServer().broadcast(Component.text(broadcast).color(NamedTextColor.GREEN));
         }
 
         postPlayerRecord(player);
@@ -116,11 +119,14 @@ public class PlayerJoinListener implements Listener {
         String message = cfg.getString("greeting.return_message", "Welcome back, {player}!")
                 .replace("{player}", player.getName())
                 .replace("{lastSeen}", daysSince + " days ago");
-        player.sendMessage(message);
+        player.sendMessage(LegacyComponentSerializer.legacySection().deserialize(message));
 
         int giftDays = cfg.getInt("greeting.return_gift_after_days", 7);
         if (daysSince >= giftDays) {
-            player.sendTitle("§bWelcome Back!", "§fHere's a gift for returning!", 10, 60, 20);
+            player.showTitle(Title.title(
+                    Component.text("Welcome Back!").color(NamedTextColor.AQUA),
+                    Component.text("Here's a gift for returning!"),
+                    Title.Times.times(Duration.ofMillis(500), Duration.ofMillis(3000), Duration.ofMillis(1000))));
             player.getInventory().addItem(new ItemStack(Material.DIAMOND, 1));
         }
 

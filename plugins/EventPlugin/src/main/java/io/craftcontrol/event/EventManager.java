@@ -12,6 +12,8 @@ import io.craftcontrol.event.model.EventType;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -103,7 +105,9 @@ public class EventManager {
                 events.put(id, event);
                 long minutesUntil = secondsUntil / 60;
                 Bukkit.getScheduler().runTask(plugin, () ->
-                        Bukkit.broadcastMessage("§6§l[Event] §e" + getEventName(type) + " §7starts in §6" + minutesUntil + " minutes§7!"));
+                        Bukkit.getServer().broadcast(
+                                Component.text("[Event] ", NamedTextColor.GOLD)
+                                    .append(Component.text(getEventName(type) + " starts in " + minutesUntil + " minutes!", NamedTextColor.YELLOW)))));
             }
         }
     }

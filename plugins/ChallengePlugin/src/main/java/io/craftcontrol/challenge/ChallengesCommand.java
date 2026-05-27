@@ -25,7 +25,7 @@ public class ChallengesCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Only players can use this command.");
+            sender.sendMessage(Component.text("Only players can use this command."));
             return true;
         }
         List<ActiveChallenge> challenges = manager.getActive();

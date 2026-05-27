@@ -73,7 +73,7 @@ public class TreasureHuntHandler {
             }
         }, 0L, 40L);
 
-        Bukkit.broadcastMessage("§6⚡ Treasure Hunt started! " + remainingChests.size() + " chests hidden!");
+        Bukkit.getServer().broadcast(Component.text("⚡ Treasure Hunt started! " + remainingChests.size() + " chests hidden!").color(NamedTextColor.GOLD));
     }
 
     public boolean tryClaimChest(Player player, Location loc) {
@@ -92,7 +92,7 @@ public class TreasureHuntHandler {
         }
         playerFinds.merge(player.getUniqueId(), 1, Integer::sum);
         int remaining = remainingChests.size();
-        Bukkit.broadcastMessage("§6⚡ " + player.getName() + " found a treasure! " + remaining + " remain!");
+        Bukkit.getServer().broadcast(Component.text("⚡ " + player.getName() + " found a treasure! " + remaining + " remain!").color(NamedTextColor.GOLD));
 
         if (remaining == 0) endHunt();
         return true;
@@ -108,7 +108,7 @@ public class TreasureHuntHandler {
             p.getInventory().remove(Material.COMPASS);
         }
 
-        Bukkit.broadcastMessage("§6⚡ Treasure Hunt ended! Thanks for playing!");
+        Bukkit.getServer().broadcast(Component.text("⚡ Treasure Hunt ended! Thanks for playing!").color(NamedTextColor.GOLD));
         eventManager.completeEvent(eventId);
     }
 

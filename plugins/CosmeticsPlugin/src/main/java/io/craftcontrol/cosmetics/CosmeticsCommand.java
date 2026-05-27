@@ -30,7 +30,7 @@ public class CosmeticsCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!(sender instanceof Player player)) { sender.sendMessage("Players only."); return true; }
+        if (!(sender instanceof Player player)) { sender.sendMessage(Component.text("Players only.")); return true; }
         String name = cmd.getName().toLowerCase();
         switch (name) {
             case "title" -> handleTitle(player, args);
