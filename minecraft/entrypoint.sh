@@ -44,11 +44,12 @@ BUILD_INFO=$(curl -sf --max-time 30 \
     exec /start "$@"
 }
 
-# The builds array is ordered oldest-first; tail -1 picks the latest build.
+# Fill v3 returns builds newest-first; head -1 picks the most recent build.
+# (install-paper-api/action.yml documents the same — do NOT change to tail -1.)
 PAPER_URL=$(echo "$BUILD_INFO" \
     | grep -A 5 '"server:default"' \
     | grep '"url"' \
-    | tail -1 \
+    | head -1 \
     | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
 
 if [ -z "$PAPER_URL" ]; then
