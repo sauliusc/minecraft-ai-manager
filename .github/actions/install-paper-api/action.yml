@@ -75,9 +75,22 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
-        URL=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .downloads."server:default".url')
-        BUILD=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .build')
-        if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+        # ── Parse Fill v3 JSON with POSIX tools (jq/python3 absent on ct102) ───
+        # Strategy: compact to one line, split objects on "},{", grep for STABLE,
+        # then extract "server:default" download URL via grep -o + sed.
+        # set +o pipefail so grep returning 1 (no match) doesn't abort the script.
+        set +o pipefail
+        URL=$(echo "$BUILD_INFO" | tr -d '\n' | sed 's/},{/}\n{/g' \
+          | grep '"STABLE"' | tail -1 \
+          | grep -o '"server:default":{[^}]*}' \
+          | grep -o '"url":"[^"]*"' \
+          | sed 's/"url":"//;s/"$//')
+        BUILD=$(echo "$BUILD_INFO" | tr -d '\n' | sed 's/},{/}\n{/g' \
+          | grep '"STABLE"' | tail -1 \
+          | grep -oE '"build"[[:space:]]*:[[:space:]]*[0-9]+' \
+          | sed -E 's/"build"[[:space:]]*:[[:space:]]*//')
+        set -o pipefail
+        if [ -z "$URL" ]; then
           echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
           exit 1
         fi
