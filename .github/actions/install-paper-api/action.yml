@@ -87,12 +87,12 @@ runs:
         WORKSPACE=$(pwd)
         mkdir -p /tmp/paper-extract
         cd /tmp/paper-extract
-        ENTRIES=$("${JAVA_HOME}/bin/jar" tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
+        ENTRIES=$(jar tf "$WORKSPACE/paperclip.jar" 2>/dev/null \
           | grep -E "META-INF/libraries/.*\.jar$" \
           | grep -Ev "sources|javadoc" || true)
         while IFS= read -r entry; do
           [ -n "$entry" ] || continue
-          "${JAVA_HOME}/bin/jar" xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
+          jar xf "$WORKSPACE/paperclip.jar" "$entry" 2>/dev/null || true
         done <<< "$ENTRIES"
         cd -
 
@@ -108,13 +108,13 @@ runs:
         # ── Build uber-JAR (paper-api + Adventure classes) ────────────────────
         mkdir -p /tmp/uber-api
         cd /tmp/uber-api
-        "${JAVA_HOME}/bin/jar" xf "$PAPER_API_JAR"
+        jar xf "$PAPER_API_JAR"
         while IFS= read -r ajar; do
-          "${JAVA_HOME}/bin/jar" xf "$ajar" 2>/dev/null || true
+          jar xf "$ajar" 2>/dev/null || true
         done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
           ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
         cd -
-        "${JAVA_HOME}/bin/jar" cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
+        jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
         rm paperclip.jar
         echo "::notice::uber-jar size=$(du -sh /tmp/paper-api-uber.jar)"
 
@@ -233,7 +233,7 @@ runs:
         }
         JAVASRC
 
-        "${JAVA_HOME}/bin/javac" -d /tmp/bungee-classes \
+        javac -d /tmp/bungee-classes \
           /tmp/bungee-src/net/md_5/bungee/api/ChatColor.java \
           /tmp/bungee-src/net/md_5/bungee/api/ChatMessageType.java \
           /tmp/bungee-src/net/md_5/bungee/api/chat/BaseComponent.java \
@@ -242,7 +242,7 @@ runs:
           /tmp/bungee-src/net/md_5/bungee/api/chat/TextComponent.java \
           /tmp/bungee-src/net/md_5/bungee/api/chat/ComponentBuilder.java \
           /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java
-        "${JAVA_HOME}/bin/jar" cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
+        jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
         echo "::notice::bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
         mvn install:install-file \
           -Dfile="/tmp/bungeecord-chat-stub.jar" \
