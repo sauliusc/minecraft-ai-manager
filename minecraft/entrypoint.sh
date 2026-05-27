@@ -11,52 +11,76 @@ set -e
 rm -f /data/plugins/original-*.jar 2>/dev/null || true
 rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 
-# ── Force correct Paper version ───────────────────────────────────────────────
-# itzg/minecraft-server uses api.papermc.io/v2 (dead for post-2025 versions)
-# AND may reuse /data/cache/patched_*.jar from a previous run, causing a stale
-# Paper 1.21.4 JAR to be used instead of 26.1.2.
+# ── Self-patch Paper to guarantee the correct version boots ──────────────────
+# itzg/minecraft-server doesn't recognise calendar-versioned strings like
+# "26.1.2" for TYPE=PAPER; it falls back to whatever patched_*.jar is cached in
+# the persistent minecraft_data Docker volume (typically 1.21.4).
 #
-# Fix strategy:
-#   1. Clear /data/cache/patched_*.jar so itzg must re-download and re-patch.
-#   2. Set PAPER_DOWNLOAD_URL to the fill.papermc.io URL for Paper 26.1.2 so
-#      itzg fetches from the correct (live) endpoint instead of the dead v2 API.
-#
-# ct102 has unrestricted network access to fill.papermc.io; Docker containers
-# on ct102 inherit the same network by default.
+# Strategy:
+#   1. Fetch the latest STABLE Paperclip JAR URL from fill.papermc.io/v3.
+#   2. Download the JAR to /tmp (ephemeral; not in the data volume).
+#   3. Nuke /data/cache/ so Paperclip writes a fresh patched JAR.
+#   4. Run Paperclip with --patchOnly to pre-patch without starting the server.
+#   5. Boot with TYPE=CUSTOM pointing at the patched JAR.
+#   6. If any step fails, fall back to PAPER_DOWNLOAD_URL + itzg native.
 
 MC_VERSION="${VERSION:-26.1.2}"
 PAPERMC_UA="craftcontrol-entrypoint/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
+PAPER_JAR="/tmp/paperclip-${MC_VERSION}.jar"
 
-echo "[entrypoint] Clearing stale Paper patch cache for version ${MC_VERSION}..."
-# Remove patched JARs that don't belong to the target version so itzg can't
-# fall back to a cached patched_1.21.4.jar.
-find /data/cache -maxdepth 1 \( -name "patched_*.jar" -o -name "mojang_*.jar" \) \
-    ! -name "patched_${MC_VERSION}.jar" \
-    -exec rm -f {} + 2>/dev/null || true
-# Also remove top-level paper JARs for wrong versions.
-find /data -maxdepth 1 -name "paper-*.jar" ! -name "paper-${MC_VERSION}*.jar" \
-    -exec rm -f {} + 2>/dev/null || true
-
-echo "[entrypoint] Fetching Paper ${MC_VERSION} build URL from fill.papermc.io..."
+echo "[entrypoint] Fetching Paper ${MC_VERSION} build info from fill.papermc.io..."
 BUILD_INFO=$(curl -sf --max-time 30 \
     -H "User-Agent: ${PAPERMC_UA}" \
     "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
-    echo "[entrypoint] WARNING: fill.papermc.io unreachable — proceeding without PAPER_DOWNLOAD_URL override"
+    echo "[entrypoint] WARNING: fill.papermc.io unreachable — falling back to itzg native"
     exec /start "$@"
 }
 
+# Extract URL of the latest build's server:default download.
+# The builds array is ordered oldest-first; tail -1 selects the newest.
 PAPER_URL=$(echo "$BUILD_INFO" \
     | grep -A 5 '"server:default"' \
     | grep '"url"' \
-    | head -1 \
+    | tail -1 \
     | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
 
 if [ -z "$PAPER_URL" ]; then
-    echo "[entrypoint] WARNING: Could not parse Paper URL from Fill v3 — proceeding without override"
+    echo "[entrypoint] WARNING: Could not parse Paper URL from Fill v3 — falling back to itzg native"
     exec /start "$@"
 fi
 
-echo "[entrypoint] PAPER_DOWNLOAD_URL=${PAPER_URL}"
-export PAPER_DOWNLOAD_URL="${PAPER_URL}"
+echo "[entrypoint] Downloading Paperclip ${MC_VERSION} from ${PAPER_URL}..."
+curl -fsSL --max-time 300 \
+    -H "User-Agent: ${PAPERMC_UA}" \
+    -o "$PAPER_JAR" \
+    "$PAPER_URL" || {
+    echo "[entrypoint] WARNING: Download failed — falling back to itzg native"
+    exec /start "$@"
+}
+
+# Nuclear-clear stale patched JARs so Paperclip always writes a fresh one.
+echo "[entrypoint] Clearing stale patch cache..."
+rm -rf /data/cache 2>/dev/null || true
+mkdir -p /data/cache
+
+echo "[entrypoint] Patching Paper ${MC_VERSION} (--patchOnly)..."
+# Paperclip writes /data/cache/patched_<mc-version>*.jar then exits.
+# Guard with timeout: if --patchOnly isn't honoured the JAR would start a full
+# server and block indefinitely; 180 s is plenty for patching on ct102.
+( cd /data && timeout 180 java -jar "$PAPER_JAR" --patchOnly ) 2>&1 | head -40 || true
+
+PATCHED=$(find /data/cache -maxdepth 2 -name "patched_*.jar" 2>/dev/null | head -1)
+if [ -n "$PATCHED" ]; then
+    echo "[entrypoint] TYPE=CUSTOM → ${PATCHED}"
+    export TYPE=CUSTOM
+    export CUSTOM_SERVER="$PATCHED"
+else
+    # Patch-only produced no cached JAR (new Paper bootstrapper?).
+    # Use the Paperclip JAR directly; it will re-patch on first run and then
+    # start the server — itzg TYPE=CUSTOM just executes it as-is.
+    echo "[entrypoint] No pre-patched JAR found — using Paperclip JAR directly"
+    export TYPE=CUSTOM
+    export CUSTOM_SERVER="$PAPER_JAR"
+fi
 
 exec /start "$@"
