@@ -66,7 +66,7 @@ runs:
 
         # ── Fetch build info (Fill v3 API — v2 stopped receiving builds Dec 31 2025) ──
         PAPERMC_UA="craftcontrol-preinstall/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
-        echo "Fetching Paper build info for MC ${MC_VERSION} via Fill v3 API…"
+        echo "::notice::cp=before-curl mc=${MC_VERSION}"
         BUILD_INFO=$(curl -sf --max-time 20 \
           -H "User-Agent: ${PAPERMC_UA}" \
           "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
@@ -75,32 +75,34 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
+        echo "::notice::cp=after-curl len=${#BUILD_INFO} head=$(echo "$BUILD_INFO" | head -c 120 | tr -d '\n')"
+
         # ── Parse Fill v3 JSON with POSIX tools (no jq/python3 on ct102) ────────
-        # Use grep -A to handle both compact and pretty-printed JSON:
-        #   - grep -A 5 '"server:default"' → the server:default object + next 5 lines
-        #   - grep '"url"'                 → whichever line has the url field
-        # This tolerates spaces around colons and nested structures in the JSON.
+        # set -e is active; use '|| true' so grep exits (1=no match) never kills the
+        # parent shell via the command-substitution exit-code propagation.
         set +o pipefail
         URL=$(echo "$BUILD_INFO" \
           | grep -A 5 '"server:default"' \
           | grep '"url"' \
           | tail -1 \
-          | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+          | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' \
+          || true)
         BUILD=$(echo "$BUILD_INFO" \
           | grep -oE '"build"[[:space:]]*:[[:space:]]*[0-9]+' \
           | tail -1 \
-          | grep -oE '[0-9]+$')
+          | grep -oE '[0-9]+$' \
+          || true)
         CHANNEL=$(echo "$BUILD_INFO" \
           | grep -oE '"channel"[[:space:]]*:[[:space:]]*"[^"]+"' \
           | tail -1 \
-          | sed -E 's/.*"([^"]+)"$/\1/')
+          | sed -E 's/.*"([^"]+)"$/\1/' \
+          || true)
         set -o pipefail
-        echo "::notice::build=${BUILD} channel=${CHANNEL} url=${URL}"
+        echo "::notice::parsed build=${BUILD} channel=${CHANNEL} url=${URL}"
         if [ -z "$URL" ]; then
-          echo "::error::No build URL found for Paper ${MC_VERSION} in Fill v3 API (last build: ${BUILD}, channel: ${CHANNEL})"
+          echo "::error::No build URL found for Paper ${MC_VERSION} in Fill v3 API (build=${BUILD} channel=${CHANNEL})"
           exit 1
         fi
-        echo "::notice::build=${BUILD} url=${URL}"
 
         # ── Download Paperclip bundler ────────────────────────────────────────
         curl -fsSL --max-time 300 -H "User-Agent: ${PAPERMC_UA}" -o paperclip.jar "$URL"
