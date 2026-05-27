@@ -27,7 +27,12 @@ rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 # "java -jar $CUSTOM_SERVER" and Paperclip handles patching + startup with no
 # partial-run side-effects.
 
-MC_VERSION="${VERSION:-26.1.2}"
+# Hardcode the target Paper version — do NOT read from $VERSION.
+# deploymentV2/docker-compose.yml sets VERSION=${MINECRAFT_VERSION:-26.1.2} and
+# ct102's .env has MINECRAFT_VERSION=1.21.4, so $VERSION resolves to 1.21.4 in
+# the container.  "${VERSION:-26.1.2}" only uses the default when VERSION is
+# *unset*, not when it is set to another value.
+MC_VERSION="26.1.2"
 PAPERMC_UA="craftcontrol-entrypoint/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
 PAPER_JAR="/tmp/paperclip-${MC_VERSION}.jar"
 
@@ -64,6 +69,9 @@ curl -fsSL --max-time 300 \
 echo "[entrypoint] Clearing stale patch cache..."
 rm -rf /data/cache 2>/dev/null || true
 mkdir -p /data/cache
+# The entrypoint runs as root; Paperclip runs as uid=1000.  Without the chown
+# Paperclip gets AccessDeniedException trying to write cache/mojang_*.jar.
+chown 1000:1000 /data/cache 2>/dev/null || true
 
 # TYPE=CUSTOM bypasses all itzg version-resolution logic.  Paperclip patches
 # the server and starts it directly — no partial-run side-effects.

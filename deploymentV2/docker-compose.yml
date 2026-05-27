@@ -111,7 +111,10 @@ services:
     environment:
       EULA:                  "TRUE"
       TYPE:                  PAPER
-      VERSION:               ${MINECRAFT_VERSION:-26.1.2}
+      # Hardcode 26.1.2 — do NOT use ${MINECRAFT_VERSION:-26.1.2}.
+      # ct102's .env has MINECRAFT_VERSION=1.21.4 which would override the
+      # default, causing the entrypoint to download Paper 1.21.4 instead.
+      VERSION:               "26.1.2"
       MEMORY:                ${MINECRAFT_MEMORY:-4G}
       ENABLE_RCON:           "true"
       RCON_PORT:             ${RCON_PORT:-25575}
