@@ -75,6 +75,9 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
+        # ── Diagnose raw API response ─────────────────────────────────────────
+        echo "::notice::api-raw=$(echo "$BUILD_INFO" | tr -d '\n' | cut -c1-400)"
+
         # ── Parse Fill v3 JSON with POSIX tools (jq/python3 absent on ct102) ───
         # Strategy: compact to one line, split objects on "},{", grep for STABLE,
         # then extract "server:default" download URL via grep -o + sed.
@@ -90,6 +93,7 @@ runs:
           | grep -oE '"build"[[:space:]]*:[[:space:]]*[0-9]+' \
           | sed -E 's/"build"[[:space:]]*:[[:space:]]*//')
         set -o pipefail
+        echo "::notice::parsed BUILD=${BUILD} URL=${URL}"
         if [ -z "$URL" ]; then
           echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
           exit 1
