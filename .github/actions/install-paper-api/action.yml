@@ -36,6 +36,8 @@ runs:
         echo "::notice::diag paper-api exists=$([ -f "$PAPER_INSTALLED" ] && echo YES || echo NO)"
         java -version 2>&1 | head -1 || echo "java not found"
 
+        API_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}"
+
         # ── Helper: write settings.xml so Maven uses the local file mirror ──
         write_settings() {
           mkdir -p ~/.m2
@@ -57,9 +59,22 @@ runs:
         SETTINGS
         }
 
+        # ── Helper: write paper-api POM with required transitive deps ─────────
+        # Always called — even on cache hit — so a stale cached POM is refreshed.
+        # Declares bungeecord-chat (already installed as a stub) and guava
+        # (fetched from Maven Central) so plugins that only declare paper-api
+        # still get these on their compile classpath.
+        write_paper_pom() {
+          mkdir -p "${API_DIR}"
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>io.papermc.paper</groupId>\n  <artifactId>paper-api</artifactId>\n  <version>%s</version>\n  <dependencies>\n    <dependency>\n      <groupId>net.md_5.bungee</groupId>\n      <artifactId>bungeecord-chat</artifactId>\n      <version>%s</version>\n    </dependency>\n    <dependency>\n      <groupId>com.google.guava</groupId>\n      <artifactId>guava</artifactId>\n      <version>33.3.1-jre</version>\n    </dependency>\n  </dependencies>\n</project>\n' \
+            "${PAPER_VERSION}" "${PAPER_VERSION}" > "${API_DIR}/paper-api-${PAPER_VERSION}.pom"
+        }
+
         # ── Cache hit: JAR already in local repo ──────────────────────────────
+        # Still regenerate POM so stale cached POMs get updated transitive deps.
         if [ -f "$PAPER_INSTALLED" ]; then
-          echo "::notice::Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), writing settings.xml and skipping download"
+          echo "::notice::Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), refreshing POM and writing settings.xml"
+          write_paper_pom
           write_settings
           exit 0
         fi
@@ -148,15 +163,8 @@ runs:
         # ── Install into local Maven repo (direct file placement — no mvn needed) ──
         # mvn is not reliably on PATH inside composite action steps on ct102.
         # Direct placement into ~/.m2/repository is equivalent to mvn install:install-file.
-        API_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}"
-        mkdir -p "${API_DIR}"
         cp /tmp/paper-api-uber.jar "${API_DIR}/paper-api-${PAPER_VERSION}.jar"
-        # Declare bungeecord-chat and guava as transitive deps so plugins that only
-        # declare paper-api get them on the compile classpath automatically.
-        # (guava provides com.google.common.collect.Multimap used by bukkit API;
-        #  bungeecord-chat provides net.md_5.bungee.api.chat classes)
-        printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>io.papermc.paper</groupId>\n  <artifactId>paper-api</artifactId>\n  <version>%s</version>\n  <dependencies>\n    <dependency>\n      <groupId>net.md_5.bungee</groupId>\n      <artifactId>bungeecord-chat</artifactId>\n      <version>%s</version>\n    </dependency>\n    <dependency>\n      <groupId>com.google.guava</groupId>\n      <artifactId>guava</artifactId>\n      <version>33.3.1-jre</version>\n    </dependency>\n  </dependencies>\n</project>\n' \
-          "${PAPER_VERSION}" "${PAPER_VERSION}" > "${API_DIR}/paper-api-${PAPER_VERSION}.pom"
+        write_paper_pom
 
         echo "::notice::installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
 
