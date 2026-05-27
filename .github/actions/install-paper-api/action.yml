@@ -75,25 +75,24 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
-        # ── Parse Fill v3 JSON with POSIX tools (jq/python3 absent on ct102) ───
-        # Strategy: compact to one line, split objects on "},{", take the LAST
-        # build entry (most recent), then extract the server:default URL via
-        # grep -o + sed.  We do NOT filter by channel="STABLE" because the Fill
-        # v3 API for this version uses a different channel label (confirmed by
-        # diagnostics showing an empty STABLE match despite valid build data).
-        # set +o pipefail so grep returning 1 (no match) doesn't abort the script.
+        # ── Parse Fill v3 JSON with POSIX tools (no jq/python3 on ct102) ────────
+        # Use grep -A to handle both compact and pretty-printed JSON:
+        #   - grep -A 5 '"server:default"' → the server:default object + next 5 lines
+        #   - grep '"url"'                 → whichever line has the url field
+        # This tolerates spaces around colons and nested structures in the JSON.
         set +o pipefail
-        LAST_BUILD_LINE=$(echo "$BUILD_INFO" | tr -d '\n' | sed 's/},{/}\n{/g' | tail -1)
-        URL=$(echo "$LAST_BUILD_LINE" \
-          | grep -o '"server:default":{[^}]*}' \
-          | grep -o '"url":"[^"]*"' \
-          | sed 's/"url":"//;s/"$//')
-        BUILD=$(echo "$LAST_BUILD_LINE" \
+        URL=$(echo "$BUILD_INFO" \
+          | grep -A 5 '"server:default"' \
+          | grep '"url"' \
+          | tail -1 \
+          | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+        BUILD=$(echo "$BUILD_INFO" \
           | grep -oE '"build"[[:space:]]*:[[:space:]]*[0-9]+' \
-          | head -1 \
+          | tail -1 \
           | grep -oE '[0-9]+$')
-        CHANNEL=$(echo "$LAST_BUILD_LINE" \
+        CHANNEL=$(echo "$BUILD_INFO" \
           | grep -oE '"channel"[[:space:]]*:[[:space:]]*"[^"]+"' \
+          | tail -1 \
           | sed -E 's/.*"([^"]+)"$/\1/')
         set -o pipefail
         echo "::notice::build=${BUILD} channel=${CHANNEL} url=${URL}"
