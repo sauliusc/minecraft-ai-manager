@@ -80,21 +80,22 @@ runs:
         # ── Parse Fill v3 JSON with POSIX tools (no jq/python3 on ct102) ────────
         # set -e is active; use '|| true' so grep exits (1=no match) never kills the
         # parent shell via the command-substitution exit-code propagation.
+        # Builds are returned newest-first; use head -1 to get the most recent build.
         set +o pipefail
         URL=$(echo "$BUILD_INFO" \
           | grep -A 5 '"server:default"' \
           | grep '"url"' \
-          | tail -1 \
+          | head -1 \
           | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' \
           || true)
         BUILD=$(echo "$BUILD_INFO" \
-          | grep -oE '"build"[[:space:]]*:[[:space:]]*[0-9]+' \
-          | tail -1 \
+          | grep -oE '"id"[[:space:]]*:[[:space:]]*[0-9]+' \
+          | head -1 \
           | grep -oE '[0-9]+$' \
           || true)
         CHANNEL=$(echo "$BUILD_INFO" \
           | grep -oE '"channel"[[:space:]]*:[[:space:]]*"[^"]+"' \
-          | tail -1 \
+          | head -1 \
           | sed -E 's/.*"([^"]+)"$/\1/' \
           || true)
         set -o pipefail
@@ -143,15 +144,14 @@ runs:
         rm paperclip.jar
         echo "::notice::uber-jar size=$(du -sh /tmp/paper-api-uber.jar)"
 
-        # ── Install into local Maven repo ─────────────────────────────────────
-        mvn install:install-file \
-          -Dfile="/tmp/paper-api-uber.jar" \
-          -DgroupId=io.papermc.paper \
-          -DartifactId=paper-api \
-          -Dversion="${PAPER_VERSION}" \
-          -Dpackaging=jar \
-          -DgeneratePom=true \
-          --no-transfer-progress
+        # ── Install into local Maven repo (direct file placement — no mvn needed) ──
+        # mvn is not reliably on PATH inside composite action steps on ct102.
+        # Direct placement into ~/.m2/repository is equivalent to mvn install:install-file.
+        API_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}"
+        mkdir -p "${API_DIR}"
+        cp /tmp/paper-api-uber.jar "${API_DIR}/paper-api-${PAPER_VERSION}.jar"
+        printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>io.papermc.paper</groupId>\n  <artifactId>paper-api</artifactId>\n  <version>%s</version>\n</project>\n' \
+          "${PAPER_VERSION}" > "${API_DIR}/paper-api-${PAPER_VERSION}.pom"
 
         echo "::notice::installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
 
@@ -272,11 +272,11 @@ runs:
           /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java
         jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
         echo "::notice::bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
-        mvn install:install-file \
-          -Dfile="/tmp/bungeecord-chat-stub.jar" \
-          -DgroupId=net.md_5.bungee \
-          -DartifactId=bungeecord-chat \
-          -Dversion=26.1.2-R0.1-SNAPSHOT \
-          -Dpackaging=jar \
-          -DgeneratePom=true \
-          --no-transfer-progress
+        # Direct placement into ~/.m2/repository — no mvn needed (not reliably on PATH)
+        BUNGEE_VER="26.1.2-R0.1-SNAPSHOT"
+        BUNGEE_DIR="${HOME}/.m2/repository/net/md_5/bungee/bungeecord-chat/${BUNGEE_VER}"
+        mkdir -p "${BUNGEE_DIR}"
+        cp /tmp/bungeecord-chat-stub.jar "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.jar"
+        printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>net.md_5.bungee</groupId>\n  <artifactId>bungeecord-chat</artifactId>\n  <version>%s</version>\n</project>\n' \
+          "${BUNGEE_VER}" > "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.pom"
+        echo "::notice::bungee-installed $(du -sh "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.jar" | cut -f1)"
