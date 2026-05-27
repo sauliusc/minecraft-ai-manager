@@ -60,12 +60,59 @@ jobs:
       - run: npm test
 
   # ────────────────────────────────────────────────────────────────────────────
+  # Build plugin JARs on ct102 (has unrestricted access to fill.papermc.io).
+  # fill.papermc.io is blocked on standard GitHub-hosted runners, so we compile
+  # here and pass the JARs to the ubuntu-latest build job via artifact.
+  # ────────────────────────────────────────────────────────────────────────────
+  build-plugins:
+    name: Build plugin JARs (ct102)
+    needs: test
+    runs-on: [self-hosted, ct102]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+          cache: maven
+
+      - name: Clear Maven negative-cache entries
+        run: find ~/.m2 -name "*.lastUpdated" -delete 2>/dev/null || true
+
+      - name: Install Paper API + BungeeCord stubs
+        uses: ./.github/actions/install-paper-api
+
+      - name: Build plugin JARs
+        run: mvn -f plugins/pom.xml clean package -DskipTests -q
+
+      - name: Collect plugin JARs
+        run: |
+          mkdir -p /tmp/plugin-jars
+          find plugins -name '*-*.jar' -path '*/target/*' \
+            ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
+            ! -name 'original-*' \
+            -exec cp {} /tmp/plugin-jars/ \; 2>/dev/null || true
+          echo "=== Plugin JARs ==="
+          ls -la /tmp/plugin-jars/
+
+      - name: Upload plugin JARs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-jars-${{ github.sha }}
+          path: /tmp/plugin-jars/
+          if-no-files-found: error
+          retention-days: 1
+
+  # ────────────────────────────────────────────────────────────────────────────
   # Build all Docker images on GitHub and push to GHCR
-  # Includes: plugin JARs (Maven) baked into the minecraft image
+  # Plugin JARs are downloaded from the artifact produced by build-plugins
   # ────────────────────────────────────────────────────────────────────────────
   build:
     name: Build & Push Images
-    needs: test
+    needs: [test, build-plugins]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -76,29 +123,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Build plugin JARs and stage for minecraft image ───────────────────
-      - uses: actions/setup-java@v4
+      # ── Download pre-built plugin JARs from ct102 build job ──────────────
+      - name: Download plugin JARs artifact
+        uses: actions/download-artifact@v4
         with:
-          java-version: "21"
-          distribution: temurin
-          cache: maven
+          name: plugin-jars-${{ github.sha }}
+          path: jars/
 
-      - name: Install Paper API + BungeeCord stubs
-        uses: ./.github/actions/install-paper-api
-
-      - name: Clear Maven negative-cache entries before build
-        run: find ~/.m2 -name "*.lastUpdated" -delete 2>/dev/null || true
-
-      - name: Build plugin JARs
-        run: mvn -f plugins/pom.xml clean package -DskipTests -q
-
-      - name: Stage JARs into jars/ (picked up by minecraft/Dockerfile)
+      - name: List staged plugin JARs
         run: |
-          find plugins -name '*-*.jar' -path '*/target/*' \
-            ! -name '*-sources.jar' ! -name '*-javadoc.jar' \
-            ! -name 'original-*' \
-            -exec cp {} jars/ \;
-          echo "Staged JARs:"
+          echo "=== Plugin JARs staged for Docker ==="
           ls -la jars/
 
       # ── Docker setup ────────────────────────────────────────────────────────
@@ -256,7 +290,7 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────────
   notify-failure:
     name: Notify on failure
-    needs: [test, build, deploy, validate]
+    needs: [test, build-plugins, build, deploy, validate]
     if: failure()
     runs-on: ubuntu-latest
     permissions:

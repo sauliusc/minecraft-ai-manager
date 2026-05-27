@@ -15,25 +15,68 @@ on:
 
 jobs:
   build:
-    name: Build plugins (Java 21)
-    runs-on: ubuntu-latest
+    # Run on the ct102 self-hosted runner which has unrestricted network access
+    # to fill.papermc.io (blocked on standard GitHub-hosted runners).
+    name: Build plugins (Java 25)
+    runs-on: [self-hosted, ct102]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java 21
+      - name: Set up Java 25
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
           cache: maven
 
+      - name: Install Paper API + BungeeCord stubs
+        uses: ./.github/actions/install-paper-api
+
+      - name: Ensure Maven is available
+        run: |
+          if command -v mvn &>/dev/null; then
+            echo "Maven already on PATH: $(mvn --version 2>&1 | head -1)"
+          else
+            echo "mvn not in PATH — downloading Apache Maven 3.9.9"
+            curl -fsSL -o /tmp/maven.tar.gz \
+              "https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz"
+            tar -xzf /tmp/maven.tar.gz -C "${HOME}"
+            rm /tmp/maven.tar.gz
+            echo "${HOME}/apache-maven-3.9.9/bin" >> "$GITHUB_PATH"
+            echo "Installed: $("${HOME}/apache-maven-3.9.9/bin/mvn" --version 2>&1 | head -1)"
+          fi
+
+      - name: Clear Maven negative-cache entries before build
+        run: find ~/.m2 -name "*.lastUpdated" -delete 2>/dev/null || true
+
+      - name: Diagnose build environment
+        run: |
+          echo "=== Java version ==="
+          java -version 2>&1 || echo "java not found"
+          echo "=== Maven version ==="
+          mvn --version 2>&1 || echo "Maven not found"
+          echo "=== JAVA_HOME ==="
+          echo "JAVA_HOME=${JAVA_HOME}"
+          echo "=== Paper API JAR presence ==="
+          ls -la ~/.m2/repository/io/papermc/paper/paper-api/26.1.2-R0.1-SNAPSHOT/ 2>&1 || echo "NOT FOUND"
+          echo "=== BungeeCord stub presence ==="
+          ls -la ~/.m2/repository/net/md_5/bungee/bungeecord-chat/26.1.2-R0.1-SNAPSHOT/ 2>&1 || echo "NOT FOUND"
+          echo "=== settings.xml ==="
+          cat ~/.m2/settings.xml 2>&1 || echo "NO settings.xml"
+
       - name: Build all plugins
         run: |
-          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress || {
-            echo "::warning::Plugin build failed. If the error is 'status code: 403' from repo.papermc.io, this is a known network restriction in this CI environment."
-            echo "::warning::To build plugins locally: mvn -f plugins/pom.xml clean package -DskipTests"
-          }
+          set +o pipefail
+          mvn -f plugins/pom.xml clean package -DskipTests --batch-mode --no-transfer-progress \
+            2>&1 | tee /tmp/mvn-build.log
+          MVN_RC=${PIPESTATUS[0]}
+          if [ "$MVN_RC" -ne 0 ]; then
+            echo "::error::Maven build failed (exit $MVN_RC) — first 50 error lines:"
+            grep -E '^\[ERROR\]' /tmp/mvn-build.log | head -50 | \
+              while IFS= read -r line; do echo "::error::${line}"; done
+          fi
+          exit "$MVN_RC"
 
       - name: Collect plugin JARs
         run: |

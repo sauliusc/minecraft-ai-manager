@@ -1,15 +1,28 @@
 name: Install Paper API for Maven
 description: >
-  Downloads the Paper server JAR from api.papermc.io, extracts paper-api,
-  builds an uber-JAR with Adventure classes, and installs it into the local
-  Maven repository so plugin builds work on GitHub-hosted runners (which
-  cannot reach repo.papermc.io).
-  settings.xml is written ONLY after the JAR is confirmed installed, so a
-  failed download never leaves Maven pointing at an empty local mirror.
+  Restores the Paper API JAR from the GHA cache (seeded by the ct102 self-hosted
+  runner via seed-paper-api.yml). Falls back to downloading directly from
+  fill.papermc.io when the cache is cold (accessible on ct102, blocked on
+  standard GitHub-hosted runners).
+  Builds an uber-JAR (paper-api + Adventure), installs it into the local Maven
+  repository, and writes settings.xml ONLY after a confirmed installation so
+  that a failed download never leaves Maven pointing at an empty local mirror.
 
 runs:
   using: composite
   steps:
+    # ── 1. Restore from GHA cache (optional — may not be accessible on self-hosted runners) ──
+    - name: Restore Paper API from GHA cache
+      id: paper-cache
+      continue-on-error: true   # cache service may be unavailable on self-hosted runners
+      uses: actions/cache/restore@v4
+      with:
+        path: ~/.m2/repository/io/papermc/paper/paper-api
+        key: paper-api-26.1.2-R0.1-SNAPSHOT-${{ runner.os }}
+        restore-keys: |
+          paper-api-26.1.2-R0.1-SNAPSHOT-
+
+    # ── 2. Install Paper API (skip if cache hit) ──────────────────────────────
     - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
       shell: bash
       run: |
@@ -18,6 +31,12 @@ runs:
         PAPER_VERSION="26.1.2-R0.1-SNAPSHOT"
         MC_VERSION="26.1.2"
         PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}/paper-api-${PAPER_VERSION}.jar"
+
+        echo "::notice::diag HOME=${HOME} JAVA_HOME=${JAVA_HOME:-UNSET} PATH=${PATH}"
+        echo "::notice::diag paper-api exists=$([ -f "$PAPER_INSTALLED" ] && echo YES || echo NO)"
+        java -version 2>&1 | head -1 || echo "java not found"
+
+        API_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}"
 
         # ── Helper: write settings.xml so Maven uses the local file mirror ──
         write_settings() {
@@ -40,30 +59,66 @@ runs:
         SETTINGS
         }
 
+        # ── Helper: write paper-api POM with required transitive deps ─────────
+        # Always called — even on cache hit — so a stale cached POM is refreshed.
+        # Declares bungeecord-chat (already installed as a stub) and guava
+        # (fetched from Maven Central) so plugins that only declare paper-api
+        # still get these on their compile classpath.
+        write_paper_pom() {
+          mkdir -p "${API_DIR}"
+          printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>io.papermc.paper</groupId>\n  <artifactId>paper-api</artifactId>\n  <version>%s</version>\n  <dependencies>\n    <dependency>\n      <groupId>net.md_5.bungee</groupId>\n      <artifactId>bungeecord-chat</artifactId>\n      <version>%s</version>\n    </dependency>\n    <dependency>\n      <groupId>com.google.guava</groupId>\n      <artifactId>guava</artifactId>\n      <version>33.3.1-jre</version>\n    </dependency>\n  </dependencies>\n</project>\n' \
+            "${PAPER_VERSION}" "${PAPER_VERSION}" > "${API_DIR}/paper-api-${PAPER_VERSION}.pom"
+        }
+
         # ── Cache hit: JAR already in local repo ──────────────────────────────
+        # Still regenerate POM so stale cached POMs get updated transitive deps.
         if [ -f "$PAPER_INSTALLED" ]; then
-          echo "::notice::Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), writing settings.xml and skipping download"
+          echo "::notice::Paper API already installed ($(du -sh "$PAPER_INSTALLED" | cut -f1)), refreshing POM and writing settings.xml"
+          write_paper_pom
           write_settings
           exit 0
         fi
 
         # ── Fetch build info (Fill v3 API — v2 stopped receiving builds Dec 31 2025) ──
         PAPERMC_UA="craftcontrol-preinstall/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
-        echo "Fetching Paper build info for MC ${MC_VERSION} via Fill v3 API…"
+        echo "::notice::cp=before-curl mc=${MC_VERSION}"
         BUILD_INFO=$(curl -sf --max-time 20 \
           -H "User-Agent: ${PAPERMC_UA}" \
           "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
           echo "::error::Fill v3 API returned an error for version '${MC_VERSION}'."
           echo "::error::Check https://fill.papermc.io/v3/projects/paper/versions for valid versions."
+          echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
-        URL=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .downloads."server:default".url')
-        BUILD=$(echo "$BUILD_INFO" | jq -r '[.[] | select(.channel == "STABLE")] | last | .build')
-        if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-          echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
+        echo "::notice::cp=after-curl len=${#BUILD_INFO} head=$(echo "$BUILD_INFO" | head -c 120 | tr -d '\n')"
+
+        # ── Parse Fill v3 JSON with POSIX tools (no jq/python3 on ct102) ────────
+        # set -e is active; use '|| true' so grep exits (1=no match) never kills the
+        # parent shell via the command-substitution exit-code propagation.
+        # Builds are returned newest-first; use head -1 to get the most recent build.
+        set +o pipefail
+        URL=$(echo "$BUILD_INFO" \
+          | grep -A 5 '"server:default"' \
+          | grep '"url"' \
+          | head -1 \
+          | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' \
+          || true)
+        BUILD=$(echo "$BUILD_INFO" \
+          | grep -oE '"id"[[:space:]]*:[[:space:]]*[0-9]+' \
+          | head -1 \
+          | grep -oE '[0-9]+$' \
+          || true)
+        CHANNEL=$(echo "$BUILD_INFO" \
+          | grep -oE '"channel"[[:space:]]*:[[:space:]]*"[^"]+"' \
+          | head -1 \
+          | sed -E 's/.*"([^"]+)"$/\1/' \
+          || true)
+        set -o pipefail
+        echo "::notice::parsed build=${BUILD} channel=${CHANNEL} url=${URL}"
+        if [ -z "$URL" ]; then
+          echo "::error::No build URL found for Paper ${MC_VERSION} in Fill v3 API (build=${BUILD} channel=${CHANNEL})"
           exit 1
         fi
-        echo "::notice::build=${BUILD} url=${URL}"
 
         # ── Download Paperclip bundler ────────────────────────────────────────
         curl -fsSL --max-time 300 -H "User-Agent: ${PAPERMC_UA}" -o paperclip.jar "$URL"
@@ -91,28 +146,25 @@ runs:
           exit 1
         fi
 
-        # ── Build uber-JAR (paper-api + Adventure classes) ────────────────────
+        # ── Build uber-JAR (paper-api + Adventure + Gson classes) ───────────────
         mkdir -p /tmp/uber-api
         cd /tmp/uber-api
         jar xf "$PAPER_API_JAR"
         while IFS= read -r ajar; do
           jar xf "$ajar" 2>/dev/null || true
-        done < <(find /tmp/paper-extract -path "*/net/kyori/*.jar" \
+        done < <(find /tmp/paper-extract \
+          \( -path "*/net/kyori/*.jar" -o -name "gson-*.jar" \) \
           ! -name "*-sources.jar" ! -name "*-javadoc.jar" 2>/dev/null)
         cd -
         jar cf /tmp/paper-api-uber.jar -C /tmp/uber-api .
         rm paperclip.jar
         echo "::notice::uber-jar size=$(du -sh /tmp/paper-api-uber.jar)"
 
-        # ── Install into local Maven repo ─────────────────────────────────────
-        mvn install:install-file \
-          -Dfile="/tmp/paper-api-uber.jar" \
-          -DgroupId=io.papermc.paper \
-          -DartifactId=paper-api \
-          -Dversion="${PAPER_VERSION}" \
-          -Dpackaging=jar \
-          -DgeneratePom=true \
-          --no-transfer-progress
+        # ── Install into local Maven repo (direct file placement — no mvn needed) ──
+        # mvn is not reliably on PATH inside composite action steps on ct102.
+        # Direct placement into ~/.m2/repository is equivalent to mvn install:install-file.
+        cp /tmp/paper-api-uber.jar "${API_DIR}/paper-api-${PAPER_VERSION}.jar"
+        write_paper_pom
 
         echo "::notice::installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
 
@@ -127,6 +179,9 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        echo "::notice::diag-bungee HOME=${HOME} JAVA_HOME=${JAVA_HOME:-UNSET}"
+        echo "::notice::diag-bungee javac=$(which javac 2>/dev/null || echo MISSING) jar=$(which jar 2>/dev/null || echo MISSING)"
+        javac -version 2>&1 | head -1 || echo "javac not found"
         # bungeecord-chat is Paper's private build at repo.papermc.io (blocked on GHA runners)
         # and is absent from the Paperclip bundler. We create minimal compile-only stubs.
         rm -rf ~/.m2/repository/net/md_5/bungee/bungeecord-chat 2>/dev/null || true
@@ -230,11 +285,11 @@ runs:
           /tmp/bungee-src/net/md_5/bungee/chat/ComponentSerializer.java
         jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
         echo "::notice::bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
-        mvn install:install-file \
-          -Dfile="/tmp/bungeecord-chat-stub.jar" \
-          -DgroupId=net.md_5.bungee \
-          -DartifactId=bungeecord-chat \
-          -Dversion=26.1.2-R0.1-SNAPSHOT \
-          -Dpackaging=jar \
-          -DgeneratePom=true \
-          --no-transfer-progress
+        # Direct placement into ~/.m2/repository — no mvn needed (not reliably on PATH)
+        BUNGEE_VER="26.1.2-R0.1-SNAPSHOT"
+        BUNGEE_DIR="${HOME}/.m2/repository/net/md_5/bungee/bungeecord-chat/${BUNGEE_VER}"
+        mkdir -p "${BUNGEE_DIR}"
+        cp /tmp/bungeecord-chat-stub.jar "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.jar"
+        printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>net.md_5.bungee</groupId>\n  <artifactId>bungeecord-chat</artifactId>\n  <version>%s</version>\n</project>\n' \
+          "${BUNGEE_VER}" > "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.pom"
+        echo "::notice::bungee-installed $(du -sh "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.jar" | cut -f1)"

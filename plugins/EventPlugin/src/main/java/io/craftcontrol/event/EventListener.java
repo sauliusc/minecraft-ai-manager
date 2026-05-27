@@ -1,5 +1,7 @@
 package io.craftcontrol.event;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -52,7 +54,7 @@ public class EventListener implements Listener {
         if (!buildBattleHandler.isActive()) return;
         if (!buildBattleHandler.isInOwnPlot(event.getPlayer().getUniqueId(), event.getBlock().getLocation())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage("§cYou can only build within your assigned plot!");
+            event.getPlayer().sendMessage(Component.text("You can only build within your assigned plot!").color(NamedTextColor.RED));
         }
     }
 
@@ -61,7 +63,7 @@ public class EventListener implements Listener {
         if (!buildBattleHandler.isActive()) return;
         if (!buildBattleHandler.isInOwnPlot(event.getPlayer().getUniqueId(), event.getBlock().getLocation())) {
             event.setCancelled(true);
-            event.getPlayer().sendMessage("§cYou can only break blocks within your assigned plot!");
+            event.getPlayer().sendMessage(Component.text("You can only break blocks within your assigned plot!").color(NamedTextColor.RED));
         }
     }
 
@@ -74,19 +76,19 @@ public class EventListener implements Listener {
         Player player = event.getPlayer();
         String[] parts = msg.split(" ");
         if (parts.length < 2) {
-            player.sendMessage("§cUsage: /buildvote <1-5>");
+            player.sendMessage(Component.text("Usage: /buildvote <1-5>").color(NamedTextColor.RED));
             return;
         }
         int score;
         try {
             score = Integer.parseInt(parts[1]);
         } catch (NumberFormatException e) {
-            player.sendMessage("§cUsage: /buildvote <1-5>");
+            player.sendMessage(Component.text("Usage: /buildvote <1-5>").color(NamedTextColor.RED));
             return;
         }
         UUID currentBuilder = buildBattleHandler.getCurrentBuilder();
         if (currentBuilder == null) {
-            player.sendMessage("§cNo build is currently being voted on.");
+            player.sendMessage(Component.text("No build is currently being voted on.").color(NamedTextColor.RED));
             return;
         }
         buildBattleHandler.submitVote(player, currentBuilder, score);

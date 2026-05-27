@@ -1,5 +1,7 @@
 package io.craftcontrol.greeter;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -16,10 +18,10 @@ public class GreeterCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 1 && "reload".equalsIgnoreCase(args[0])) {
             plugin.reloadConfig();
-            sender.sendMessage("§aGreeterPlugin config reloaded.");
+            sender.sendMessage(Component.text("GreeterPlugin config reloaded.").color(NamedTextColor.GREEN));
             return true;
         }
-        sender.sendMessage("§cUsage: /greeter reload");
+        sender.sendMessage(Component.text("Usage: /greeter reload").color(NamedTextColor.RED));
         return false;
     }
 }

@@ -7,6 +7,8 @@ import io.craftcontrol.event.model.ActiveEvent;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.FireworkEffect;
@@ -66,7 +68,8 @@ public class BossRaidHandler {
         damageTrackers.put(event.getId(), new ConcurrentHashMap<>());
         firedPhases.put(event.getId(), new HashSet<>());
 
-        Bukkit.broadcastMessage("§c§l[Boss Raid] §eA powerful boss has appeared at the arena!");
+        Bukkit.getServer().broadcast(Component.text("[Boss Raid] ", NamedTextColor.RED)
+                .append(Component.text("A powerful boss has appeared at the arena!", NamedTextColor.YELLOW)));
 
         JsonObject config = event.getConfig();
         String bossTypeStr = config.has("bossType") ? config.get("bossType").getAsString() : "WITHER";
@@ -144,7 +147,8 @@ public class BossRaidHandler {
     }
 
     private void triggerPhase(String phase, Location loc) {
-        Bukkit.broadcastMessage("§c§l[Boss Raid] §eThe boss reached " + phase + " HP — it's enraged!");
+        Bukkit.getServer().broadcast(Component.text("[Boss Raid] ", NamedTextColor.RED)
+                .append(Component.text("The boss reached " + phase + " HP — it's enraged!", NamedTextColor.YELLOW)));
 
         double speedBase = boss.getAttribute(Attribute.MOVEMENT_SPEED).getBaseValue();
         boss.getAttribute(Attribute.MOVEMENT_SPEED).setBaseValue(speedBase * 1.3);
@@ -170,7 +174,8 @@ public class BossRaidHandler {
         boss = null;
 
         spawnFireworks(deathLoc);
-        Bukkit.broadcastMessage("§6§l[Boss Raid] §eThe boss has been defeated! Distributing rewards...");
+        Bukkit.getServer().broadcast(Component.text("[Boss Raid] ", NamedTextColor.GOLD)
+                .append(Component.text("The boss has been defeated! Distributing rewards...", NamedTextColor.YELLOW)));
 
         Map<UUID, Double> tracker = damageTrackers.remove(eventId);
         firedPhases.remove(eventId);
