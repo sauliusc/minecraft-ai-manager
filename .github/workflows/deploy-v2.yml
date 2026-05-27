@@ -289,6 +289,35 @@ jobs:
 
           echo "✅ No errors in Minecraft startup logs."
 
+      - name: Verify custom plugins loaded
+        run: |
+          # Plugin remap failures appear as stack traces (not [ERROR]: lines),
+          # so the previous step would miss them. Check explicitly.
+          REMAP_FAIL=$(grep -c "Failed to remap plugin jar" /tmp/mc-startup.log || true)
+          if [ "$REMAP_FAIL" -gt 0 ]; then
+            echo "::error::${REMAP_FAIL} plugin(s) failed to remap — class file version mismatch?"
+            grep "Failed to remap plugin jar" /tmp/mc-startup.log | \
+              while IFS= read -r line; do echo "::error::${line}"; done
+            exit 1
+          fi
+
+          # Verify each custom plugin initialised successfully.
+          MISSING=""
+          for PLUGIN in BridgePlugin GreeterPlugin ChallengePlugin RewardPlugin \
+                        StreakPlugin EconomyPlugin ClanPlugin QuestPlugin \
+                        CosmeticsPlugin EventPlugin VotePlugin ModerationPlugin NpcPlugin; do
+            if ! grep -qE "\[${PLUGIN}\]" /tmp/mc-startup.log; then
+              MISSING="${MISSING} ${PLUGIN}"
+            fi
+          done
+
+          if [ -n "$MISSING" ]; then
+            echo "::error::Custom plugins that did not appear in startup log:${MISSING}"
+            exit 1
+          fi
+
+          echo "✅ All custom plugins loaded successfully."
+
       - name: Upload full log as artifact
         if: always()
         uses: actions/upload-artifact@v4
