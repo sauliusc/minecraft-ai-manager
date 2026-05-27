@@ -79,7 +79,7 @@ jobs:
       # ── Build plugin JARs and stage for minecraft image ───────────────────
       - uses: actions/setup-java@v4
         with:
-          java-version: "21"
+          java-version: "25"
           distribution: temurin
           cache: maven
 
