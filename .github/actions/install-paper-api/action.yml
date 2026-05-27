@@ -71,21 +71,8 @@ runs:
           echo "::error::On standard GHA runners fill.papermc.io may be blocked — run seed-paper-api.yml manually to populate the GHA cache."
           exit 1
         }
-        URL=$(echo "$BUILD_INFO" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-stable = [x for x in data if x.get('channel') == 'STABLE']
-if not stable: sys.exit(1)
-last = stable[-1]
-print(last['downloads']['server:default']['url'])
-")
-        BUILD=$(echo "$BUILD_INFO" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-stable = [x for x in data if x.get('channel') == 'STABLE']
-if not stable: sys.exit(1)
-print(stable[-1]['build'])
-")
+        URL=$(echo "$BUILD_INFO" | python3 -c "import sys,json;d=[x for x in json.load(sys.stdin) if x.get('channel')=='STABLE'];print(d[-1]['downloads']['server:default']['url']) if d else sys.exit(1)")
+        BUILD=$(echo "$BUILD_INFO" | python3 -c "import sys,json;d=[x for x in json.load(sys.stdin) if x.get('channel')=='STABLE'];print(d[-1]['build']) if d else sys.exit(1)")
         if [ -z "$URL" ]; then
           echo "::error::No STABLE build found for Paper ${MC_VERSION} in Fill v3 API"
           exit 1
