@@ -151,8 +151,12 @@ runs:
         API_DIR="${HOME}/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}"
         mkdir -p "${API_DIR}"
         cp /tmp/paper-api-uber.jar "${API_DIR}/paper-api-${PAPER_VERSION}.jar"
-        printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>io.papermc.paper</groupId>\n  <artifactId>paper-api</artifactId>\n  <version>%s</version>\n</project>\n' \
-          "${PAPER_VERSION}" > "${API_DIR}/paper-api-${PAPER_VERSION}.pom"
+        # Declare bungeecord-chat and guava as transitive deps so plugins that only
+        # declare paper-api get them on the compile classpath automatically.
+        # (guava provides com.google.common.collect.Multimap used by bukkit API;
+        #  bungeecord-chat provides net.md_5.bungee.api.chat classes)
+        printf '<?xml version="1.0" encoding="UTF-8"?>\n<project>\n  <modelVersion>4.0.0</modelVersion>\n  <groupId>io.papermc.paper</groupId>\n  <artifactId>paper-api</artifactId>\n  <version>%s</version>\n  <dependencies>\n    <dependency>\n      <groupId>net.md_5.bungee</groupId>\n      <artifactId>bungeecord-chat</artifactId>\n      <version>%s</version>\n    </dependency>\n    <dependency>\n      <groupId>com.google.guava</groupId>\n      <artifactId>guava</artifactId>\n      <version>33.3.1-jre</version>\n    </dependency>\n  </dependencies>\n</project>\n' \
+          "${PAPER_VERSION}" "${PAPER_VERSION}" > "${API_DIR}/paper-api-${PAPER_VERSION}.pom"
 
         echo "::notice::installed=$(du -sh "$PAPER_INSTALLED" 2>/dev/null || echo MISSING)"
 
