@@ -107,7 +107,7 @@ public class EventManager {
                 Bukkit.getScheduler().runTask(plugin, () ->
                         Bukkit.getServer().broadcast(
                                 Component.text("[Event] ", NamedTextColor.GOLD)
-                                    .append(Component.text(getEventName(type) + " starts in " + minutesUntil + " minutes!", NamedTextColor.YELLOW)))));
+                                    .append(Component.text(getEventName(type) + " starts in " + minutesUntil + " minutes!", NamedTextColor.YELLOW))));
             }
         }
     }
