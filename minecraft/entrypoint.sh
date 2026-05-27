@@ -11,52 +11,52 @@ set -e
 rm -f /data/plugins/original-*.jar 2>/dev/null || true
 rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 
-# ── Pre-download Paper using Fill v3 API ─────────────────────────────────────
-# itzg/minecraft-server uses api.papermc.io/v2 which is dead for versions
-# released after Dec 31, 2025 (fully disabled July 1, 2026). Paper 26.1.2+
-# must be fetched from fill.papermc.io/v3 instead.
+# ── Force correct Paper version ───────────────────────────────────────────────
+# itzg/minecraft-server uses api.papermc.io/v2 (dead for post-2025 versions)
+# AND may reuse /data/cache/patched_*.jar from a previous run, causing a stale
+# Paper 1.21.4 JAR to be used instead of 26.1.2.
 #
-# The container runs on ct102 which has unrestricted network access to
-# fill.papermc.io, so we download the correct Paperclip JAR here before
-# /start is called. If /data/paper-${VERSION}.jar already matches the
-# target version, we skip the download.
+# Fix strategy:
+#   1. Clear /data/cache/patched_*.jar so itzg must re-download and re-patch.
+#   2. Set PAPER_DOWNLOAD_URL to the fill.papermc.io URL for Paper 26.1.2 so
+#      itzg fetches from the correct (live) endpoint instead of the dead v2 API.
+#
+# ct102 has unrestricted network access to fill.papermc.io; Docker containers
+# on ct102 inherit the same network by default.
+
 MC_VERSION="${VERSION:-26.1.2}"
-PAPER_JAR="/data/paper-${MC_VERSION}.jar"
 PAPERMC_UA="craftcontrol-entrypoint/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
 
-# Remove any old Paper JARs from previous versions to avoid confusion.
-find /data -maxdepth 1 -name "paper-*.jar" ! -name "paper-${MC_VERSION}.jar" \
+echo "[entrypoint] Clearing stale Paper patch cache for version ${MC_VERSION}..."
+# Remove patched JARs that don't belong to the target version so itzg can't
+# fall back to a cached patched_1.21.4.jar.
+find /data/cache -maxdepth 1 \( -name "patched_*.jar" -o -name "mojang_*.jar" \) \
+    ! -name "patched_${MC_VERSION}.jar" \
+    -exec rm -f {} + 2>/dev/null || true
+# Also remove top-level paper JARs for wrong versions.
+find /data -maxdepth 1 -name "paper-*.jar" ! -name "paper-${MC_VERSION}*.jar" \
     -exec rm -f {} + 2>/dev/null || true
 
-if [ ! -f "$PAPER_JAR" ]; then
-    echo "[entrypoint] Paper ${MC_VERSION} JAR not found — fetching from fill.papermc.io..."
+echo "[entrypoint] Fetching Paper ${MC_VERSION} build URL from fill.papermc.io..."
+BUILD_INFO=$(curl -sf --max-time 30 \
+    -H "User-Agent: ${PAPERMC_UA}" \
+    "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
+    echo "[entrypoint] WARNING: fill.papermc.io unreachable — proceeding without PAPER_DOWNLOAD_URL override"
+    exec /start "$@"
+}
 
-    BUILD_INFO=$(curl -sf --max-time 30 \
-        -H "User-Agent: ${PAPERMC_UA}" \
-        "https://fill.papermc.io/v3/projects/paper/versions/${MC_VERSION}/builds") || {
-        echo "[entrypoint] ERROR: Fill v3 API request failed for version '${MC_VERSION}'"
-        exit 1
-    }
+PAPER_URL=$(echo "$BUILD_INFO" \
+    | grep -A 5 '"server:default"' \
+    | grep '"url"' \
+    | head -1 \
+    | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
 
-    # Builds are returned newest-first; grep the first 'server:default' block for its url.
-    PAPER_URL=$(echo "$BUILD_INFO" \
-        | grep -A 5 '"server:default"' \
-        | grep '"url"' \
-        | head -1 \
-        | sed -E 's/.*"url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/' || true)
-
-    if [ -z "$PAPER_URL" ]; then
-        echo "[entrypoint] ERROR: Could not parse Paper download URL from Fill v3 response"
-        exit 1
-    fi
-
-    echo "[entrypoint] Downloading: $PAPER_URL"
-    curl -fsSL --max-time 300 \
-        -H "User-Agent: ${PAPERMC_UA}" \
-        -o "$PAPER_JAR" "$PAPER_URL"
-    echo "[entrypoint] Downloaded Paper ${MC_VERSION}: $(du -sh "$PAPER_JAR" | cut -f1)"
-else
-    echo "[entrypoint] Paper ${MC_VERSION} JAR already present ($(du -sh "$PAPER_JAR" | cut -f1)), skipping download"
+if [ -z "$PAPER_URL" ]; then
+    echo "[entrypoint] WARNING: Could not parse Paper URL from Fill v3 — proceeding without override"
+    exec /start "$@"
 fi
+
+echo "[entrypoint] PAPER_DOWNLOAD_URL=${PAPER_URL}"
+export PAPER_DOWNLOAD_URL="${PAPER_URL}"
 
 exec /start "$@"
