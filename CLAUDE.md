@@ -38,6 +38,59 @@ PaperMC moved to a new download service. Always use `fill.papermc.io/v3`:
 - **Response:** array of build objects; filter `channel == "STABLE"`, use `last`, extract `.downloads."server:default".url`
 - **Old endpoint** `api.papermc.io/v2` is dead for any version released after Dec 31, 2025
 
+## Updating the Minecraft / Paper server version
+
+Changing the Paper version touches four independent files and has several non-obvious pitfalls. Follow every step.
+
+### 1. Verify the version exists on Fill v3 before touching any code
+
+```
+curl -s -H "User-Agent: check/1.0 (manual)" \
+  "https://fill.papermc.io/v3/projects/paper/versions/<NEW_VERSION>/builds" \
+  | grep '"channel"'
+```
+
+The response must contain at least one `"channel": "STABLE"` entry. If the endpoint returns 404 or no STABLE builds, the version is not yet published — do not proceed.
+
+### 2. The four places that must all be updated together
+
+| File | Field | Why |
+|---|---|---|
+| `minecraft/entrypoint.sh` | `MC_VERSION="26.1.2"` | **Hardcoded — do NOT use `$VERSION`.** `deploymentV2/docker-compose.yml` sets `VERSION` from ct102's `.env` file (`MINECRAFT_VERSION=1.21.4`), which overrides the docker-compose default. `${VERSION:-26.1.2}` only falls back when `VERSION` is *unset*, so using it will silently download the wrong Paper version. |
+| `deploymentV2/docker-compose.yml` | `VERSION: "26.1.2"` | **Hardcoded — do NOT use `${MINECRAFT_VERSION:-...}`.** The `.env` on ct102 has `MINECRAFT_VERSION=1.21.4`; a variable reference lets it override the intended version. |
+| `minecraft/Dockerfile` | `ENV VERSION=26.1.2` | Fallback default visible in `docker inspect`; used only if the entrypoint's `exec /start` fallback path runs (fill.papermc.io unreachable). |
+| `plugins/pom.xml` (parent) | `<paperApiVersion>` / Paper API dependency version | Must match the Minecraft API level shipped by the new Paper version. Compile against the wrong API and plugins will fail to load or remap. |
+
+### 3. How the boot process works (TYPE=CUSTOM + Paperclip)
+
+itzg's built-in `TYPE=PAPER` does not recognise calendar-versioned Minecraft version strings (e.g. `"26.1.2"`); it falls back to a cached `patched_1.21.4-*.jar` from the persistent `minecraft_data` volume. The entrypoint therefore:
+
+1. Fetches the latest STABLE build URL from `fill.papermc.io/v3`.
+2. Downloads the Paperclip JAR to `/tmp/paperclip-<version>.jar` (ephemeral — not persisted).
+3. Runs `rm -rf /data/cache && mkdir -p /data/cache && chown 1000:1000 /data/cache` to nuke any stale patched JARs. The `chown` is required because the entrypoint runs as root but Paperclip runs as uid=1000; without it Paperclip throws `AccessDeniedException` and the container enters a crash-loop.
+4. Exports `TYPE=CUSTOM` and `CUSTOM_SERVER=/tmp/paperclip-<version>.jar`, then `exec /start`. itzg passes the JAR straight to Java; Paperclip patches the server into `/data/cache/patched_*.jar` and starts it.
+
+**Do NOT add `--patchOnly`** to the Paperclip invocation. If the output is piped through anything (e.g. `| head -N`), the JVM receives SIGPIPE after N lines and dies before patching completes, leaving partial `original-*.jar` backups in `/data/plugins/`.
+
+### 4. original-*.jar files
+
+The maven-shade-plugin creates `original-Plugin.jar` backups alongside shaded JARs in `target/`. These must never end up in the Docker image's `/plugins/` directory, because itzg copies all of `/plugins/` → `/data/plugins/` on every restart — overwriting the entrypoint's cleanup. The Dockerfile has a guard:
+
+```dockerfile
+RUN find /plugins -name 'original-*.jar' -delete 2>/dev/null || true
+```
+
+Do not remove this line.
+
+### 5. Checklist when opening a version-bump PR
+
+- [ ] All four files updated (entrypoint, docker-compose, Dockerfile, plugins pom)
+- [ ] Version confirmed present on `fill.papermc.io/v3` with a STABLE build
+- [ ] `MC_VERSION` and `VERSION:` are hardcoded strings, not variable references
+- [ ] Paper API version in pom matches the new Minecraft API level
+- [ ] `docker-publish.yml` build checks (Build Minecraft image) are green on the PR
+- [ ] Post-merge: `deploy-v2` validate step passes (all 13 plugins load, no remap errors)
+
 ## Post-deploy validation
 
 After merging any plugin fix to `main`, the `deploy-v2` workflow runs a `Validate Minecraft startup` job on the CT102 self-hosted runner. Always check its result:
