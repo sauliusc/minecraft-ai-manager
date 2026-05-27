@@ -20,6 +20,12 @@ ENV EULA=TRUE \
 # NOTE: itzg copies /plugins/ -> /data/plugins/ (where Paper loads plugins from).
 #       /config/ goes to /data/config/ — Paper never looks there for plugin JARs.
 COPY jars/ /plugins/
+# Remove maven-shade-plugin artifact backups (original-*.jar) that end up in
+# jars/ from the CI build.  itzg copies /plugins/ → /data/plugins/ on every
+# restart, so if these are left in the image the entrypoint cleanup is
+# immediately overwritten and Paper tries to remap both the shaded and
+# unshaded JARs, causing "Ambiguous plugin name" errors.
+RUN find /plugins -name 'original-*.jar' -delete 2>/dev/null || true
 
 # Plugin config templates land in /data/plugins/ alongside the JARs.
 # REPLACE_ENV_VARIABLES=TRUE with the default CFG_ prefix replaces ${CFG_*}
