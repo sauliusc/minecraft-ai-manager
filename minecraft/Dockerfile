@@ -32,6 +32,12 @@ RUN find /plugins -name 'original-*.jar' -delete 2>/dev/null || true
 # tokens in all files under /data/ before the server starts.
 COPY minecraft/config/plugins/ /plugins/
 
+# Paper world config — shipped in the image so itzg copies it to /data/config/
+# on startup (via "Copying any configs from /config to /data/config").
+# Must NOT be a bind mount: Paper uses atomic rename() to save the file and
+# Linux returns EBUSY if the target is bind-mounted.
+COPY minecraft/config/paper-world-defaults.yml /config/paper-world-defaults.yml
+
 COPY minecraft/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]

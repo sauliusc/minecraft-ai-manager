@@ -148,9 +148,6 @@ services:
       CFG_BRIDGE_API_URL:    http://api:3000
     volumes:
       - minecraft_data:/data
-      # Paper world config — managed in git, applied on every restart.
-      # Only the tuned keys are set; Paper merges the rest from built-in defaults.
-      - ./config/paper-world-defaults.yml:/data/config/paper-world-defaults.yml
     ports:
       - "25565:25565"   # Minecraft players
 
