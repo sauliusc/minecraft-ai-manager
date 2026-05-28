@@ -19,6 +19,7 @@ public class EventPlugin extends JavaPlugin {
         buildBattleHandler = new BuildBattleHandler(this, eventManager);
         eventManager.start(bossRaidHandler, treasureHuntHandler, buildBattleHandler);
         getServer().getPluginManager().registerEvents(new EventListener(bossRaidHandler, treasureHuntHandler, buildBattleHandler), this);
+        getCommand("serverinfo").setExecutor(new ServerInfoCommand(eventManager));
         getLogger().info("EventPlugin enabled.");
     }
 
