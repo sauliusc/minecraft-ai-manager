@@ -116,7 +116,30 @@ services:
       # ct102's .env has MINECRAFT_VERSION=1.21.4 which would override the
       # default, causing the entrypoint to download Paper 1.21.4 instead.
       VERSION:               "26.1.2"
-      MEMORY:                ${MINECRAFT_MEMORY:-4G}
+      # Default 6G — set MINECRAFT_MEMORY=4G in .env to lower if RAM is tight.
+      MEMORY:                ${MINECRAFT_MEMORY:-6G}
+      # Aikar G1GC flags — standard Paper recommendation.
+      # These reduce stop-the-world GC pauses on large heaps and improve
+      # throughput for mixed young/old collections.
+      JVM_OPTS: >-
+        -XX:+UseG1GC
+        -XX:+ParallelRefProcEnabled
+        -XX:MaxGCPauseMillis=200
+        -XX:+UnlockExperimentalVMOptions
+        -XX:+DisableExplicitGC
+        -XX:+AlwaysPreTouch
+        -XX:G1NewSizePercent=30
+        -XX:G1MaxNewSizePercent=40
+        -XX:G1HeapRegionSize=8M
+        -XX:G1ReservePercent=20
+        -XX:G1HeapWastePercent=5
+        -XX:G1MixedGCCountTarget=4
+        -XX:InitiatingHeapOccupancyPercent=15
+        -XX:G1MixedGCLiveThresholdPercent=90
+        -XX:G1RSetUpdatingPauseTimePercent=5
+        -XX:SurvivorRatio=32
+        -XX:+PerfDisableSharedMem
+        -XX:MaxTenuringThreshold=1
       ENABLE_RCON:           "true"
       RCON_PORT:             ${RCON_PORT:-25575}
       RCON_PASSWORD:         ${RCON_PASSWORD:-craftcontrol-rcon-internal}
@@ -125,6 +148,9 @@ services:
       CFG_BRIDGE_API_URL:    http://api:3000
     volumes:
       - minecraft_data:/data
+      # Paper world config — managed in git, applied on every restart.
+      # Only the tuned keys are set; Paper merges the rest from built-in defaults.
+      - ./config/paper-world-defaults.yml:/data/config/paper-world-defaults.yml
     ports:
       - "25565:25565"   # Minecraft players
 
