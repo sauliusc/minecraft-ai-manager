@@ -23,6 +23,10 @@
             <artifactId>BridgePlugin</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.craftcontrol</groupId>
+            <artifactId>ChallengePlugin</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
         </dependency>
