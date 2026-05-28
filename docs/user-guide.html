@@ -391,6 +391,7 @@
 
     <div class="nav-section">In-Game Commands</div>
     <a href="#ingame-challenges">Challenges</a>
+    <a href="#ingame-serverinfo">Server Info</a>
     <a href="#ingame-clans">Clans</a>
     <a href="#ingame-cosmetics">Cosmetics</a>
     <a href="#ingame-reporting">Reporting</a>
@@ -1264,6 +1265,64 @@
         <li><p>When they hit 100 diamonds, a notification appears in chat saying the challenge is complete.</p></li>
         <li><p>The reward is delivered instantly. If the player is offline when the reward processes, it queues and delivers the next time they log in.</p></li>
       </ol>
+
+      <h3>📋 /challenges</h3>
+      <p>Usage: <span class="cmd">/challenges [page]</span></p>
+      <p>
+        Lists all active challenges with your personal progress bar for each one. Results are
+        paginated (5 per page) — use <span class="cmd">/challenges 2</span> to go to page 2.
+        Only usable by players in-game (not from the server console).
+      </p>
+    </section>
+
+    <section id="ingame-serverinfo">
+      <h2>📋 In-Game — Server Info</h2>
+      <p>
+        The <span class="cmd">/serverinfo</span> command gives any player a quick summary of
+        everything currently happening on the server — active challenges and live or upcoming
+        events — in a single chat message. No arguments needed.
+      </p>
+
+      <h3>Challenges section</h3>
+      <p>
+        Lists each active challenge by <strong>title</strong> and <strong>description</strong>.
+        If no challenges are running, it shows <em>"No active challenges."</em>
+        If the ChallengePlugin is not loaded for any reason, it shows
+        <em>"Challenges unavailable."</em>
+      </p>
+
+      <h3>Events section</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Event state</th><th>How it appears</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="status s-active">ACTIVE</span></td>
+              <td>Event name in green, labelled <strong>(Active)</strong></td>
+            </tr>
+            <tr>
+              <td><span class="status s-upcoming">UPCOMING</span></td>
+              <td>Event name in yellow with a countdown — e.g. <em>(in 12m)</em> or <em>(in 1h 30m)</em></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Events in <span class="status s-finished">FINISHED</span> state are not shown.
+        If nothing is active or upcoming, the command shows <em>"No active or upcoming events."</em>
+      </p>
+
+      <h4>Example output</h4>
+      <pre style="background:var(--gray-900);color:#e5e7eb;padding:1rem 1.25rem;border-radius:8px;font-size:.82rem;line-height:1.7;overflow-x:auto;">
+<span style="color:#eab308">══════ Server Info ══════</span>
+<span style="color:#38bdf8">— Challenges —</span>
+  <span style="color:#fbbf24">▶</span> Mine 100 Diamonds
+    <span style="color:#9ca3af">Collect 100 diamonds from the overworld</span>
+  <span style="color:#fbbf24">▶</span> Kill 50 Zombies
+    <span style="color:#9ca3af">Defeat 50 zombies anywhere on the server</span>
+<span style="color:#38bdf8">— Events —</span>
+  <span style="color:#4ade80">▶</span> <span style="color:#e5e7eb">Boss Raid</span> <span style="color:#4ade80">(Active)</span>
+  <span style="color:#fbbf24">▶</span> <span style="color:#e5e7eb">Treasure Hunt</span> <span style="color:#fbbf24">(in 45m)</span></pre>
     </section>
 
     <section id="ingame-clans">
