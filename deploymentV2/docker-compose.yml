@@ -116,8 +116,8 @@ services:
       # ct102's .env has MINECRAFT_VERSION=1.21.4 which would override the
       # default, causing the entrypoint to download Paper 1.21.4 instead.
       VERSION:               "26.1.2"
-      # Default 6G — set MINECRAFT_MEMORY=4G in .env to lower if RAM is tight.
-      MEMORY:                ${MINECRAFT_MEMORY:-6G}
+      # Default 4G. Set MINECRAFT_MEMORY=6G in .env only if the host has ≥10G total RAM.
+      MEMORY:                ${MINECRAFT_MEMORY:-4G}
       # Aikar G1GC flags — standard Paper recommendation.
       # These reduce stop-the-world GC pauses on large heaps and improve
       # throughput for mixed young/old collections.
