@@ -16,11 +16,11 @@ tick-rates:
 
 entities:
   collision:
-    # Cap push-checks per entity per tick. Default is 8 (unlimited = -1).
-    # With many villagers, each one runs isPushable() on every nearby entity
-    # which calls onClimbable() → ReferenceOpenHashSet.contains() in a loop
-    # that can hang the server thread. 2 prevents the O(n²) cascade.
-    max-entity-collisions: 2
+    # Disable entity pushing entirely (0 = off). Paper checks this BEFORE
+    # calling getPushableEntities(), so the O(n) entity scan is bypassed
+    # completely. The world has excess villagers that cause a 30s+ freeze
+    # on every tick; re-enable once villager population is reduced via RCON.
+    max-entity-collisions: 0
   spawning:
     entity-per-chunk-save-limit:
       # Prevent runaway villager accumulation in trading halls / breeders.
