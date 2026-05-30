@@ -34,7 +34,15 @@ public class ServerInfoCommand implements CommandExecutor {
 
     private void showChallenges(CommandSender sender) {
         sender.sendMessage(Component.text("— Challenges —", NamedTextColor.AQUA));
+        try {
+            showChallengesImpl(sender);
+        } catch (NoClassDefFoundError e) {
+            // ChallengePlugin classes not on classpath — soft-depend not loaded
+            sender.sendMessage(Component.text("  Challenges unavailable.", NamedTextColor.DARK_GRAY));
+        }
+    }
 
+    private void showChallengesImpl(CommandSender sender) {
         org.bukkit.plugin.Plugin challengePlugin = Bukkit.getPluginManager().getPlugin("ChallengePlugin");
         if (!(challengePlugin instanceof io.craftcontrol.challenge.ChallengePlugin cp) || !challengePlugin.isEnabled()) {
             sender.sendMessage(Component.text("  Challenges unavailable.", NamedTextColor.DARK_GRAY));
