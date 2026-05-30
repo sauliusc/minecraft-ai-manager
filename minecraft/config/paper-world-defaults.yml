@@ -15,6 +15,12 @@ tick-rates:
       acquirepoi: 120
 
 entities:
+  collision:
+    # Cap push-checks per entity per tick. Default is 8 (unlimited = -1).
+    # With many villagers, each one runs isPushable() on every nearby entity
+    # which calls onClimbable() → ReferenceOpenHashSet.contains() in a loop
+    # that can hang the server thread. 2 prevents the O(n²) cascade.
+    max-entity-collisions: 2
   spawning:
     entity-per-chunk-save-limit:
       # Prevent runaway villager accumulation in trading halls / breeders.
