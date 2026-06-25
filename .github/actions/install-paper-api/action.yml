@@ -163,6 +163,7 @@ runs:
         # ── Install into local Maven repo (direct file placement — no mvn needed) ──
         # mvn is not reliably on PATH inside composite action steps on ct102.
         # Direct placement into ~/.m2/repository is equivalent to mvn install:install-file.
+        mkdir -p "${API_DIR}"
         cp /tmp/paper-api-uber.jar "${API_DIR}/paper-api-${PAPER_VERSION}.jar"
         write_paper_pom
 
