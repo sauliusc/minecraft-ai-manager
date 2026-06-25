@@ -13,7 +13,7 @@ rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 
 # ── Download Paperclip + boot via TYPE=CUSTOM ─────────────────────────────────
 # itzg/minecraft-server does not recognise calendar-versioned strings like
-# "26.1.2" for TYPE=PAPER; it falls back to a cached patched_1.21.4-*.jar in
+# "26.2" for TYPE=PAPER; it falls back to a cached patched_1.21.4-*.jar in
 # the persistent minecraft_data volume.
 #
 # Previous fix (PR #243) attempted --patchOnly but piped output through
@@ -28,11 +28,11 @@ rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 # partial-run side-effects.
 
 # Hardcode the target Paper version — do NOT read from $VERSION.
-# deploymentV2/docker-compose.yml sets VERSION=${MINECRAFT_VERSION:-26.1.2} and
+# deploymentV2/docker-compose.yml sets VERSION=${MINECRAFT_VERSION:-26.2} and
 # ct102's .env has MINECRAFT_VERSION=1.21.4, so $VERSION resolves to 1.21.4 in
-# the container.  "${VERSION:-26.1.2}" only uses the default when VERSION is
+# the container.  "${VERSION:-26.2}" only uses the default when VERSION is
 # *unset*, not when it is set to another value.
-MC_VERSION="26.1.2"
+MC_VERSION="26.2"
 PAPERMC_UA="craftcontrol-entrypoint/1.0 (https://github.com/sauliusc/minecraft-ai-manager)"
 PAPER_JAR="/tmp/paperclip-${MC_VERSION}.jar"
 
