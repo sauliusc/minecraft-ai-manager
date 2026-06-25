@@ -1,7 +1,7 @@
 name: Seed Paper API Maven cache
 
 # Runs on the ct102 self-hosted runner which has unrestricted network access to
-# fill.papermc.io.  Downloads Paper 26.1.2, installs it to the local Maven repo,
+# fill.papermc.io.  Downloads Paper 26.2, installs it to the local Maven repo,
 # then saves that directory to the GHA cache so that ubuntu-latest jobs (which
 # cannot reach fill.papermc.io) can restore it.
 #
@@ -44,4 +44,4 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ~/.m2/repository/io/papermc/paper/paper-api
-          key: paper-api-26.1.2-R0.1-SNAPSHOT-Linux
+          key: paper-api-26.2-R0.1-SNAPSHOT-Linux

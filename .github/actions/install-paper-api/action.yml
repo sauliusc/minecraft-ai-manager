@@ -18,9 +18,9 @@ runs:
       uses: actions/cache/restore@v4
       with:
         path: ~/.m2/repository/io/papermc/paper/paper-api
-        key: paper-api-26.1.2-R0.1-SNAPSHOT-${{ runner.os }}
+        key: paper-api-26.2-R0.1-SNAPSHOT-${{ runner.os }}
         restore-keys: |
-          paper-api-26.1.2-R0.1-SNAPSHOT-
+          paper-api-26.2-R0.1-SNAPSHOT-
 
     # ── 2. Install Paper API (skip if cache hit) ──────────────────────────────
     - name: Pre-install Paper API (bypass repo.papermc.io CI restrictions)
@@ -28,8 +28,8 @@ runs:
       run: |
         set -euo pipefail
 
-        PAPER_VERSION="26.1.2-R0.1-SNAPSHOT"
-        MC_VERSION="26.1.2"
+        PAPER_VERSION="26.2-R0.1-SNAPSHOT"
+        MC_VERSION="26.2"
         PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}/paper-api-${PAPER_VERSION}.jar"
 
         echo "::notice::diag HOME=${HOME} JAVA_HOME=${JAVA_HOME:-UNSET} PATH=${PATH}"
@@ -286,7 +286,7 @@ runs:
         jar cf /tmp/bungeecord-chat-stub.jar -C /tmp/bungee-classes .
         echo "::notice::bungee-stubs size=$(du -sh /tmp/bungeecord-chat-stub.jar | cut -f1)"
         # Direct placement into ~/.m2/repository — no mvn needed (not reliably on PATH)
-        BUNGEE_VER="26.1.2-R0.1-SNAPSHOT"
+        BUNGEE_VER="26.2-R0.1-SNAPSHOT"
         BUNGEE_DIR="${HOME}/.m2/repository/net/md_5/bungee/bungeecord-chat/${BUNGEE_VER}"
         mkdir -p "${BUNGEE_DIR}"
         cp /tmp/bungeecord-chat-stub.jar "${BUNGEE_DIR}/bungeecord-chat-${BUNGEE_VER}.jar"

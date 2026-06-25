@@ -129,8 +129,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          PAPER_VERSION="26.1.2-R0.1-SNAPSHOT"
-          MC_VERSION="26.1.2"
+          PAPER_VERSION="26.2-R0.1-SNAPSHOT"
+          MC_VERSION="26.2"
           PAPER_INSTALLED="$HOME/.m2/repository/io/papermc/paper/paper-api/${PAPER_VERSION}/paper-api-${PAPER_VERSION}.jar"
 
           write_settings() {
@@ -228,7 +228,7 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          # bungeecord-chat:26.1.2-R0.1-SNAPSHOT is Paper's private build at repo.papermc.io
+          # bungeecord-chat:26.2-R0.1-SNAPSHOT is Paper's private build at repo.papermc.io
           # (blocked on GHA runners) and is absent from the Paperclip bundler libraries.
           # paper-api method signatures reference these types, so the compiler needs them.
           # We create minimal compile-only stubs; they are 'provided' scope and never
@@ -338,7 +338,7 @@ jobs:
             -Dfile="/tmp/bungeecord-chat-stub.jar" \
             -DgroupId=net.md_5.bungee \
             -DartifactId=bungeecord-chat \
-            -Dversion=26.1.2-R0.1-SNAPSHOT \
+            -Dversion=26.2-R0.1-SNAPSHOT \
             -Dpackaging=jar \
             -DgeneratePom=true \
             --no-transfer-progress

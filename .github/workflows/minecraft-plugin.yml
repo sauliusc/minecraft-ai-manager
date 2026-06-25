@@ -59,9 +59,9 @@ jobs:
           echo "=== JAVA_HOME ==="
           echo "JAVA_HOME=${JAVA_HOME}"
           echo "=== Paper API JAR presence ==="
-          ls -la ~/.m2/repository/io/papermc/paper/paper-api/26.1.2-R0.1-SNAPSHOT/ 2>&1 || echo "NOT FOUND"
+          ls -la ~/.m2/repository/io/papermc/paper/paper-api/26.2-R0.1-SNAPSHOT/ 2>&1 || echo "NOT FOUND"
           echo "=== BungeeCord stub presence ==="
-          ls -la ~/.m2/repository/net/md_5/bungee/bungeecord-chat/26.1.2-R0.1-SNAPSHOT/ 2>&1 || echo "NOT FOUND"
+          ls -la ~/.m2/repository/net/md_5/bungee/bungeecord-chat/26.2-R0.1-SNAPSHOT/ 2>&1 || echo "NOT FOUND"
           echo "=== settings.xml ==="
           cat ~/.m2/settings.xml 2>&1 || echo "NO settings.xml"
 
