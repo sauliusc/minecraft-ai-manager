@@ -12,6 +12,10 @@ For every bug fix, feature, or code change — always follow this flow in order:
 
 Never merge without green CI. Never close an issue without a merged PR.
 
+## Operating CT102 directly (this host)
+
+This session runs on CT102 itself, with the live `deploymentV2` compose stack. Never run `docker compose up`, `pull`, or `restart` directly against it — always go through `make deploy` / `make restart` (see `deploymentV2/README.md`). `deploy.sh` always pulls fresh images before starting containers and now pins the resolved tag back into `.env`; a raw `docker compose up` skips the pull and can silently reuse a stale image cached locally under the same tag (e.g. `:latest`). This caused a real regression on 2026-08-18 — reverted the Minecraft server to a build that predated the villager-push-hang fix, which looked like the server "crashing" after a player connected. See `minecraft-ai-manager#278`.
+
 ## CI validation rules — lessons learned
 
 Green check marks on a PR are not enough on their own. Follow these rules before declaring CI clean:
