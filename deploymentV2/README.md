@@ -102,6 +102,14 @@ make restart          # Restart containers without rebuilding
 make stop             # Stop everything (data preserved)
 ```
 
+> **Don't run `docker compose up`/`pull`/`restart` directly on the server.**
+> `make deploy` / `make restart` always run through the compose file with the
+> right `.env`, and `deploy.sh` always pulls fresh images before starting
+> containers. A raw `docker compose up` can silently reuse a stale image
+> that's already cached locally under the same tag (e.g. `:latest`) instead
+> of checking the registry — that caused a real production regression once
+> (see `minecraft-ai-manager#278`).
+
 ---
 
 ## Updating the application

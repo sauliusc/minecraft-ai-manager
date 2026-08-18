@@ -159,6 +159,20 @@ docker compose --env-file "$ENV_FILE" -f "$DEPLOY_DIR/docker-compose.yml" \
     req.on('error',()=>process.exit(1));req.write(body);req.end();
   " && ok "Deployment recorded" || warn "Failed to record deployment (non-fatal)"
 
+# ── Persist the resolved tag ───────────────────────────────────────────────────
+# .env otherwise keeps the literal string "latest" forever (CI only exports
+# IMAGE_TAG for its own workflow run, never writes it back). A stale "latest"
+# in .env is a footgun: any later `docker compose up` that skips `pull` will
+# silently reuse whatever image is cached locally under that tag, which can be
+# months old. Pin .env to the tag we just successfully deployed.
+step "Persisting deployed image tag to .env"
+if grep -q '^IMAGE_TAG=' "$ENV_FILE"; then
+  sed -i "s/^IMAGE_TAG=.*/IMAGE_TAG=${IMAGE_TAG}/" "$ENV_FILE"
+else
+  echo "IMAGE_TAG=${IMAGE_TAG}" >> "$ENV_FILE"
+fi
+ok ".env pinned to IMAGE_TAG=${IMAGE_TAG}"
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 source "$ENV_FILE"
 HTTP_PORT="${HTTP_PORT:-80}"
