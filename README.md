@@ -90,3 +90,4 @@ See [`mcp/README.md`](mcp/README.md) for the full tool list and local (stdio) mo
 | [`DEPLOYMENT.md`](DEPLOYMENT.md) | Proxmox two-VM production topology |
 | [`TECHNICAL_DOCS.md`](TECHNICAL_DOCS.md) | Architecture, API reference, developer guide |
 | [`proxmox/README.md`](proxmox/README.md) | Proxmox LXC one-click deployment |
+| [`docs/claude-vm-access.md`](docs/claude-vm-access.md) | Giving Claude shell-level access to the server VM (Remote Control) |
