@@ -32,7 +32,10 @@ tunnel gives scoped game-server control but not a shell; a `workflow_dispatch` j
 ## 1. Prerequisites
 
 - Shell access to CT102 (the LXC container running the CraftControl stack at `/opt/craftcontrol`).
-- Node.js 18+ on CT102 if installing via npm (`node --version`).
+- `curl` and `tmux` — neither ships with the base Ubuntu 24.04 container image:
+  ```bash
+  apt update && apt install -y curl tmux
+  ```
 - A claude.ai subscription (Pro or Max). API-key auth does **not** work with Remote Control — if
   `ANTHROPIC_API_KEY` is set in the environment, unset it before logging in.
 
@@ -40,15 +43,24 @@ tunnel gives scoped game-server control but not a shell; a `workflow_dispatch` j
 
 ## 2. Install the CLI on CT102
 
+CT102 has no Node.js, so use the standalone installer — it bundles its own runtime:
+
 ```bash
-# npm install (needs Node 18+)
-npm install -g @anthropic-ai/claude-code
-
-# or the standalone native installer (no Node required)
 curl -fsSL https://claude.ai/install.sh | bash
+```
 
+It installs to `~/.local/bin`, which is **not** on root's PATH on a fresh Ubuntu container. Without
+this, the next command is `claude: command not found`:
+
+```bash
+export PATH="$HOME/.local/bin:$PATH"
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 claude --version
 ```
+
+On a host that already runs Node 18+, `npm install -g @anthropic-ai/claude-code` works too and puts
+the binary on the global PATH — but CT102 is not such a host (`npm` is absent; installing it just to
+get the CLI is unnecessary).
 
 ## 3. One-time login
 
@@ -96,7 +108,7 @@ Do not run the agent as `root`. Create a user with just the access it needs:
 useradd -m -s /bin/bash claude
 usermod -aG docker claude          # docker compose against /opt/craftcontrol
 chown -R claude:claude /opt/craftcontrol
-su - claude -c claude              # run /login as this user (see §3)
+su - claude                        # then install the CLI (§2) and run /login (§3) as this user
 ```
 
 Grant `sudo` only if you actually want Claude able to touch the host outside Docker — it widens
@@ -118,7 +130,7 @@ User=claude
 WorkingDirectory=/opt/craftcontrol
 Environment=HOME=/home/claude
 Environment=CLAUDE_REMOTE_CONTROL_SESSION_NAME_PREFIX=ct102
-ExecStart=/usr/bin/claude remote-control --name "craftcontrol-ct102"
+ExecStart=/home/claude/.local/bin/claude remote-control --name "craftcontrol-ct102"
 Restart=always
 RestartSec=15
 
@@ -126,8 +138,9 @@ RestartSec=15
 WantedBy=multi-user.target
 ```
 
-Adjust `ExecStart` to the real binary path (`which claude` — the native installer puts it in
-`~/.local/bin/claude`).
+Set `ExecStart` to the real binary path for the **service user** — systemd does not read
+`.bashrc`, so the PATH export from §2 does not apply here. Run `su - claude -c 'which claude'`; the
+native installer puts it at `/home/claude/.local/bin/claude`.
 
 ```bash
 systemctl daemon-reload
@@ -190,6 +203,8 @@ on every deploy and will discard them.
 
 | Symptom | Fix |
 |---|---|
+| `claude: command not found` right after a successful install | The native installer writes to `~/.local/bin`, which is not on root's PATH by default. Run the `export PATH` line from §2. |
+| `npm: command not found` | CT102 has no Node.js. Use the standalone installer in §2 instead. |
 | `Remote Control requires a claude.ai subscription` | Not signed in with a claude.ai account. `unset ANTHROPIC_API_KEY`, then `claude auth login` and pick the claude.ai option. |
 | Session shows offline in the sidebar | The local process died. `systemctl status claude-remote-control`, or reattach the tmux session. |
 | `claude remote-control` exits by itself | Extended network outage — server mode gives up after ~10 minutes. `Restart=always` in the unit handles this; otherwise rerun the command. |
