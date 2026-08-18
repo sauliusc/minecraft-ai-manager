@@ -9,9 +9,11 @@ import okhttp3.Callback;
 import okhttp3.Response;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Villager;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.io.IOException;
@@ -26,16 +28,51 @@ public class NpcManager {
     private final Gson gson = new Gson();
     private final Map<String, UUID> npcIdToEntityId = new ConcurrentHashMap<>();
     private final Map<UUID, NpcDefinition> entityIdToNpc = new ConcurrentHashMap<>();
+    private final NamespacedKey npcIdKey;
     private BukkitTask syncTask;
 
     public NpcManager(NpcPlugin plugin, ApiClient api) {
         this.plugin = plugin;
         this.api = api;
+        this.npcIdKey = new NamespacedKey(plugin, "npc-id");
     }
 
     public void start() {
+        // npcIdToEntityId only lives in memory and is empty on every plugin load, including
+        // after a crash (onDisable/despawnAll never runs, so nothing gets cleaned up). Without
+        // this adoption step, the very first sync after any ungraceful restart would find no
+        // "existing" entity for each def and spawn a brand new villager on top of whatever was
+        // already there from the previous session — permanently orphaning it. Villagers spawned
+        // by this plugin carry an npc-id tag in their PersistentDataContainer (see
+        // spawnOrUpdate), so on startup we scan currently loaded entities for that tag and
+        // re-adopt them instead of assuming none exist. See minecraft-ai-manager#285.
+        adoptExistingNpcs();
         long intervalTicks = plugin.getConfig().getLong("sync-interval-seconds", 60) * 20L;
         syncTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::syncFromApi, 20L, intervalTicks);
+    }
+
+    private void adoptExistingNpcs() {
+        for (World world : Bukkit.getWorlds()) {
+            for (Entity e : world.getEntities()) {
+                if (!(e instanceof Villager)) continue;
+                String npcId = e.getPersistentDataContainer().get(npcIdKey, PersistentDataType.STRING);
+                if (npcId == null) continue;
+
+                UUID alreadyAdopted = npcIdToEntityId.get(npcId);
+                if (alreadyAdopted == null) {
+                    npcIdToEntityId.put(npcId, e.getUniqueId());
+                } else {
+                    // A previous ungraceful restart already left a duplicate for this npc id —
+                    // clean it up now rather than letting it accumulate further.
+                    e.remove();
+                    plugin.getLogger().info("Removed duplicate NPC villager for id " + npcId
+                        + " (" + e.getUniqueId() + ") found on startup.");
+                }
+            }
+        }
+        if (!npcIdToEntityId.isEmpty()) {
+            plugin.getLogger().info("Adopted " + npcIdToEntityId.size() + " existing NPC villager(s) from a prior session.");
+        }
     }
 
     private void syncFromApi() {
@@ -93,6 +130,9 @@ public class NpcManager {
             v.setVillagerType(Villager.Type.PLAINS);
             v.setProfession(def.type != null && def.type.equals("QUEST_GIVER")
                 ? Villager.Profession.CARTOGRAPHER : Villager.Profession.NONE);
+            // Tagged so a future restart can find and adopt this exact entity instead of
+            // spawning a duplicate on top of it — see adoptExistingNpcs().
+            v.getPersistentDataContainer().set(npcIdKey, PersistentDataType.STRING, def.id);
         });
 
         npcIdToEntityId.put(def.id, villager.getUniqueId());
