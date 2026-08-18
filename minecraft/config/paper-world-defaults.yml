@@ -1,5 +1,6 @@
 # Paper per-world defaults — performance tuning
-# Bind-mounted into /data/config/paper-world-defaults.yml by docker-compose.
+# Baked into the image at build time (see minecraft/Dockerfile) and copied to
+# /data/config/paper-world-defaults.yml by itzg's entrypoint on every start.
 # Only override keys that differ from Paper's built-in defaults; Paper merges
 # the rest. See https://docs.papermc.io/paper/reference/world-configuration
 _version: 30
@@ -14,13 +15,19 @@ tick-rates:
       validatenearbypoi: 60
       acquirepoi: 120
 
+collisions:
+  # Disable entity pushing entirely (0 = off). Paper checks this BEFORE
+  # calling getPushableEntities(), so the O(n) entity scan is bypassed
+  # completely. The world has excess villagers that cause a 30s+ freeze
+  # on every tick; re-enable once villager population is reduced via RCON.
+  #
+  # NOTE: this key is top-level `collisions:`, NOT nested under `entities:`.
+  # An earlier version of this file had it under `entities: collision:`,
+  # which isn't a real Paper config path — Paper silently ignored it and
+  # the hang was never actually fixed. See minecraft-ai-manager#281.
+  max-entity-collisions: 0
+
 entities:
-  collision:
-    # Disable entity pushing entirely (0 = off). Paper checks this BEFORE
-    # calling getPushableEntities(), so the O(n) entity scan is bypassed
-    # completely. The world has excess villagers that cause a 30s+ freeze
-    # on every tick; re-enable once villager population is reduced via RCON.
-    max-entity-collisions: 0
   spawning:
     entity-per-chunk-save-limit:
       # Prevent runaway villager accumulation in trading halls / breeders.
