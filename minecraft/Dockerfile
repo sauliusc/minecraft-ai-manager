@@ -4,7 +4,7 @@ FROM itzg/minecraft-server
 ENV EULA=TRUE \
     TYPE=PAPER \
     VERSION=26.2 \
-    MEMORY=4G \
+    MEMORY=2G \
     ENABLE_RCON=true \
     RCON_PORT=25575 \
     REPLACE_ENV_VARIABLES=TRUE

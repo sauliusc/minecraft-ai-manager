@@ -144,7 +144,7 @@ BRIDGE_SECRET=${BRIDGE_SECRET}
 
 # ── Minecraft server ────────────────────────────────────────────────────────
 MINECRAFT_VERSION=1.21.1
-MINECRAFT_MEMORY=4G
+MINECRAFT_MEMORY=2G
 
 # ── Minecraft RCON ──────────────────────────────────────────────────────────
 RCON_PORT=${RCON_PORT}

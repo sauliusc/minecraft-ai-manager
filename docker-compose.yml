@@ -117,7 +117,7 @@ services:
       EULA:          "TRUE"
       TYPE:          PAPER
       VERSION:       "26.1.2"
-      MEMORY:        ${MINECRAFT_MEMORY:-4G}
+      MEMORY:        ${MINECRAFT_MEMORY:-2G}
       ENABLE_RCON:   "true"
       RCON_PORT:     ${RCON_PORT:-25575}
       RCON_PASSWORD: ${RCON_PASSWORD}
