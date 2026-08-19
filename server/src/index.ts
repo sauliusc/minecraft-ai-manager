@@ -33,6 +33,12 @@ import { errorMiddleware, notFoundMiddleware } from './middleware/error.middlewa
 const app = express();
 const port = Number(process.env.PORT ?? 3000);
 
+// Trust exactly one proxy hop — the nginx `web` container is the only thing
+// that can reach this container on the internal Docker network, and it sets
+// X-Forwarded-For/X-Real-IP correctly. Without this, express-rate-limit keys
+// on nginx's internal IP for every request instead of the real client IP.
+app.set('trust proxy', 1);
+
 const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173').split(',').map((o) => o.trim());
 
 app.use((req: Request, res: Response, next: NextFunction) => {
