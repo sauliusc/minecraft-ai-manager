@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose config:*)",
+      "Bash(docker ps:*)",
+      "Bash(docker stats:*)",
+      "Bash(docker system df:*)",
+      "Bash(docker image ls:*)",
+      "Bash(docker inspect:*)",
+      "Bash(df:*)",
+      "Bash(free:*)",
+      "Bash(uptime:*)",
+      "Bash(du:*)",
+      "Bash(journalctl:*)",
+      "Bash(systemctl status:*)"
+    ]
+  }
+}
