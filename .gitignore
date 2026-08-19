@@ -21,7 +21,13 @@ dist/
 *.iml
 
 # Claude Code
-.claude/
+# Shared project config (slash commands, permission allowlist) is committed so it
+# reaches CT102 — deploy-v2 resets /opt/craftcontrol to origin/main on every deploy.
+# Personal overrides stay local.
+.claude/*
+!.claude/commands/
+!.claude/settings.json
+.claude/settings.local.json
 
 # OS
 .DS_Store
