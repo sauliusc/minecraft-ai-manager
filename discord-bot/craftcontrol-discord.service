@@ -1,0 +1,35 @@
+[Unit]
+Description=CraftControl Discord bridge (Claude Code on CT102)
+Documentation=https://github.com/sauliusc/minecraft-ai-manager/blob/main/discord-bot/README.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Runs as root on purpose: the point of the bridge is to drive Claude Code with
+# the same reach a human operator has on this host (docker, make deploy, the repo
+# working tree). The user allowlist in the env file is the access control — not
+# the service account. See the security section of README.md.
+User=root
+WorkingDirectory=/opt/craftcontrol
+
+# Secrets live here, outside the repo, mode 0600. The service refuses to start if
+# DISCORD_ALLOWED_USER_IDS is empty, so a truncated env file fails closed.
+EnvironmentFile=/etc/craftcontrol-discord.env
+
+ExecStart=/usr/bin/python3 /opt/craftcontrol/discord-bot/craftcontrol_bot.py
+
+Restart=always
+RestartSec=10
+
+# Give a long-running Claude job time to finish before a stop escalates to KILL.
+TimeoutStopSec=120
+KillSignal=SIGTERM
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=craftcontrol-discord
+
+[Install]
+WantedBy=multi-user.target
