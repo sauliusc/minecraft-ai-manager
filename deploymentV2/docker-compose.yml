@@ -151,7 +151,14 @@ services:
     volumes:
       - minecraft_data:/data
     ports:
-      - "25565:25565"   # Minecraft players
+      - "25565:25565"        # Minecraft players (TCP)
+      # Simple Voice Chat carries its audio over UDP on this port, independently
+      # of the Minecraft connection. The plugin's handshake rides the Minecraft
+      # TCP socket, so voice chat *looks* connected in the logs even when this
+      # mapping is missing — but no audio can reach the server from outside the
+      # host. Must stay in sync with `port=` in plugins/voicechat/
+      # voicechat-server.properties. See #297.
+      - "24454:24454/udp"    # Simple Voice Chat audio
 
 volumes:
   postgres_data:
