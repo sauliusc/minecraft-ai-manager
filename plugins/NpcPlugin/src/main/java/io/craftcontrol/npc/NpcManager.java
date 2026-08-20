@@ -8,6 +8,7 @@ import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
@@ -30,6 +31,14 @@ public class NpcManager {
     private final Map<UUID, NpcDefinition> entityIdToNpc = new ConcurrentHashMap<>();
     private final NamespacedKey npcIdKey;
     private BukkitTask syncTask;
+
+    /**
+     * Upper bound on how many duplicate NPC villagers a single sync pass may remove. The
+     * backlog left by the bug in #295 runs into the thousands in one chunk; removing them
+     * all in one tick would stall the main thread just as badly as leaving them there, so
+     * each pass takes a bite and the next pass continues.
+     */
+    private static final int MAX_DUPLICATE_REMOVALS_PER_PASS = 200;
 
     public NpcManager(NpcPlugin plugin, ApiClient api) {
         this.plugin = plugin;
@@ -106,18 +115,25 @@ public class NpcManager {
         if (world == null) return;
         Location loc = new Location(world, def.locX, def.locY, def.locZ, def.locYaw, 0);
 
-        UUID existing = npcIdToEntityId.get(def.id);
+        int chunkX = loc.getBlockX() >> 4;
+        int chunkZ = loc.getBlockZ() >> 4;
+        if (!world.isChunkLoaded(chunkX, chunkZ)) {
+            // The NPC's entity is not loaded either, so Bukkit.getEntity() below would return
+            // null for a villager that is alive and well in the saved chunk. Spawning here
+            // would force-load the chunk and stack a duplicate on top of it — every sync pass,
+            // forever (this piled up 5000+ villagers and stalled the server thread, see #295).
+            // Nobody can see an NPC in an unloaded chunk, so there is nothing to reconcile
+            // until it loads again.
+            return;
+        }
+
+        Villager existing = resolveExisting(def, world.getChunkAt(chunkX, chunkZ));
         if (existing != null) {
-            Entity e = Bukkit.getEntity(existing);
-            if (e != null && !e.isDead()) {
-                // Update name
-                if (e instanceof Villager v) {
-                    v.customName(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
-                        .deserialize("<gold>" + def.name + "</gold>"));
-                }
-                entityIdToNpc.put(existing, def);
-                return;
-            }
+            existing.customName(net.kyori.adventure.text.minimessage.MiniMessage.miniMessage()
+                .deserialize("<gold>" + def.name + "</gold>"));
+            npcIdToEntityId.put(def.id, existing.getUniqueId());
+            entityIdToNpc.put(existing.getUniqueId(), def);
+            return;
         }
 
         Villager villager = world.spawn(loc, Villager.class, v -> {
@@ -137,6 +153,46 @@ public class NpcManager {
 
         npcIdToEntityId.put(def.id, villager.getUniqueId());
         entityIdToNpc.put(villager.getUniqueId(), def);
+    }
+
+    /**
+     * Finds this definition's villager in its (already loaded) chunk, or null if it genuinely
+     * does not exist yet. The chunk's own contents are the source of truth rather than the
+     * in-memory UUID map, which is empty after any restart and stale after an entity is
+     * removed by something else. Any surplus tagged villagers found are deleted, so the
+     * duplicate backlog from #295 drains as the chunks get loaded.
+     */
+    private Villager resolveExisting(NpcDefinition def, Chunk chunk) {
+        UUID known = npcIdToEntityId.get(def.id);
+        Villager keep = null;
+        int removed = 0;
+
+        for (Entity e : chunk.getEntities()) {
+            if (!(e instanceof Villager v) || v.isDead()) continue;
+            if (!def.id.equals(v.getPersistentDataContainer().get(npcIdKey, PersistentDataType.STRING))) continue;
+
+            if (keep == null || v.getUniqueId().equals(known)) {
+                // Prefer the entity we already know about so its identity stays stable across
+                // passes; the one it displaces is a duplicate and falls through to removal.
+                if (keep != null) {
+                    entityIdToNpc.remove(keep.getUniqueId());
+                    keep.remove();
+                    removed++;
+                }
+                keep = v;
+                continue;
+            }
+            if (removed >= MAX_DUPLICATE_REMOVALS_PER_PASS) break;
+            entityIdToNpc.remove(v.getUniqueId());
+            v.remove();
+            removed++;
+        }
+
+        if (removed > 0) {
+            plugin.getLogger().info("Removed " + removed + " duplicate NPC villager(s) for id "
+                + def.id + " in chunk " + chunk.getX() + "," + chunk.getZ() + ".");
+        }
+        return keep;
     }
 
     public void despawnAll() {
