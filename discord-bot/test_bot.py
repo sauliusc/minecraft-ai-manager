@@ -64,9 +64,44 @@ try:
     cfg = bot.Config()
     check("allowlist is parsed and trimmed", cfg.allowed_users == {"111", "222"},
           str(cfg.allowed_users))
+
+    # channel mode: empty allowlist is legitimate, but only when asked for
+    os.environ["DISCORD_ALLOWED_USER_IDS"] = ""
+    os.environ["DISCORD_AUTH_MODE"] = "channel"
+    check("channel mode accepts an empty allowlist", bot.Config().problems() == [])
+
+    os.environ["DISCORD_AUTH_MODE"] = "everyone"
+    check("unknown auth mode is rejected",
+          any("DISCORD_AUTH_MODE" in p for p in bot.Config().problems()))
+    os.environ.pop("DISCORD_AUTH_MODE")
 finally:
     os.environ.clear()
     os.environ.update(saved)
+
+print("Bot.authorized()")
+
+
+class _FakeCfg:
+    def __init__(self, users, mode):
+        self.allowed_users = set(users)
+        self.auth_mode = mode
+
+
+def _authorized(users, mode, who):
+    b = bot.Bot.__new__(bot.Bot)          # skip __init__: no token, no state file
+    b.cfg = _FakeCfg(users, mode)
+    return bot.Bot.authorized(b, who)
+
+
+check("allowlist mode lets a listed user through", _authorized(["111"], "allowlist", "111"))
+check("allowlist mode blocks an unlisted user",
+      not _authorized(["111"], "allowlist", "999"))
+check("channel mode lets any member through", _authorized([], "channel", "999"))
+check("channel mode still honours an allowlist when one is set",
+      not _authorized(["111"], "channel", "999"),
+      "an explicit allowlist must narrow a shared channel")
+check("empty allowlist in allowlist mode authorizes nobody",
+      not _authorized([], "allowlist", "999"))
 
 print("State")
 with tempfile.TemporaryDirectory() as d:

@@ -127,14 +127,39 @@ Botas paleidžia Claude root teisėmis, su prieiga prie docker, repo ir Minecraf
 pasaulio duomenų. **Vartotojų allowlist'as yra vienintelė apsauga** tarp Discord
 žinutės ir šios galios.
 
-Todėl:
+### Kam leidžiama rašyti komandas
 
-- `DISCORD_ALLOWED_USER_IDS` tuščias → servisas **nestartuoja**. Nėra „leisti
-  visiems" atsarginio varianto.
-- Neįtraukto vartotojo žinutės ignoruojamos, pažymimos ⛔ ir įrašomos į žurnalą su
+Du režimai, `DISCORD_AUTH_MODE`:
+
+| Režimas | Kas gali komanduoti |
+|---|---|
+| `allowlist` (numatytas) | Tik `DISCORD_ALLOWED_USER_IDS` išvardinti ID |
+| `channel` | Bet kas, kas gali rašyti stebimame kanale |
+
+`channel` režime prieigos kontrole tampa **Discord kanalo teisės**. Tai tikra
+apsauga, bet autorizacija persikelia už šio repo ribų: kas serveryje turi
+`Manage Channels` ar `Manage Roles`, gali įsileisti žmogų arba rolę į kanalą ir
+taip suteikti root lygio prieigą prie CT102 nepakeitęs nė vienos konfigo eilutės.
+Rinkitės jį tik tikrai privačiam kanalui.
+
+Jei `DISCORD_ALLOWED_USER_IDS` užpildytas, jis **viršesnis abiem režimais** — taip
+galima susiaurinti bendrą kanalą iki kelių operatorių nekeičiant paties kanalo
+teisių.
+
+Bet kuriuo režimu:
+
+- `allowlist` režimas su tuščiu sąrašu → servisas **nestartuoja**. Praplėsti
+  prieigą visiems kanalo nariams reikia įrašyti sąmoningai:
+  `DISCORD_AUTH_MODE=channel`.
+- Kitų **botų ir webhook'ų** žinutės ignoruojamos visada — kitaip integracija,
+  rašanti į kanalą, taptų patikimu nariu.
+- Sisteminės žinutės (prisijungimai, prisegimai) praleidžiamos.
+- Neįleisto vartotojo žinutės ignoruojamos, pažymimos ⛔ ir įrašomos į žurnalą su
   vardu ir ID — `journalctl -u craftcontrol-discord | grep DENIED`.
 - Botas skaito **tik** `DISCORD_CHANNEL_IDS` išvardintus kanalus.
 - `/etc/craftcontrol-discord.env` turi būti `0600` ir niekada nepatekti į git.
+
+Kas leidžiama šiuo metu, matyti ir starto žurnale, ir per `!status`.
 
 Jei tokenas nutekėjo: Developer Portal → Bot → **Reset Token**, atnaujinkite env
 failą, `systemctl restart craftcontrol-discord`.

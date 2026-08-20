@@ -54,6 +54,12 @@ class Config:
         self.token = os.environ.get("DISCORD_BOT_TOKEN", "").strip()
         self.allowed_users = set(_env_ids("DISCORD_ALLOWED_USER_IDS"))
         self.channels = _env_ids("DISCORD_CHANNEL_IDS")
+        # "allowlist" (default): only DISCORD_ALLOWED_USER_IDS may command the bot.
+        # "channel": anyone who can post in a watched channel may — Discord's own
+        # channel permissions become the access control. That is a real gate, but
+        # it moves authorization outside this repo: whoever can add a member or a
+        # role to the channel can grant root-level access without a code change.
+        self.auth_mode = os.environ.get("DISCORD_AUTH_MODE", "allowlist").strip().lower()
         self.workdir = os.environ.get("CLAUDE_WORKDIR", "/opt/craftcontrol")
         self.model = os.environ.get("CLAUDE_MODEL", "").strip()
         self.timeout = int(os.environ.get("CLAUDE_TIMEOUT_SECONDS", "1800"))
@@ -66,10 +72,16 @@ class Config:
         out = []
         if not self.token:
             out.append("DISCORD_BOT_TOKEN is not set")
-        # An empty allowlist would mean "anyone who can post may run root commands",
-        # so refuse to start rather than degrade to something permissive.
-        if not self.allowed_users:
-            out.append("DISCORD_ALLOWED_USER_IDS is empty — refusing to start")
+        if self.auth_mode not in ("allowlist", "channel"):
+            out.append(f"DISCORD_AUTH_MODE must be 'allowlist' or 'channel', "
+                       f"got '{self.auth_mode}'")
+        # In allowlist mode an empty list would silently mean "nobody", and a
+        # truncated env file must never quietly widen access, so fail closed.
+        # Opening it up to every channel member has to be typed out explicitly as
+        # DISCORD_AUTH_MODE=channel.
+        if self.auth_mode == "allowlist" and not self.allowed_users:
+            out.append("DISCORD_ALLOWED_USER_IDS is empty — refusing to start "
+                       "(set DISCORD_AUTH_MODE=channel to trust every channel member)")
         if not self.channels:
             out.append("DISCORD_CHANNEL_IDS is empty — set the channel(s) to watch")
         if not os.path.isdir(self.workdir):
@@ -358,6 +370,19 @@ class Bot:
         if tail:
             self.api.send(channel_id, tail)
 
+    # ── authorization ─────────────────────────────────────────────────────────
+    def authorized(self, author_id):
+        """Who may command the bot.
+
+        In channel mode the message already reached us from a watched channel, so
+        being able to post there is the credential. An allowlist, if one is also
+        configured, still wins — it lets you narrow a shared channel down to a few
+        operators without changing the channel's own permissions.
+        """
+        if self.cfg.allowed_users:
+            return author_id in self.cfg.allowed_users
+        return self.cfg.auth_mode == "channel"
+
     # ── inbound ───────────────────────────────────────────────────────────────
     def handle(self, msg):
         channel_id = msg["channel_id"]
@@ -365,12 +390,18 @@ class Bot:
         author_id = str(author.get("id", ""))
         content = (msg.get("content") or "").strip()
 
-        if author.get("bot") or author_id == self.me_id:
+        # Never take orders from other software. In channel mode especially, a
+        # webhook or another integration posting into the channel would otherwise
+        # be treated as a trusted member.
+        if author.get("bot") or author_id == self.me_id or msg.get("webhook_id"):
+            return
+        # Only real messages and replies; ignore joins, pins, boosts and friends.
+        if msg.get("type") not in (0, 19):
             return
         if not content:
             return
 
-        if author_id not in self.cfg.allowed_users:
+        if not self.authorized(author_id):
             logging.warning("DENIED %s (%s) in %s: %.120s",
                             author.get("username"), author_id, channel_id, content)
             self.api.react(channel_id, msg["id"], "⛔")
@@ -390,13 +421,16 @@ class Bot:
         if low == "!status":
             session = self.state.get("sessions", channel_id)
             up = time.time() - self.started
+            who = (f"allowlist ({len(self.cfg.allowed_users)} vart.)"
+                   if self.cfg.allowed_users else "visi šio kanalo nariai")
             self.reply(
                 channel_id,
                 f"**Būsena**\n"
                 f"Sesija: `{session or 'nauja'}`\n"
                 f"Užimtas: {'taip' if self.runner.busy() else 'ne'}\n"
                 f"Veikia: {up/3600:.1f} h\n"
-                f"Katalogas: `{self.cfg.workdir}`")
+                f"Katalogas: `{self.cfg.workdir}`\n"
+                f"Kam leidžiama: {who}")
             return
         if low == "!stop":
             self.reply(channel_id,
@@ -470,7 +504,12 @@ class Bot:
         logging.info("Connected as %s#%s (%s)", me.get("username"),
                      me.get("discriminator"), self.me_id)
         logging.info("Watching channels: %s", ", ".join(self.cfg.channels))
-        logging.info("Allowlisted users: %s", ", ".join(sorted(self.cfg.allowed_users)))
+        if self.cfg.allowed_users:
+            logging.info("Auth: allowlist — %s", ", ".join(sorted(self.cfg.allowed_users)))
+        else:
+            logging.warning(
+                "Auth: channel membership — EVERY human who can post in the watched "
+                "channel(s) can run root-level commands on this host")
 
         while True:
             try:
