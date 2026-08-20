@@ -23,7 +23,7 @@ commands:
     permission-message: No permission.
   pet:
     description: Manage your cosmetic pet
-    usage: /pet <summon|dismiss>
+    usage: /pet <list|set <type>|summon [type]|dismiss>
     permission: craftcontrol.cosmetics.pet
     permission-message: No permission.
   trail:
