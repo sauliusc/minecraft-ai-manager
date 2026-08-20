@@ -4,6 +4,7 @@ cosmetics:
   pet_follow_distance: 3.0
   default_particle: FLAME
   default_trail: CRIT
+  default_pet: CAT
   available_particles:
     - FLAME
     - HEART
