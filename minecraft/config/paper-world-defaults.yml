@@ -16,10 +16,13 @@ tick-rates:
       acquirepoi: 120
 
 collisions:
-  # Disable entity pushing entirely (0 = off). Paper checks this BEFORE
-  # calling getPushableEntities(), so the O(n) entity scan is bypassed
-  # completely. The world has excess villagers that cause a 30s+ freeze
-  # on every tick; re-enable once villager population is reduced via RCON.
+  # Cap how many collisions each entity resolves per tick (0 = resolve none).
+  # This bounds the push *work*, but NOT the lookup: live thread dumps on
+  # 2026-08-20 show LivingEntity.pushEntities() still calling
+  # getPushableEntities(), so the O(n) entity scan runs regardless of this
+  # value. It is therefore a mitigation, never a fix for an entity pile-up —
+  # the only real fix is to keep the entity count down (see #295, where
+  # NpcPlugin had stacked 5000+ villagers into two chunks).
   #
   # NOTE: this key is top-level `collisions:`, NOT nested under `entities:`.
   # An earlier version of this file had it under `entities: collision:`,
