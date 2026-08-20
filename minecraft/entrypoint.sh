@@ -11,6 +11,27 @@ set -e
 rm -f /data/plugins/original-*.jar 2>/dev/null || true
 rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 
+# ── Remove superseded third-party plugin JARs ────────────────────────────────
+# itzg copies /plugins/ -> /data/plugins/ on every start but never deletes what
+# is already there. When a bundled plugin is upgraded its filename changes with
+# the version (e.g. voicechat-bukkit-2.6.17.jar -> voicechat-bukkit-2.6.21.jar),
+# so BOTH versions end up in /data/plugins/ and Paper aborts the load with an
+# "Ambiguous plugin name" error. For every JAR we are about to install, drop any
+# JAR already present that shares its base name but not its exact filename.
+# See minecraft-ai-manager#297.
+for src in /plugins/*.jar; do
+  [ -e "$src" ] || continue
+  base=$(basename "$src")
+  stem=$(echo "$base" | sed -E 's/-[0-9][0-9A-Za-z.]*\.jar$//')
+  [ "$stem" = "$base" ] && continue
+  for old in /data/plugins/"$stem"-*.jar; do
+    [ -e "$old" ] || continue
+    [ "$(basename "$old")" = "$base" ] && continue
+    echo "[entrypoint] Removing superseded plugin JAR $(basename "$old") (replaced by $base)"
+    rm -f "$old"
+  done
+done
+
 # ── Download Paperclip + boot via TYPE=CUSTOM ─────────────────────────────────
 # itzg/minecraft-server does not recognise calendar-versioned strings like
 # "26.2" for TYPE=PAPER; it falls back to a cached patched_1.21.4-*.jar in
