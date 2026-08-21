@@ -48,6 +48,44 @@ CTID=150 CT_RAM=8192 ADMIN_EMAIL=you@example.com ADMIN_PASSWORD=secret bash prox
 - Log in and **change the admin password immediately**
 - Minecraft server is reachable on port `25565`
 
+## Host tuning: swap
+
+**`vm.swappiness` cannot be set from inside the container.** CraftControl runs in
+an unprivileged LXC, where `/proc/sys/vm/swappiness` is the *host's* setting
+mounted read-only:
+
+```
+# inside CT102
+$ sysctl -w vm.swappiness=10
+sysctl: setting key "vm.swappiness", ignoring: Read-only file system
+```
+
+A `/etc/sysctl.d/*.conf` file placed inside the container is silently inert for
+the same reason — `systemd-sysctl` cannot apply it, so it looks like the setting
+is managed when nothing is enforcing it. If you find such a file in a
+CraftControl container, delete it; it is misleading, not load-bearing.
+
+The default of `60` is tuned for desktops and swaps out inactive pages fairly
+eagerly. That is a poor fit for a host running a memory-sensitive JVM alongside
+several containers, so apply it **on the Proxmox host**:
+
+```bash
+# on the Proxmox host, not in the container
+sysctl -w vm.swappiness=10
+echo 'vm.swappiness=10' > /etc/sysctl.d/60-swappiness.conf
+sysctl --system                 # verify: sysctl vm.swappiness
+```
+
+This is host-wide and affects every guest, which is why `deploy.sh` reports the
+current value and the command to change it rather than changing it for you.
+
+To give one container more headroom without touching the host, size its swap
+directly instead:
+
+```bash
+pct set 200 --swap 2048         # MB
+```
+
 ## Useful commands (on Proxmox host)
 
 ```bash
