@@ -1,0 +1,21 @@
+# Third-party Paper plugins bundled into the Minecraft image.
+#
+# These used to exist only in the ct102 minecraft_data volume, hand-copied and
+# never version-managed, so losing the volume lost them silently and upgrading
+# meant an SSH session. See #336. Pinning them here makes the image
+# self-contained and a version bump a reviewable diff.
+#
+# Fetched by minecraft/fetch-plugins.sh into jars/ before the Docker build.
+# Every field is pinned, including the Modrinth version id and a sha512 of the
+# exact artifact — the URL alone would let the contents change under us.
+#
+# To upgrade one: find the new version on Modrinth, then
+#   curl -s https://api.modrinth.com/v2/version/<VERSION_ID>
+# and copy version_number, the primary file's filename, url and sha512 hash.
+# Check the version's game_versions actually lists the Minecraft version in
+# minecraft/entrypoint.sh before pinning it.
+#
+# name<TAB>version<TAB>filename<TAB>sha512<TAB>url
+simple-voice-chat	bukkit-2.6.21	voicechat-bukkit-2.6.21.jar	12a0ff0240e12bda82c10f2277c7bf3016c2a1833f8e73f338a61601cb555a2b18832041c902c81c4f8dd781993994fbd60d0336f443d92ff887933141a6f5a7	https://cdn.modrinth.com/data/9eGKb6K1/versions/62MVmInV/voicechat-bukkit-2.6.21.jar
+clickvillagers	paper-1.6.3	ClickVillagers-paper-1.6.3.jar	e28a57e76b5731c82775d888252b77dd7f579b6926a2778b5ed5f9f19094991d4492398bd4d47c04ce3ed247aa20e87a6332bd9240160886e46293b93146e681	https://cdn.modrinth.com/data/BITzwT7B/versions/iMS3EoIW/ClickVillagers-paper-1.6.3.jar
+just-tpa	20260625-0111	just-tpa-20260625-0111.jar	7451ee4dffb25c4ca6be886cc18524a42c14a7e39827223dfefb74214a8d2a3e8926d9864781a4e99a9f7f4906e5fe8d75d6b56f1d19dafd7e47a19e938af196	https://cdn.modrinth.com/data/GM9AuKjX/versions/5hfMKnoW/just-tpa-20260625-0111.jar

@@ -11,23 +11,42 @@ set -e
 rm -f /data/plugins/original-*.jar 2>/dev/null || true
 rm -f /data/plugins/.paper-remapped/original-*.jar 2>/dev/null || true
 
-# ── Remove superseded third-party plugin JARs ────────────────────────────────
+# ── Remove superseded plugin JARs ────────────────────────────────────────────
 # itzg copies /plugins/ -> /data/plugins/ on every start but never deletes what
-# is already there. When a bundled plugin is upgraded its filename changes with
-# the version (e.g. voicechat-bukkit-2.6.17.jar -> voicechat-bukkit-2.6.21.jar),
-# so BOTH versions end up in /data/plugins/ and Paper aborts the load with an
-# "Ambiguous plugin name" error. For every JAR we are about to install, drop any
-# JAR already present that shares its base name but not its exact filename.
-# See minecraft-ai-manager#297.
+# is already there. When a plugin is upgraded its filename changes with the
+# version, so BOTH versions end up in /data/plugins/ and Paper aborts the load
+# with an "Ambiguous plugin name" error. See minecraft-ai-manager#297.
+#
+# Matching is on the plugin name declared in plugin.yml, not on the filename.
+# Filenames are not a reliable key: upstream renamed JustTPA's artifact from
+# tpa-<date>.jar to just-tpa-<date>-<build>.jar, which no filename-stem rule
+# could connect, and the two-part version broke stem extraction as well. The
+# declared name is the thing Paper actually collides on, so match on that.
+plugin_name() {
+  unzip -p "$1" plugin.yml 2>/dev/null \
+    | sed -n 's/^name:[[:space:]]*//p' \
+    | head -1 \
+    | tr -d '\r"' \
+    | sed "s/^'//; s/'$//" \
+    | awk '{$1=$1; print}'
+}
+
 for src in /plugins/*.jar; do
   [ -e "$src" ] || continue
   base=$(basename "$src")
-  stem=$(echo "$base" | sed -E 's/-[0-9][0-9A-Za-z.]*\.jar$//')
-  [ "$stem" = "$base" ] && continue
-  for old in /data/plugins/"$stem"-*.jar; do
+  name=$(plugin_name "$src")
+
+  if [ -z "$name" ]; then
+    echo "[entrypoint] WARNING: could not read plugin name from $base — skipping dedupe for it"
+    continue
+  fi
+
+  for old in /data/plugins/*.jar; do
     [ -e "$old" ] || continue
-    [ "$(basename "$old")" = "$base" ] && continue
-    echo "[entrypoint] Removing superseded plugin JAR $(basename "$old") (replaced by $base)"
+    oldbase=$(basename "$old")
+    [ "$oldbase" = "$base" ] && continue
+    [ "$(plugin_name "$old")" = "$name" ] || continue
+    echo "[entrypoint] Removing superseded plugin JAR $oldbase (plugin '$name' now shipped as $base)"
     rm -f "$old"
   done
 done
