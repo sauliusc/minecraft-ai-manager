@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
 import { redis } from '../lib/redis.js';
+import { fireDailyLoginTrigger } from '../services/broadcastTriggers.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
 
@@ -38,6 +39,12 @@ playersRouter.post('/', serviceTokenMiddleware, validateBody(registerSchema), as
   try {
     const { username } = req.body as z.infer<typeof registerSchema>;
     const now = new Date();
+    // Read lastSeenAt before the upsert overwrites it — the DAILY_LOGIN trigger
+    // needs to know whether this player was already here earlier today.
+    const existing = await prisma.player.findUnique({
+      where: { username },
+      select: { lastSeenAt: true },
+    });
     const player = await prisma.player.upsert({
       where: { username },
       update: { lastSeenAt: now, joinCount: { increment: 1 } },
@@ -45,6 +52,10 @@ playersRouter.post('/', serviceTokenMiddleware, validateBody(registerSchema), as
     });
     // Invalidate cache on upsert
     await redis.del(`player:${username}`);
+    // Fire-and-forget: a greeting must never delay or fail the join.
+    fireDailyLoginTrigger(username, existing?.lastSeenAt ?? null, now).catch((err) =>
+      console.error(`[broadcast] daily login trigger failed for ${username}:`, err)
+    );
     res.status(200).json(withTier(player));
   } catch (err) {
     next(err);

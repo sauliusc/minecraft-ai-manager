@@ -105,6 +105,27 @@ export function buildCommands(
   return cmds;
 }
 
+/**
+ * Sends to exactly one player. Used for per-player messages such as the daily
+ * login greeting, which must not go to the whole server.
+ */
+export async function deliverToPlayer(
+  channels: string[],
+  content: string,
+  username: string
+): Promise<DeliveryResult> {
+  const recipients: Recipients = { kind: 'TARGETED', usernames: [username] };
+  const cmds = buildCommands(channels, content, recipients);
+  if (cmds.length === 0) return { targeted: 1, commandsSent: 0 };
+
+  await withRcon(async (rcon) => {
+    for (const cmd of cmds) {
+      await rcon.send(cmd);
+    }
+  });
+  return { targeted: 1, commandsSent: cmds.length };
+}
+
 export interface DeliveryResult {
   /** Number of players targeted; null for a server-wide send. */
   targeted: number | null;
