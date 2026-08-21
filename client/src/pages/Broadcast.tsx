@@ -52,11 +52,13 @@ const STATUS_BADGE: Record<string, string> = {
   CANCELLED: 'bg-red-100 text-red-600',
 };
 
+// Labels spell out the actual rule the API targets on, so nobody has to guess
+// who a message is about to reach.
 const AUDIENCE_OPTIONS = [
   { value: 'ALL', label: 'All Players' },
-  { value: 'VIP', label: 'VIP' },
-  { value: 'MODS', label: 'Moderators' },
-  { value: 'NEW', label: 'New Players (last 7 days)' },
+  { value: 'VIP', label: 'VIP (Veteran & Legend — 30+ joins)' },
+  { value: 'MODS', label: 'Moderators (matched by name)' },
+  { value: 'NEW', label: 'New Players (under 5 joins)' },
 ];
 
 function toLocalDatetimeValue(iso: string) {

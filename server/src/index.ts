@@ -28,6 +28,7 @@ import { activityLogRouter } from './routes/activityLog.js';
 import { pendingActionsRouter } from './routes/pendingActions.js';
 import { weekThemeRouter } from './routes/weekTheme.js';
 import { deploymentsRouter } from './routes/deployments.js';
+import { startBroadcastScheduler } from './services/broadcastScheduler.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -102,6 +103,7 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(port, () => {
     console.log(`CraftControl API listening on port ${port}`);
   });
+  startBroadcastScheduler();
 }
 
 export { app };

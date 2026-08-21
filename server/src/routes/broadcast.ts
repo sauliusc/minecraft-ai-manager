@@ -4,7 +4,7 @@ import { prisma } from '../lib/prisma.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
-import { withRcon } from '../lib/rcon.js';
+import { deliverBroadcast, BROADCAST_AUDIENCES } from '../services/broadcast.js';
 
 export const broadcastRouter = Router();
 
@@ -15,29 +15,17 @@ const MAX_CONTENT_LENGTH = 500;
 const createSchema = z.object({
   content: z.string().min(1).max(MAX_CONTENT_LENGTH),
   channels: z.array(z.enum(['CHAT', 'TITLE', 'ACTION_BAR', 'DISCORD'])).min(1),
-  audience: z.string().default('ALL'),
+  audience: z.enum(BROADCAST_AUDIENCES).default('ALL'),
   scheduledAt: z.string().datetime().optional(),
 });
 
 const updateSchema = z.object({
   content: z.string().min(1).max(MAX_CONTENT_LENGTH).optional(),
   channels: z.array(z.string()).optional(),
-  audience: z.string().optional(),
+  audience: z.enum(BROADCAST_AUDIENCES).optional(),
   scheduledAt: z.string().datetime().optional(),
   status: z.enum(['SCHEDULED', 'CANCELLED']).optional(),
 });
-
-async function deliverViaRcon(channels: string[], content: string): Promise<void> {
-  const safe = content.replace(/[\r\n]+/g, ' ');
-  const textJson = JSON.stringify({ text: safe });
-  await withRcon(async (rcon) => {
-    const cmds: string[] = [];
-    if (channels.includes('CHAT')) cmds.push(`say ${safe}`);
-    if (channels.includes('TITLE')) cmds.push(`title @a title ${textJson}`);
-    if (channels.includes('ACTION_BAR')) cmds.push(`title @a actionbar ${textJson}`);
-    await Promise.all(cmds.map((cmd) => rcon.send(cmd)));
-  });
-}
 
 function requireAdmin(req: any, res: any) {
   if (req.user?.role !== 'SUPER_ADMIN') { res.status(403).json({ message: 'Forbidden' }); return false; }
@@ -77,32 +65,28 @@ broadcastRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'bro
       },
     });
 
-    // For immediate sends, deliver via RCON (fire-and-forget; DB record is the audit trail)
+    // For immediate sends, deliver now (fire-and-forget; the DB record is the
+    // audit trail). Scheduled sends are picked up by the broadcast scheduler.
     if (!data.scheduledAt) {
-      deliverViaRcon(data.channels, data.content).catch(() => {});
+      deliverBroadcast(data.channels, data.content, data.audience).catch((err) => {
+        console.error(`[broadcast] immediate delivery failed for ${msg.id}:`, err);
+      });
     }
 
     res.status(201).json(msg);
   } catch (err) { next(err); }
 });
 
-// GET /api/broadcast/pending  (service token — plugin polls this)
-broadcastRouter.get('/pending', serviceTokenMiddleware, async (req, res, next) => {
+// GET /api/broadcast/pending  (service token)
+// Read-only view of what is still queued. Delivery is done by the scheduler in
+// services/broadcastScheduler.ts — this used to mark rows SENT as a side effect
+// of the GET while nothing anywhere actually delivered them (#305).
+broadcastRouter.get('/pending', serviceTokenMiddleware, async (_req, res, next) => {
   try {
-    const now = new Date();
     const pending = await prisma.broadcastMessage.findMany({
-      where: {
-        status: 'SCHEDULED',
-        scheduledAt: { lte: now },
-      },
+      where: { status: 'SCHEDULED', scheduledAt: { lte: new Date() } },
+      orderBy: { scheduledAt: 'asc' },
     });
-    // Mark as sent
-    if (pending.length > 0) {
-      await prisma.broadcastMessage.updateMany({
-        where: { id: { in: pending.map((m) => m.id) } },
-        data: { status: 'SENT', sentAt: now },
-      });
-    }
     res.json(pending);
   } catch (err) { next(err); }
 });
