@@ -486,6 +486,10 @@ model BroadcastTrigger {
   type      BroadcastTriggerType
   enabled   Boolean             @default(true)
   config    Json                @default("{}")
+  // What this trigger has already done: last fire time for cooldowns, and which
+  // thresholds have been announced so a milestone fires once, not every tick.
+  lastFiredAt DateTime?
+  state     Json                @default("{}")
   updatedAt DateTime            @updatedAt
   updatedBy String              @default("system")
 

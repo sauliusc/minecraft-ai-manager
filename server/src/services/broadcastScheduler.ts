@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma.js';
 import { deliverBroadcast } from './broadcast.js';
+import { evaluateTriggers } from './broadcastTriggers.js';
 
 /**
  * How often to look for broadcasts that have come due. A scheduled broadcast is
@@ -48,8 +49,13 @@ export async function deliverDueBroadcasts(now: Date = new Date()): Promise<numb
 export function startBroadcastScheduler(intervalMs: number = TICK_INTERVAL_MS): void {
   if (timer) return;
   timer = setInterval(() => {
+    // Independent of each other: a failing trigger must not stop scheduled
+    // messages going out, and vice versa.
     deliverDueBroadcasts().catch((err) => {
       console.error('[broadcast] scheduler tick failed:', err);
+    });
+    evaluateTriggers().catch((err) => {
+      console.error('[broadcast] trigger evaluation failed:', err);
     });
   }, intervalMs);
   // Do not hold the process open just for this timer.

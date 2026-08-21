@@ -31,9 +31,17 @@ const TRIGGER_LABELS: Record<TriggerType, string> = {
 };
 
 const TRIGGER_DESCRIPTIONS: Record<TriggerType, string> = {
-  DAILY_LOGIN: 'Broadcast to a player when they log in for the first time each day.',
-  MILESTONE: 'Broadcast to all players when a server milestone is reached.',
-  LOW_ACTIVITY: 'Broadcast to admins when online player count drops below the threshold.',
+  DAILY_LOGIN: 'Sent privately to a player the first time they log in each day.',
+  MILESTONE: 'Announced to everyone when registered players cross a threshold.',
+  LOW_ACTIVITY: 'Sent to moderators when the online player count drops below the threshold.',
+};
+
+// Shown under each config box so the accepted keys are discoverable rather than
+// something you have to read the source to learn.
+const TRIGGER_CONFIG_HINTS: Record<TriggerType, string> = {
+  DAILY_LOGIN: '{ "message": "Welcome back, {player}!" }',
+  MILESTONE: '{ "message": "We just reached {value} players!", "playerMilestones": [10, 25, 50, 100] }',
+  LOW_ACTIVITY: '{ "message": "Only {count} online.", "threshold": 2, "cooldownMinutes": 120 }',
 };
 
 const ALL_TRIGGER_TYPES: TriggerType[] = ['DAILY_LOGIN', 'MILESTONE', 'LOW_ACTIVITY'];
@@ -338,8 +346,8 @@ export function Broadcast() {
         <section>
           <div className="flex items-center gap-3 mb-4">
             <h2 className="text-lg font-semibold text-gray-800">Automated Triggers</h2>
-            <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">
-              Settings saved but not yet executed — trigger evaluation is under development
+            <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+              Evaluated every 60s
             </span>
           </div>
           {triggers.isLoading ? (
@@ -367,6 +375,7 @@ export function Broadcast() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-500 mb-1">Config (JSON)</label>
+                      <p className="text-xs text-gray-400 font-mono mb-1 break-all">{TRIGGER_CONFIG_HINTS[type]}</p>
                       <textarea
                         rows={3}
                         value={config}
