@@ -361,3 +361,22 @@ echo -e "  ${BOLD}Admin login:${NC} ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}"
 echo -e "  ${YELLOW}Change the admin password immediately after first login.${NC}"
 echo -e ""
 echo -e "  Credentials saved to: /opt/craftcontrol/.env  (inside CT${CTID})"
+
+# ─── Host tuning advisory ─────────────────────────────────────────────────────
+# vm.swappiness is a host setting: /proc/sys/vm/swappiness is read-only inside an
+# unprivileged LXC, so it cannot be set from the container and a sysctl.d file
+# placed there is silently inert. Report it rather than changing it — this is
+# host-wide and affects every guest, which is not ours to decide from a
+# container-provisioning script.
+CURRENT_SWAPPINESS=$(cat /proc/sys/vm/swappiness 2>/dev/null || echo "")
+if [[ -n "$CURRENT_SWAPPINESS" && "$CURRENT_SWAPPINESS" -gt 10 ]]; then
+  echo -e ""
+  echo -e "  ${YELLOW}Host vm.swappiness is ${CURRENT_SWAPPINESS}${NC} — the desktop default, which swaps out"
+  echo -e "  inactive pages eagerly. That suits a memory-sensitive JVM poorly. To lower it"
+  echo -e "  ${BOLD}on this host${NC} (affects all guests):"
+  echo -e ""
+  echo -e "      sysctl -w vm.swappiness=10"
+  echo -e "      echo 'vm.swappiness=10' > /etc/sysctl.d/60-swappiness.conf"
+  echo -e ""
+  echo -e "  Or give just this container more swap:  pct set ${CTID} --swap 2048"
+fi
