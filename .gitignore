@@ -45,3 +45,8 @@ coverage/
 deploymentV2/.env
 deploymentV2/backups/
 settings.local.json
+
+# Host deployment state written by deploymentV2/scripts/deploy.sh — the tag
+# running on a given machine, not repo content.
+deploymentV2/.deployed-version
+deploymentV2/.previous-version

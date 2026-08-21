@@ -49,7 +49,14 @@ export IMAGE_TAG
 step "Pruning old unused Docker images"
 PRUNED=$(docker image prune -f 2>&1)
 RECLAIMED=$(echo "$PRUNED" | grep -oP "Total reclaimed space: \K.*" || echo "0B")
-ok "Old images pruned  (reclaimed: ${RECLAIMED})"
+ok "Dangling images pruned  (reclaimed: ${RECLAIMED})"
+
+# The prune above only removes *dangling* images. Every GHCR image is tagged
+# with a git SHA, so none of them are ever dangling and old builds accumulated
+# indefinitely — 78 of them, 12.4 GB, on a 24 GB volume shared with Postgres and
+# the world data (#317). This drops superseded tags, keeping the running one and
+# the rollback target.
+bash "$SCRIPT_DIR/prune-images.sh" || warn "Image cleanup failed — continuing with the deploy"
 
 # ── Pull images from GHCR ─────────────────────────────────────────────────────
 step "Pulling Docker images from GHCR  [tag: ${IMAGE_TAG}]"
