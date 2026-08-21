@@ -5,3 +5,5 @@
 !jars/
 !minecraft/config/
 !minecraft/entrypoint.sh
+!minecraft/fetch-plugins.sh
+!minecraft/third-party-plugins.tsv
