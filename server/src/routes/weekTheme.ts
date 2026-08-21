@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { generateWeekTheme, WeekThemePayload } from '../services/ai.js';
-import { withRcon } from '../lib/rcon.js';
+import { deliverBroadcast } from '../services/broadcast.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -228,12 +228,13 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
       return updated;
     });
 
-    // 7. Send RCON announcement (best-effort, don't fail activation if RCON is down)
+    // 7. Announce in chat (best-effort, don't fail activation if RCON is down).
+    // This used to pass the prose straight to rcon.send(), which executes it as a
+    // console command — the server replied "Unknown or incomplete command" and no
+    // player ever saw it, while the round-trip succeeded so nothing was logged.
     if (payload.announcementText) {
-      withRcon(async (rcon) => {
-        await rcon.send(payload.announcementText);
-      }).catch((err) => {
-        console.warn('[WeekTheme] RCON announcement failed (non-fatal):', String(err));
+      deliverBroadcast(['CHAT'], payload.announcementText, 'ALL').catch((err) => {
+        console.warn('[WeekTheme] announcement failed (non-fatal):', String(err));
       });
       // TODO: Replace fire-and-forget with a proper job queue when RCON reliability is needed
     }
