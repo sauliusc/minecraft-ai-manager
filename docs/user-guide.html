@@ -394,7 +394,11 @@
     <a href="#ingame-serverinfo">Server Info</a>
     <a href="#ingame-clans">Clans</a>
     <a href="#ingame-cosmetics">Cosmetics</a>
-    <a href="#ingame-reporting">Reporting</a>
+    <a href="#ingame-economy">Economy</a>
+    <a href="#ingame-quests">Quests &amp; Voting</a>
+    <a href="#ingame-events">Event Participation</a>
+    <a href="#ingame-reporting">Reporting &amp; Safety</a>
+    <a href="#ingame-staff">Staff Commands</a>
 
     <div class="nav-section">How Things Work</div>
     <a href="#flow-join">Player Join Flow</a>
@@ -514,7 +518,7 @@
 
       <div class="box box-warn">
         <span class="box-icon">⚠️</span>
-        <p><strong>Too many failed attempts:</strong> If you type the wrong password 5 times in a row, you'll be locked out for one minute. Wait and try again carefully!</p>
+        <p><strong>Too many attempts:</strong> The login page accepts 5 attempts per minute from the same network connection. Go over that and every further attempt is refused until the minute is up — including correct ones, and including attempts from anyone else sharing your connection. Wait a minute and try again carefully.</p>
       </div>
 
       <h3>🔐 Staying Logged In</h3>
@@ -882,11 +886,11 @@
         <table>
           <thead><tr><th>Cosmetic</th><th>What It Does</th><th>How to Equip</th></tr></thead>
           <tbody>
-            <tr><td><strong>Title</strong></td><td>Shows a coloured prefix before your name in chat and the tab list, e.g. <strong>[Dragon Slayer]</strong></td><td><span class="cmd">/title equip &lt;name&gt;</span></td></tr>
+            <tr><td><strong>Title</strong></td><td>Shows a coloured prefix before your name in chat and the tab list, e.g. <strong>[Dragon Slayer]</strong></td><td><span class="cmd">/title equip &lt;id&gt;</span></td></tr>
             <tr><td><strong>Chat Colour</strong></td><td>Your chat messages appear in a chosen colour</td><td><span class="cmd">/chatcolor &lt;color&gt;</span></td></tr>
-            <tr><td><strong>Particle Trail</strong></td><td>Particles follow you as you walk (flames, hearts, stars, etc.)</td><td><span class="cmd">/trail &lt;type&gt;</span></td></tr>
-            <tr><td><strong>Pet</strong></td><td>A small mob companion that follows you around</td><td><span class="cmd">/pet &lt;type&gt;</span></td></tr>
-            <tr><td><strong>Particle Effect</strong></td><td>Particles that float around you constantly</td><td><span class="cmd">/particle &lt;type&gt;</span></td></tr>
+            <tr><td><strong>Particle Trail</strong></td><td>Particles follow you as you walk (flames, hearts, stars, etc.)</td><td><span class="cmd">/trail equip &lt;type&gt;</span></td></tr>
+            <tr><td><strong>Pet</strong></td><td>A small mob companion that follows you around</td><td><span class="cmd">/pet set &lt;type&gt;</span></td></tr>
+            <tr><td><strong>Particle Effect</strong></td><td>Particles that float around you constantly</td><td><span class="cmd">/particles equip &lt;type&gt;</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -895,7 +899,7 @@
       <p>
         Admins can create new titles in the Cosmetics page by clicking <strong>New Title</strong>,
         entering a name (e.g. "Champion") and description, then saving. Players can then equip it
-        in-game with <span class="cmd">/title equip Champion</span>.
+        in-game with <span class="cmd">/title equip Champion</span>. Use <span class="cmd">/title list</span> to see the exact IDs.
       </p>
       <p>
         To remove a title, click the delete button next to it. Players who had it equipped will
@@ -1339,6 +1343,13 @@
             <tr><td><span class="cmd">/clan home</span></td><td>Teleport to your clan's home location</td><td>Any member</td></tr>
             <tr><td><span class="cmd">/clan sethome</span></td><td>Set the clan home to your current position</td><td>Leader</td></tr>
             <tr><td><span class="cmd">/clan war &lt;clan&gt; &lt;type&gt;</span></td><td>Challenge another clan to a war (PVP / RESOURCE / TERRITORY)</td><td>Leader</td></tr>
+            <tr><td><span class="cmd">/clan accept</span> · <span class="cmd">/clan deny</span></td><td>Accept or turn down a pending invite</td><td>Any invited player</td></tr>
+            <tr><td><span class="cmd">/clan info</span> · <span class="cmd">/clan members</span></td><td>Show your clan's details, or list its members and their roles</td><td>Any member</td></tr>
+            <tr><td><span class="cmd">/clan list</span></td><td>List every clan on the server</td><td>Any player</td></tr>
+            <tr><td><span class="cmd">/clan chat &lt;message&gt;</span></td><td>Send a message only your clan sees</td><td>Any member</td></tr>
+            <tr><td><span class="cmd">/clan promote &lt;player&gt;</span> · <span class="cmd">/clan demote &lt;player&gt;</span></td><td>Change a member's role between Member and Officer</td><td>Leader</td></tr>
+            <tr><td><span class="cmd">/clan kick &lt;player&gt;</span></td><td>Remove a member from the clan</td><td>Leader / Officer</td></tr>
+            <tr><td><span class="cmd">/clan disband</span></td><td>Permanently delete the clan</td><td>Leader</td></tr>
           </tbody>
         </table>
       </div>
@@ -1351,12 +1362,20 @@
         <table>
           <thead><tr><th>Command</th><th>Effect</th></tr></thead>
           <tbody>
-            <tr><td><span class="cmd">/title equip &lt;name&gt;</span></td><td>Show a title prefix before your name in chat (e.g. [Champion])</td></tr>
-            <tr><td><span class="cmd">/title remove</span></td><td>Remove your currently equipped title</td></tr>
+            <tr><td><span class="cmd">/title list</span></td><td>List the title IDs you can equip</td></tr>
+            <tr><td><span class="cmd">/title equip &lt;id&gt;</span></td><td>Show a title prefix before your name in chat (e.g. [Champion])</td></tr>
+            <tr><td><span class="cmd">/title unequip</span></td><td>Remove your currently equipped title</td></tr>
             <tr><td><span class="cmd">/chatcolor &lt;color&gt;</span></td><td>Make your chat messages appear in a colour (e.g. RED, GREEN, AQUA, GOLD)</td></tr>
-            <tr><td><span class="cmd">/trail &lt;particle&gt;</span></td><td>Set a particle trail that follows you as you walk</td></tr>
-            <tr><td><span class="cmd">/pet &lt;type&gt;</span></td><td>Summon a pet companion to follow you</td></tr>
-            <tr><td><span class="cmd">/particle &lt;type&gt;</span></td><td>Set floating particles around your character</td></tr>
+            <tr><td><span class="cmd">/chatcolor off</span></td><td>Go back to the default chat colour</td></tr>
+            <tr><td><span class="cmd">/trail equip &lt;type&gt;</span></td><td>Set a particle trail that follows you as you walk</td></tr>
+            <tr><td><span class="cmd">/trail off</span></td><td>Turn your trail off</td></tr>
+            <tr><td><span class="cmd">/pet list</span></td><td>List the pet types available, marking the one you have selected</td></tr>
+            <tr><td><span class="cmd">/pet set &lt;type&gt;</span></td><td>Choose which pet you summon</td></tr>
+            <tr><td><span class="cmd">/pet summon [type]</span></td><td>Summon your pet companion</td></tr>
+            <tr><td><span class="cmd">/pet dismiss</span></td><td>Send your pet away</td></tr>
+            <tr><td><span class="cmd">/particles list</span></td><td>List the particle effects you can equip</td></tr>
+            <tr><td><span class="cmd">/particles equip &lt;type&gt;</span></td><td>Set floating particles around your character</td></tr>
+            <tr><td><span class="cmd">/particles off</span></td><td>Turn your particles off</td></tr>
           </tbody>
         </table>
       </div>
@@ -1382,6 +1401,61 @@
       </p>
     </section>
 
+    <section id="ingame-economy">
+      <h2>💰 In-Game — Economy Commands</h2>
+      <p>Coins are the server currency. They pay for clan creation and the player market.</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>What It Does</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/balance [player]</span></td><td>Show your Coin balance, or another player's</td></tr>
+            <tr><td><span class="cmd">/pay &lt;player&gt; &lt;amount&gt;</span></td><td>Transfer Coins to another player</td></tr>
+            <tr><td><span class="cmd">/market list</span></td><td>List the items you currently have up for sale</td></tr>
+            <tr><td><span class="cmd">/market browse</span></td><td>Browse what other players are selling</td></tr>
+            <tr><td><span class="cmd">/market buy &lt;id&gt;</span></td><td>Buy a listing</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="ingame-quests">
+      <h2>🗺️ In-Game — Quests &amp; Voting</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>What It Does</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/quests</span></td><td>Show your active quests and how far through each one you are</td></tr>
+            <tr><td><span class="cmd">/vote</span></td><td>Show the voting site links — voting for the server earns rewards</td></tr>
+            <tr><td><span class="cmd">/voteclaim</span></td><td>Claim the reward for a vote once the voting site has confirmed it</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Quests differ from challenges: they unlock in tiers, so finishing one opens the next.
+        See <a href="#npcs">NPCs</a> for how Quest Giver NPCs hand them out.
+      </p>
+    </section>
+
+    <section id="ingame-events">
+      <h2>🏗️ In-Game — Event Participation</h2>
+      <p>
+        Most events need nothing but showing up. <strong>Build Battle</strong> is the exception —
+        the winner is decided by player votes, so scoring only works if people vote:
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>What It Does</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/buildvote &lt;1-5&gt;</span></td><td>Score the build currently being shown, from 1 to 5</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        During the voting phase each build is presented in turn and everyone gets a window to
+        score it. Final placings are the average of the scores each build received.
+      </p>
+    </section>
+
     <section id="ingame-reporting">
       <h2>🚨 In-Game — Reporting Players</h2>
       <p>
@@ -1401,6 +1475,46 @@
         <li><p>If the same player gets 3+ reports within 24 hours, the reports automatically escalate to get staff attention.</p></li>
         <li><p>Once staff resolve the report, the reporting player gets notified next time they log in.</p></li>
       </ol>
+
+      <h3>🛡️ Protecting Yourself Without Waiting for Staff</h3>
+      <p>Reporting is not the only tool players have — these take effect immediately:</p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>What It Does</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/block &lt;player&gt;</span></td><td>Hide that player's chat messages from you. They are not told.</td></tr>
+            <tr><td><span class="cmd">/unblock &lt;player&gt;</span></td><td>Start seeing their messages again</td></tr>
+            <tr><td><span class="cmd">/safechat</span></td><td>Toggle safe chat mode, which filters inappropriate language out of the chat you see</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>These are worth telling younger players about — they work instantly and need no staff involvement.</p>
+    </section>
+
+    <section id="ingame-staff">
+      <h2>🛠️ In-Game — Staff Commands <span class="role role-admin">OP</span></h2>
+      <p>
+        These require the <span class="cmd">craftcontrol.mod</span> permission (granted to OPs by
+        default). Every action taken with them is written to the dashboard audit log.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Command</th><th>What It Does</th></tr></thead>
+          <tbody>
+            <tr><td><span class="cmd">/mute &lt;player&gt; &lt;duration&gt; &lt;reason&gt;</span></td><td>Stop a player from chatting for a period</td></tr>
+            <tr><td><span class="cmd">/unmute &lt;player&gt;</span></td><td>Lift a mute early</td></tr>
+            <tr><td><span class="cmd">/kick &lt;player&gt; &lt;reason&gt;</span></td><td>Disconnect a player — they can rejoin straight away</td></tr>
+            <tr><td><span class="cmd">/ban &lt;player&gt; &lt;duration&gt; &lt;reason&gt;</span></td><td>Ban a player for a period</td></tr>
+            <tr><td><span class="cmd">/unban &lt;player&gt;</span></td><td>Lift a ban</td></tr>
+            <tr><td><span class="cmd">/greeter reload</span></td><td>Reload the join-greeting configuration</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The same actions are available from the dashboard's <a href="#moderation">Moderation</a>
+        page, which is usually the better place to apply them since it records the reasoning
+        alongside the report that prompted it.
+      </p>
     </section>
 
     <!-- ─────────────────────────────────── FLOWS ─── -->
@@ -1438,7 +1552,7 @@
       <h2>🏆 How Things Work — Event Lifecycle</h2>
       <ol class="steps">
         <li><p>An admin creates an event on the dashboard with a scheduled start time.</p></li>
-        <li><p>The EventPlugin polls the API every 35 minutes for upcoming events. When an event is less than 35 minutes away, the plugin starts preparing (arena setup, NPC announcements).</p></li>
+        <li><p>The EventPlugin polls the API every 60 seconds for upcoming events. When an event is less than 30 minutes away, the plugin announces it in chat and starts preparing (arena setup, NPC announcements).</p></li>
         <li><p>The admin clicks <strong>Launch Now</strong> on the dashboard. The event switches to <span class="status s-active">ACTIVE</span>.</p></li>
         <li><p>The EventPlugin starts the game logic for that event type (spawns the boss, scatters treasure chests, creates build plots).</p></li>
         <li><p>As players participate, scores are tracked. The dashboard leaderboard updates every 5 seconds.</p></li>
