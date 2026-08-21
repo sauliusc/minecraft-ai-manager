@@ -8,15 +8,19 @@ import { withRcon } from '../lib/rcon.js';
 
 export const broadcastRouter = Router();
 
+// 500 matches the character counter the dashboard shows; enforced here too so an
+// API client cannot push an unbounded string straight into `say`.
+const MAX_CONTENT_LENGTH = 500;
+
 const createSchema = z.object({
-  content: z.string().min(1),
+  content: z.string().min(1).max(MAX_CONTENT_LENGTH),
   channels: z.array(z.enum(['CHAT', 'TITLE', 'ACTION_BAR', 'DISCORD'])).min(1),
   audience: z.string().default('ALL'),
   scheduledAt: z.string().datetime().optional(),
 });
 
 const updateSchema = z.object({
-  content: z.string().min(1).optional(),
+  content: z.string().min(1).max(MAX_CONTENT_LENGTH).optional(),
   channels: z.array(z.string()).optional(),
   audience: z.string().optional(),
   scheduledAt: z.string().datetime().optional(),
