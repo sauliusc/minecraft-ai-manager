@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 
 interface ServerStatus {
@@ -9,7 +10,7 @@ interface ServerStatus {
   uptime: string | null;
 }
 
-interface PlayersMeta {
+interface PagedMeta {
   meta: { total: number };
 }
 
@@ -44,11 +45,22 @@ export function Dashboard() {
     refetchInterval: 10_000,
   });
 
-  const { data: playersData } = useQuery<PlayersMeta>({
+  const { data: playersData } = useQuery<PagedMeta>({
     queryKey: ['players-meta'],
     queryFn: () => api.get('/players', { params: { limit: 1 } }).then((r) => r.data),
     refetchInterval: 30_000,
   });
+
+  // Only the count is needed, so ask for a single row.
+  const { data: activeChallenges } = useQuery<PagedMeta>({
+    queryKey: ['challenges-active-count'],
+    queryFn: () =>
+      api.get('/challenges', { params: { status: 'active', limit: 1 } }).then((r) => r.data),
+    refetchInterval: 60_000,
+  });
+
+  const activeChallengeCount = activeChallenges?.meta?.total;
+  const noActiveContent = activeChallengeCount === 0;
 
   const tpsColor = (t: number) =>
     t >= 19 ? 'text-green-600' : t >= 15 ? 'text-yellow-500' : 'text-red-600';
@@ -71,6 +83,11 @@ export function Dashboard() {
           label="Registered players"
           value={playersData?.meta?.total ?? '—'}
         />
+        <StatCard
+          label="Active challenges"
+          value={activeChallengeCount ?? '—'}
+          sub={noActiveContent ? 'nothing running' : undefined}
+        />
         <div className="bg-white rounded-lg shadow p-4">
           <p className="text-sm text-gray-500">TPS (1m / 5m / 15m)</p>
           {status?.tps ? (
@@ -90,6 +107,22 @@ export function Dashboard() {
           value={status?.state === 'running' ? 'Online' : status?.state ?? '—'}
         />
       </div>
+
+      {noActiveContent && (
+        <div className="bg-amber-50 border border-amber-200 rounded px-4 py-3">
+          <p className="text-sm font-semibold text-amber-900">No challenges are currently active</p>
+          <p className="text-sm text-amber-800 mt-1">
+            Players see an empty <span className="font-mono text-xs">/challenges</span> and{' '}
+            <span className="font-mono text-xs">/quests</span>, no challenge rewards can be earned,
+            and the engagement analytics have no data to report — they are built from challenge
+            completions, so those panels will look broken rather than empty.
+          </p>
+          <p className="text-sm text-amber-800 mt-1">
+            <Link to="/challenges" className="underline font-medium">Create a challenge</Link>
+            {' '}or publish a week theme to bring the server back to life.
+          </p>
+        </div>
+      )}
 
       {statusError && (
         <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded px-3 py-2">
