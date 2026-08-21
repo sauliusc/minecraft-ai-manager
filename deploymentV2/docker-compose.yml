@@ -1,9 +1,18 @@
+# Cap container logs so a chatty service cannot fill the volume that also
+# holds Postgres and the Minecraft world (#317). 3 x 10M per container.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
 
   # ── PostgreSQL 16 ─────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
@@ -21,6 +30,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     command: >
       redis-server
       --requirepass ${REDIS_PASSWORD}
@@ -39,6 +49,7 @@ services:
   api:
     image: ghcr.io/sauliusc/minecraft-ai-manager/api:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -72,6 +83,7 @@ services:
   mcp:
     image: ghcr.io/sauliusc/minecraft-ai-manager/mcp:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       api:
         condition: service_healthy
@@ -94,6 +106,7 @@ services:
   web:
     image: ghcr.io/sauliusc/minecraft-ai-manager/web:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       api:
         condition: service_healthy
@@ -106,6 +119,7 @@ services:
   minecraft:
     image: ghcr.io/sauliusc/minecraft-ai-manager/minecraft:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       api:
         condition: service_healthy

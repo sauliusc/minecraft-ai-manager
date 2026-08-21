@@ -15,7 +15,7 @@ export
 .PHONY: help setup deploy update stop restart status logs \
         rollback backup restore shell-api shell-db shell-mcp shell-minecraft \
         logs-api logs-web logs-db logs-mcp logs-minecraft \
-        build-plugins deploy-plugins seed-admin nuke
+        build-plugins deploy-plugins seed-admin nuke prune-images
 
 ## ─────────────────────────────────────────────────────────────────────────────
 ## GETTING STARTED
@@ -38,6 +38,9 @@ setup: ## FIRST TIME: run the interactive setup wizard → generates .env
 
 deploy: ## Build images, run migrations, start all services
 	@bash $(DEPLOY_DIR)scripts/deploy.sh
+
+prune-images: ## Remove superseded CraftControl images (keeps running + rollback tags)
+	@bash $(DEPLOY_DIR)scripts/prune-images.sh
 
 update: ## Pull latest code, then redeploy (same as git pull + make deploy)
 	@git -C $(DEPLOY_DIR)/.. pull --ff-only
