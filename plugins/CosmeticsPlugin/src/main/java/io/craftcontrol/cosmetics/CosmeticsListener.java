@@ -75,11 +75,10 @@ public class CosmeticsListener implements Listener {
         CosmeticsProfile profile = manager.getProfile(player.getName());
         String trailType = profile.getTrailType();
         if (trailType == null) return;
-        try {
-            Particle particle = Particle.valueOf(trailType);
-            Location loc = player.getLocation();
-            player.getWorld().spawnParticle(particle, loc, 3, 0.1, 0.1, 0.1, 0);
-        } catch (IllegalArgumentException ignored) {}
+        Particle particle = CosmeticsPlugin.resolveParticle(trailType);
+        if (particle == null) return;
+        Location loc = player.getLocation();
+        player.getWorld().spawnParticle(particle, loc, 3, 0.1, 0.1, 0.1, 0);
     }
 
     public void applyTabListName(Player player, CosmeticsProfile profile) {

@@ -6,7 +6,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Response;
-import org.bukkit.Particle;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -19,31 +18,52 @@ import java.util.List;
 public class CosmeticsCommand implements CommandExecutor, TabCompleter {
     private static final String PET_USAGE = "Usage: /pet <list|set <type>|summon [type]|dismiss>";
     private static final List<String> PET_SUBCOMMANDS = List.of("list", "set", "summon", "dismiss");
+    private static final List<String> PARTICLE_SUBCOMMANDS = List.of("list", "equip", "off");
+    private static final List<String> TRAIL_SUBCOMMANDS = List.of("equip", "off");
 
     private final CosmeticsPlugin plugin;
     private final CosmeticsManager manager;
     private final PetManager petManager;
     private final PetTypes petTypes;
+    private final ParticleTypes particleTypes;
+    private final ParticleTypes trailTypes;
     private final CosmeticsListener listener;
 
     public CosmeticsCommand(CosmeticsPlugin plugin, CosmeticsManager manager, PetManager petManager,
-                            PetTypes petTypes, CosmeticsListener listener) {
+                            PetTypes petTypes, ParticleTypes particleTypes, ParticleTypes trailTypes,
+                            CosmeticsListener listener) {
         this.plugin = plugin;
         this.manager = manager;
         this.petManager = petManager;
         this.petTypes = petTypes;
+        this.particleTypes = particleTypes;
+        this.trailTypes = trailTypes;
         this.listener = listener;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!cmd.getName().equalsIgnoreCase("pet")) return List.of();
+        return switch (cmd.getName().toLowerCase()) {
+            case "pet" -> complete(args, PET_SUBCOMMANDS,
+                List.of("set", "summon"), petTypes::matching);
+            case "particles" -> complete(args, PARTICLE_SUBCOMMANDS,
+                List.of("equip"), particleTypes::matching);
+            case "trail" -> complete(args, TRAIL_SUBCOMMANDS,
+                List.of("equip"), trailTypes::matching);
+            default -> List.of();
+        };
+    }
+
+    /** Completes the subcommand at position 1, then the value for subcommands that take one. */
+    private static List<String> complete(String[] args, List<String> subcommands,
+                                         List<String> valueSubcommands,
+                                         java.util.function.Function<String, List<String>> values) {
         if (args.length == 1) {
             String prefix = args[0].toLowerCase();
-            return PET_SUBCOMMANDS.stream().filter(s -> s.startsWith(prefix)).toList();
+            return subcommands.stream().filter(s -> s.startsWith(prefix)).toList();
         }
-        if (args.length == 2 && (args[0].equalsIgnoreCase("set") || args[0].equalsIgnoreCase("summon"))) {
-            return petTypes.matching(args[1]);
+        if (args.length == 2 && valueSubcommands.stream().anyMatch(args[0]::equalsIgnoreCase)) {
+            return values.apply(args[1]);
         }
         return List.of();
     }
@@ -117,24 +137,23 @@ public class CosmeticsCommand implements CommandExecutor, TabCompleter {
         if (args.length == 0) { player.sendMessage(Component.text("Usage: /particles <list|equip <id>|off>", NamedTextColor.YELLOW)); return; }
         switch (args[0].toLowerCase()) {
             case "list" -> {
+                if (particleTypes.available().isEmpty()) {
+                    player.sendMessage(Component.text("No particle types are available.", NamedTextColor.YELLOW));
+                    return;
+                }
                 player.sendMessage(Component.text("Particle types:", NamedTextColor.GOLD));
-                List.of("FLAME", "HEART", "VILLAGER_HAPPY", "SPELL_WITCH", "ENCHANTMENT_TABLE", "SNOWBALL").forEach(
+                particleTypes.available().forEach(
                     p -> player.sendMessage(Component.text("  " + p, NamedTextColor.WHITE)));
             }
             case "equip" -> {
                 if (args.length < 2) { player.sendMessage(Component.text("Usage: /particles equip <type>", NamedTextColor.RED)); return; }
-                try { Particle.valueOf(args[1].toUpperCase()); } catch (IllegalArgumentException e) {
-                    player.sendMessage(Component.text("Unknown particle: " + args[1], NamedTextColor.RED)); return;
+                if (!particleTypes.isAllowed(args[1])) {
+                    player.sendMessage(Component.text("Unknown particle: " + args[1], NamedTextColor.RED));
+                    player.sendMessage(Component.text("Available: " + String.join(", ", particleTypes.available()), NamedTextColor.GRAY));
+                    return;
                 }
                 manager.getProfile(player.getName()).setParticleType(args[1].toUpperCase());
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
-                plugin.getServer().getScheduler().runTaskTimer(plugin, () -> {
-                    if (!player.isOnline()) return;
-                    CosmeticsProfile p = manager.getProfile(player.getName());
-                    if (p.getParticleType() == null) return;
-                    try { player.getWorld().spawnParticle(Particle.valueOf(p.getParticleType()), player.getLocation().add(0,1,0), 5, 0.3, 0.3, 0.3, 0); }
-                    catch (IllegalArgumentException ignored) {}
-                }, 0L, 40L);
                 player.sendMessage(Component.text("Particles equipped: " + args[1], NamedTextColor.GREEN));
             }
             case "off" -> {
@@ -142,6 +161,7 @@ public class CosmeticsCommand implements CommandExecutor, TabCompleter {
                 plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
                 player.sendMessage(Component.text("Particles disabled.", NamedTextColor.YELLOW));
             }
+            default -> player.sendMessage(Component.text("Usage: /particles <list|equip <id>|off>", NamedTextColor.YELLOW));
         }
     }
 
@@ -203,8 +223,10 @@ public class CosmeticsCommand implements CommandExecutor, TabCompleter {
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));
             player.sendMessage(Component.text("Trail disabled.", NamedTextColor.YELLOW));
         } else if (args[0].equalsIgnoreCase("equip") && args.length >= 2) {
-            try { Particle.valueOf(args[1].toUpperCase()); } catch (IllegalArgumentException e) {
-                player.sendMessage(Component.text("Unknown particle: " + args[1], NamedTextColor.RED)); return;
+            if (!trailTypes.isAllowed(args[1])) {
+                player.sendMessage(Component.text("Unknown trail: " + args[1], NamedTextColor.RED));
+                player.sendMessage(Component.text("Available: " + String.join(", ", trailTypes.available()), NamedTextColor.GRAY));
+                return;
             }
             profile.setTrailType(args[1].toUpperCase());
             plugin.getServer().getScheduler().runTaskAsynchronously(plugin, () -> manager.saveProfile(player.getName()));

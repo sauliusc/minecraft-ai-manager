@@ -5,16 +5,20 @@ cosmetics:
   default_particle: FLAME
   default_trail: CRIT
   default_pet: CAT
+  # Names must match the Particle enum of the running server — they get renamed
+  # between Minecraft versions, and anything that no longer resolves is dropped
+  # with a warning at startup. Particles needing a data payload (DUST and
+  # friends) are rejected too: the cosmetic system has no way to supply one.
   available_particles:
     - FLAME
     - HEART
-    - ENCHANTMENT_TABLE
-    - VILLAGER_HAPPY
-    - REDSTONE
+    - ENCHANT
+    - HAPPY_VILLAGER
+    - TOTEM_OF_UNDYING
   available_trails:
     - CRIT
-    - MAGIC_CRIT
-    - SPELL
+    - ENCHANTED_HIT
+    - END_ROD
     - NOTE
   available_pets:
     - WOLF
