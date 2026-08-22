@@ -16,6 +16,10 @@ vi.mock('../lib/prisma.js', () => ({
     playerReward: {
       findMany: vi.fn(),
       create: vi.fn(),
+      update: vi.fn(),
+    },
+    player: {
+      update: vi.fn().mockResolvedValue({}),
     },
     challenge: {
       findFirst: vi.fn(),
@@ -31,7 +35,7 @@ vi.mock('../lib/redis.js', () => ({
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue('OK'),
     setex: vi.fn(),
-    del: vi.fn(),
+    del: vi.fn().mockResolvedValue(1),
   },
 }));
 
@@ -341,5 +345,91 @@ describe('POST /api/rewards/grant', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ playerId: 'player-1' }); // missing rewardId
     expect(res.status).toBe(400);
+  });
+
+  describe('MYSTERY_BOX', () => {
+    const boxBody = { playerId: 'player-1', rewardId: 'box-1' };
+    const mysteryBox = {
+      id: 'box-1',
+      name: 'Mystery Booster Box',
+      type: 'MYSTERY_BOX',
+      rarity: 'LEGENDARY',
+      config: {},
+      lootTable: [{ rewardId: 'reward-1', weight: 100 }],
+    };
+
+    it('resolves the loot table and grants the won reward, not the box', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mysteryBox as any);
+      vi.mocked(prisma.reward.findMany).mockResolvedValueOnce([mockReward] as any);
+      vi.mocked(prisma.playerReward.create).mockResolvedValue(mockPlayerReward as any);
+
+      const res = await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(boxBody);
+
+      expect(res.status).toBe(200);
+      // The won inner reward is persisted as its own row, plus the audit row for the box
+      expect(vi.mocked(prisma.playerReward.create)).toHaveBeenCalledTimes(2);
+      const innerRow = vi.mocked(prisma.playerReward.create).mock.calls[0]![0] as any;
+      expect(innerRow.data.rewardId).toBe('reward-1');
+    });
+
+    it('returns 422 when the box has no loot table instead of a silent no-op grant', async () => {
+      // The live "Mystery Booster Box" row had lootTable NULL: the old code forwarded
+      // rewardType MYSTERY_BOX to the bridge, which the plugin drops on the floor.
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce({ ...mysteryBox, lootTable: null } as any);
+
+      const res = await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(boxBody);
+
+      expect(res.status).toBe(422);
+      expect(res.body.error).toBe('UNPROCESSABLE');
+      expect(vi.mocked(prisma.playerReward.create)).not.toHaveBeenCalled();
+    });
+
+    it('returns 422 when the box has an empty loot table', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce({ ...mysteryBox, lootTable: [] } as any);
+      const res = await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(boxBody);
+      expect(res.status).toBe(422);
+    });
+
+    it('returns 422 when every loot entry points at a deleted reward', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mysteryBox as any);
+      vi.mocked(prisma.reward.findMany).mockResolvedValueOnce([] as any);
+      const res = await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(boxBody);
+      expect(res.status).toBe(422);
+    });
+
+    it('releases the idempotency lock so a repaired box can be granted again', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce({ ...mysteryBox, lootTable: null } as any);
+      await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(boxBody);
+      expect(vi.mocked(redis.del)).toHaveBeenCalledWith('bridge:lock:grant:player-1:box-1');
+    });
+
+    it('excludes nested mystery boxes from the loot roll', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mysteryBox as any);
+      vi.mocked(prisma.reward.findMany).mockResolvedValueOnce([mockReward] as any);
+      vi.mocked(prisma.playerReward.create).mockResolvedValue(mockPlayerReward as any);
+
+      await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send(boxBody);
+
+      const where = vi.mocked(prisma.reward.findMany).mock.calls[0]![0]!.where as any;
+      expect(where.type).toEqual({ not: 'MYSTERY_BOX' });
+    });
   });
 });

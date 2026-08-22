@@ -107,6 +107,44 @@ async function callBridge(path: string, body: object): Promise<boolean> {
   }
 }
 
+/**
+ * Picks a weighted-random reward from a mystery box loot table.
+ *
+ * Returns null when the box cannot produce anything deliverable: no loot table,
+ * an empty one, or every entry pointing at a reward that has since been deleted
+ * (or at another MYSTERY_BOX, which the plugin cannot deliver either). Callers
+ * must treat null as an error rather than falling back to granting the box
+ * itself — the delivery plugin has no MYSTERY_BOX case and would drop it.
+ */
+async function rollLootTable(
+  lootTable: unknown
+): Promise<{ id: string; type: string; rarity: string | null; config: unknown } | null> {
+  if (!Array.isArray(lootTable) || lootTable.length === 0) return null;
+
+  const entries = (lootTable as Array<{ rewardId?: string; weight?: number }>).filter(
+    (e) => typeof e?.rewardId === 'string' && Number(e.weight) > 0
+  ) as Array<{ rewardId: string; weight: number }>;
+  if (entries.length === 0) return null;
+
+  // Only entries that resolve to a deliverable reward are eligible, so a deleted
+  // or nested-box entry costs that roll nothing instead of voiding the grant.
+  const candidates = await prisma.reward.findMany({
+    where: { id: { in: entries.map((e) => e.rewardId) }, type: { not: 'MYSTERY_BOX' as any } },
+  });
+  const byId = new Map(candidates.map((r: any) => [r.id, r]));
+  const eligible = entries.filter((e) => byId.has(e.rewardId));
+  if (eligible.length === 0) return null;
+
+  const totalWeight = eligible.reduce((sum, e) => sum + e.weight, 0);
+  let roll = Math.random() * totalWeight;
+  let wonEntry = eligible[0]!;
+  for (const entry of eligible) {
+    roll -= entry.weight;
+    if (roll <= 0) { wonEntry = entry; break; }
+  }
+  return byId.get(wonEntry.rewardId) as any;
+}
+
 // GET /api/rewards — authMiddleware, paginated with optional type filter
 rewardsRouter.get('/', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -227,34 +265,37 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
       return;
     }
 
-    // For MYSTERY_BOX: resolve loot table to a concrete reward before bridge call
+    // For MYSTERY_BOX: resolve loot table to a concrete reward before bridge call.
+    // MYSTERY_BOX must never reach the bridge — the plugin has no case for it and
+    // would drop the grant silently, so an unresolvable box is a hard error here.
     let bridgeReward: { rewardType: string; rarity: string | null; config: unknown } = {
       rewardType: (reward as any).type,
       rarity: (reward as any).rarity ?? null,
       config: reward.config,
     };
+    let innerGrantId: string | null = null;
 
-    if ((reward as any).type === 'MYSTERY_BOX' && (reward as any).lootTable) {
-      const lootTable = (reward as any).lootTable as Array<{ rewardId: string; weight: number }>;
-      const totalWeight = lootTable.reduce((sum, e) => sum + e.weight, 0);
-      let roll = Math.random() * totalWeight;
-      let wonEntry = lootTable[0];
-      for (const entry of lootTable) {
-        roll -= entry.weight;
-        if (roll <= 0) { wonEntry = entry; break; }
-      }
-      const wonReward = await prisma.reward.findUnique({ where: { id: wonEntry.rewardId } });
-      if (wonReward) {
-        bridgeReward = {
-          rewardType: (wonReward as any).type,
-          rarity: (wonReward as any).rarity ?? null,
-          config: wonReward.config,
-        };
-        // Also persist the won inner reward for the player's record
-        await prisma.playerReward.create({
-          data: { playerId, rewardId: wonEntry.rewardId, grantedBy: user.sub, grantedAt: new Date() },
+    if ((reward as any).type === 'MYSTERY_BOX') {
+      const wonReward = await rollLootTable((reward as any).lootTable);
+      if (!wonReward) {
+        await redis.del(lockKey);
+        res.status(422).json({
+          error: 'UNPROCESSABLE',
+          message: 'Mystery box has no usable loot table — it cannot be granted',
+          statusCode: 422,
         });
+        return;
       }
+      bridgeReward = {
+        rewardType: (wonReward as any).type,
+        rarity: (wonReward as any).rarity ?? null,
+        config: wonReward.config,
+      };
+      // Also persist the won inner reward for the player's record
+      const innerGrant = await prisma.playerReward.create({
+        data: { playerId, rewardId: wonReward.id, grantedBy: user.sub, grantedAt: new Date() },
+      });
+      innerGrantId = innerGrant.id;
     }
 
     // CURRENCY rewards: credit the player's coin/crystal balance in the DB immediately.
@@ -288,8 +329,19 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
         rewardId,
         grantedBy: user.sub,
         grantedAt: new Date(),
+        // Live delivery already happened, so stamp it now. The pending path only
+        // returns rows with deliveredAt IS NULL; without this the won inner reward
+        // of a mystery box would be handed out again on the player's next login.
+        ...(bridgeOk ? { deliveredAt: new Date() } : {}),
       },
     });
+
+    if (bridgeOk && innerGrantId) {
+      await prisma.playerReward.update({
+        where: { id: innerGrantId },
+        data: { deliveredAt: new Date() },
+      });
+    }
 
     res.json({ grantId: grant.id, queued: !bridgeOk });
   } catch (err) {
