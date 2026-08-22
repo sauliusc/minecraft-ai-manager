@@ -15,6 +15,23 @@ function getUserEmail(req: Request): string {
   return (req as Request & { user: { email: string } }).user?.email ?? 'unknown';
 }
 
+/** Activation rejected because the generated payload cannot produce valid records. */
+export class WeekThemeValidationError extends Error {}
+
+/**
+ * Spreads weights evenly across the given rewards, summing to exactly 100 as the
+ * reward API requires. The remainder goes to the first entry so 3 rewards give
+ * 34/33/33 rather than 33/33/33.
+ */
+export function buildLootTable(rewardIds: string[]): Array<{ rewardId: string; weight: number }> {
+  const base = Math.floor(100 / rewardIds.length);
+  const remainder = 100 - base * rewardIds.length;
+  return rewardIds.map((rewardId, i) => ({
+    rewardId,
+    weight: i === 0 ? base + remainder : base,
+  }));
+}
+
 // POST /api/ai/week-theme/generate  (SUPER_ADMIN)
 router.post('/generate', async (req: Request, res: Response): Promise<void> => {
   if (!isSuperAdmin(req)) {
@@ -197,15 +214,42 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
         },
       });
 
-      // 5. Create 4 Reward records
+      // 5. Create 4 Reward records.
+      // Mystery boxes are created last: they need a loot table pointing at concrete
+      // rewards, and without one the grant path cannot resolve them to anything
+      // deliverable. The AI payload has no loot table field, so build one over the
+      // plain rewards from this same batch.
+      const plain = payload.rewards.filter((r) => r.type !== 'MYSTERY_BOX');
+      const boxes = payload.rewards.filter((r) => r.type === 'MYSTERY_BOX');
+
+      if (boxes.length > 0 && plain.length === 0) {
+        throw new WeekThemeValidationError(
+          'Generated rewards are all mystery boxes — there is nothing to put in a loot table'
+        );
+      }
+
       const rewardIds: string[] = [];
-      for (const r of payload.rewards) {
+      for (const r of plain) {
         const reward = await tx.reward.create({
           data: {
             name: r.name,
             type: r.type as never,
             rarity: r.rarity as never,
             config: r.config as never,
+          },
+        });
+        rewardIds.push(reward.id);
+      }
+
+      const lootTable = buildLootTable(rewardIds);
+      for (const r of boxes) {
+        const reward = await tx.reward.create({
+          data: {
+            name: r.name,
+            type: r.type as never,
+            rarity: r.rarity as never,
+            config: r.config as never,
+            lootTable: lootTable as never,
           },
         });
         rewardIds.push(reward.id);
@@ -241,6 +285,10 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
 
     res.json({ data: updatedTheme });
   } catch (err) {
+    if (err instanceof WeekThemeValidationError) {
+      res.status(422).json({ error: 'UNPROCESSABLE', message: err.message, statusCode: 422 });
+      return;
+    }
     res.status(500).json({ error: 'ACTIVATE_ERROR', message: String(err) });
   }
 });
