@@ -19,6 +19,7 @@ vi.mock('../lib/prisma.js', () => ({
       update: vi.fn(),
     },
     player: {
+      findFirst: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
     },
     challenge: {
@@ -68,6 +69,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(redis.get).mockResolvedValue(null);
   vi.mocked(redis.set).mockResolvedValue('OK' as any);
+  // Grant resolves the username to its canonical spelling before writing anything
+  vi.mocked(prisma.player.findFirst).mockResolvedValue({ username: 'player-1' } as any);
 });
 
 describe('GET /api/rewards', () => {
@@ -345,6 +348,67 @@ describe('POST /api/rewards/grant', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ playerId: 'player-1' }); // missing rewardId
     expect(res.status).toBe(400);
+  });
+
+  describe('unknown player', () => {
+    it('returns 404 instead of a 500 from the foreign key', async () => {
+      // PlayerReward.playerId is an FK onto Player.username; without this check the
+      // insert threw "Foreign key constraint violated" and surfaced as a bare 500.
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mockReward as any);
+      vi.mocked(prisma.player.findFirst).mockResolvedValueOnce(null);
+
+      const res = await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ playerId: 'ghost', rewardId: 'reward-1' });
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBe('PLAYER_NOT_FOUND');
+      expect(res.body.message).toContain('ghost');
+      expect(vi.mocked(prisma.playerReward.create)).not.toHaveBeenCalled();
+    });
+
+    it('does not take the idempotency lock for an unknown player', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mockReward as any);
+      vi.mocked(prisma.player.findFirst).mockResolvedValueOnce(null);
+      await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ playerId: 'ghost', rewardId: 'reward-1' });
+      expect(vi.mocked(redis.set)).not.toHaveBeenCalled();
+    });
+
+    it('looks the username up case-insensitively', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mockReward as any);
+      vi.mocked(prisma.playerReward.create).mockResolvedValueOnce(mockPlayerReward as any);
+
+      await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ playerId: 'NATASZOMBIS', rewardId: 'reward-1' });
+
+      const where = vi.mocked(prisma.player.findFirst).mock.calls[0]![0]!.where as any;
+      expect(where.username).toEqual({ equals: 'NATASZOMBIS', mode: 'insensitive' });
+    });
+
+    it('writes the canonical username, not what the caller typed', async () => {
+      vi.mocked(prisma.reward.findUnique).mockResolvedValueOnce(mockReward as any);
+      vi.mocked(prisma.player.findFirst).mockResolvedValueOnce({ username: 'NatasZombis' } as any);
+      vi.mocked(prisma.playerReward.create).mockResolvedValueOnce(mockPlayerReward as any);
+
+      await request(app)
+        .post('/api/rewards/grant')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ playerId: 'nataszombis', rewardId: 'reward-1' });
+
+      const row = vi.mocked(prisma.playerReward.create).mock.calls[0]![0] as any;
+      expect(row.data.playerId).toBe('NatasZombis');
+      // The lock must key off the canonical name too, or different casings of the
+      // same player would each get their own lock and bypass idempotency.
+      expect(vi.mocked(redis.set)).toHaveBeenCalledWith(
+        'bridge:lock:grant:NatasZombis:reward-1', '1', 'EX', 60, 'NX'
+      );
+    });
   });
 
   describe('MYSTERY_BOX', () => {
