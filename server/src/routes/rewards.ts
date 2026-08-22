@@ -247,7 +247,7 @@ rewardsRouter.patch('/:grantId/delivered', serviceTokenMiddleware, async (req: R
 // POST /api/rewards/grant — authMiddleware
 rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { playerId, rewardId, reason } = req.body as z.infer<typeof grantSchema>;
+    const { playerId: requestedPlayerId, rewardId, reason } = req.body as z.infer<typeof grantSchema>;
     const user = (req as any).user;
 
     // Fetch reward first
@@ -256,6 +256,25 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
       res.status(404).json({ error: 'NOT_FOUND', message: 'Reward not found', statusCode: 404 });
       return;
     }
+
+    // PlayerReward.playerId is a foreign key onto Player.username, so a name with no
+    // row makes the grant insert throw a raw FK error (500). Resolve it up front, and
+    // case-insensitively: usernames are stored case-preserved but Minecraft treats
+    // them case-insensitively, so "nataszombis" must find "NatasZombis".
+    const player = await prisma.player.findFirst({
+      where: { username: { equals: requestedPlayerId, mode: 'insensitive' } },
+      select: { username: true },
+    });
+    if (!player) {
+      res.status(404).json({
+        error: 'PLAYER_NOT_FOUND',
+        message: `No player named "${requestedPlayerId}" — they must join the server at least once first`,
+        statusCode: 404,
+      });
+      return;
+    }
+    // Use the canonical spelling from here on so every write matches the FK exactly.
+    const playerId = player.username;
 
     // Redis idempotency lock — 60 s covers bridge timeout + DB write; prevents duplicate grants on retry
     const lockKey = `bridge:lock:grant:${playerId}:${rewardId}`;
@@ -307,10 +326,9 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
       if (cfg.coins) updates.coins = { increment: cfg.coins };
       if (cfg.crystals) updates.crystals = { increment: cfg.crystals };
       if (Object.keys(updates).length > 0) {
-        await prisma.player.update({ where: { username: playerId }, data: updates }).catch(() => {
-          // Player row may not exist yet (first join not yet processed) — safe to ignore,
-          // the bridge/pending-delivery path will still credit on next login.
-        });
+        // The player is known to exist by this point, so a failure here is a real
+        // error rather than the "not joined yet" case this used to swallow.
+        await prisma.player.update({ where: { username: playerId }, data: updates });
       }
     }
 
@@ -344,7 +362,17 @@ rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (r
     }
 
     res.json({ grantId: grant.id, queued: !bridgeOk });
-  } catch (err) {
+  } catch (err: any) {
+    // Belt and braces: the player is checked above, but a delete racing the grant
+    // should still read as "unknown player" rather than a bare 500.
+    if (err?.code === 'P2003' || err?.code === 'P2025') {
+      res.status(404).json({
+        error: 'PLAYER_NOT_FOUND',
+        message: 'Player no longer exists',
+        statusCode: 404,
+      });
+      return;
+    }
     next(err);
   }
 });
