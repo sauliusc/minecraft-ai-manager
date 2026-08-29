@@ -59,11 +59,19 @@ public class ShopListener implements Listener {
             return;
         }
 
+        if (menu.isPicking(player)) {
+            ShopMenu.Purchase pick = menu.quantityAt(player, event.getSlot());
+            if (pick == null) return;
+            if (!inFlight.add(player.getUniqueId())) return;   // already buying something
+            buy(player, pick.entry(), pick.quantity());
+            return;
+        }
+
+        // Catalogue click: ask how many rather than buying straight away, so the
+        // total is on screen before any money moves.
         ShopEntry entry = menu.entryAt(player, event.getSlot());
         if (entry == null) return;
-
-        if (!inFlight.add(player.getUniqueId())) return;   // already buying something
-        buy(player, entry);
+        menu.showQuantities(player, entry, economy.getBalance(player.getName())[0]);
     }
 
     @EventHandler
@@ -79,7 +87,7 @@ public class ShopListener implements Listener {
         if (event.getPlayer() instanceof Player player) menu.close(player);
     }
 
-    private void buy(Player player, ShopEntry entry) {
+    private void buy(Player player, ShopEntry entry, int quantity) {
         BridgePlugin bridge = BridgePlugin.getInstance();
         ApiClient api = bridge == null ? null : bridge.getApiClient();
         if (api == null) {
@@ -92,7 +100,7 @@ public class ShopListener implements Listener {
         // handed over strictly after the money is confirmed gone. A failure
         // anywhere here leaves the player with their coins and no item, which
         // is the right way round to be wrong.
-        api.post("/shop/purchase", ShopCommand.purchaseBody(player.getName(), entry.id()), new Callback() {
+        api.post("/shop/purchase", ShopCommand.purchaseBody(player.getName(), entry.id(), quantity), new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
                 String body = "";
@@ -108,7 +116,8 @@ public class ShopListener implements Listener {
                         deliver(player, entry, payload);
                     } else if (code == 402) {
                         player.sendMessage(Component.text(
-                            "You cannot afford that — it costs " + entry.price() + " " + entry.currency() + ".",
+                            "You cannot afford that — it costs "
+                                + ((long) entry.price() * quantity) + " " + entry.currency() + ".",
                             NamedTextColor.RED));
                         player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 1f, 1f);
                     } else if (code == 404) {
@@ -141,11 +150,23 @@ public class ShopListener implements Listener {
                 "Something went wrong delivering that item — tell an admin.", NamedTextColor.RED));
             return;
         }
-        ItemStack stack = new ItemStack(mat, Math.max(1, Math.min(64, entry.amount())));
-        var leftover = player.getInventory().addItem(stack);
-        // A full inventory must not swallow what was just paid for.
-        leftover.values().forEach(rest -> player.getWorld().dropItemNaturally(player.getLocation(), rest));
-        if (!leftover.isEmpty()) {
+        // Quantity comes from the server's response, not from what was clicked:
+        // the debit is authoritative, so delivery must match what was charged.
+        int total = readAmount(payload, entry.amount());
+        boolean overflowed = false;
+        int remaining = total;
+        int max = mat.getMaxStackSize();
+        while (remaining > 0) {
+            int size = Math.min(remaining, max);
+            var leftover = player.getInventory().addItem(new ItemStack(mat, size));
+            // A full inventory must not swallow what was just paid for.
+            for (ItemStack rest : leftover.values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), rest);
+                overflowed = true;
+            }
+            remaining -= size;
+        }
+        if (overflowed) {
             player.sendMessage(Component.text("Your inventory was full — the rest dropped at your feet.",
                 NamedTextColor.YELLOW));
         }
@@ -154,10 +175,30 @@ public class ShopListener implements Listener {
         economy.invalidate(player.getName());
         economy.fetchBalance(player.getName());
 
-        player.sendMessage(Component.text("Bought " + entry.amount() + "x "
-            + ShopMenu.prettify(entry.material()) + " for " + entry.price() + " " + entry.currency()
+        player.sendMessage(Component.text("Bought " + total + "x "
+            + ShopMenu.prettify(entry.material()) + " for " + readPrice(payload, entry.price())
+            + " " + entry.currency()
             + (balance >= 0 ? " — balance: " + balance : ""), NamedTextColor.GREEN));
         player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f);
+    }
+
+    /** Total item count from the purchase response, falling back to the row's amount. */
+    static int readAmount(String payload, int fallback) {
+        return (int) readNumber(payload, "amount", fallback);
+    }
+
+    /** Total charged, from the purchase response. */
+    static long readPrice(String payload, long fallback) {
+        return readNumber(payload, "price", fallback);
+    }
+
+    private static long readNumber(String payload, String key, long fallback) {
+        try {
+            JsonObject o = JsonParser.parseString(payload).getAsJsonObject();
+            return o.has(key) && !o.get(key).isJsonNull() ? o.get(key).getAsLong() : fallback;
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     /** Balance from the purchase response, or -1 when it cannot be read. */

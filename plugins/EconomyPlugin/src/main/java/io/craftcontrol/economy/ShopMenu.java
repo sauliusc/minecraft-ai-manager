@@ -41,14 +41,23 @@ public class ShopMenu {
     private static final int SLOT_INFO = PAGE_SIZE + 4;
     private static final int SLOT_NEXT = PAGE_SIZE + 8;
 
-    public enum Nav { PREV, NEXT }
+    public enum Nav { PREV, NEXT, BACK }
+
+    /** Quantities the picker offers. */
+    static final int[] QUANTITIES = {1, 8, 16, 32, 64};
+    private static final int QTY_ROWS = 3;
+    private static final int QTY_FIRST_SLOT = 10;   // second row, inset by one
+    private static final int QTY_BACK_SLOT = 22;
+    public static final String QTY_TITLE = TITLE + " — how many?";
 
     private static final class Open {
         final List<ShopEntry> all;
         final int page;
         final long balance;
-        Open(List<ShopEntry> all, int page, long balance) {
-            this.all = all; this.page = page; this.balance = balance;
+        /** Non-null while the quantity picker is showing. */
+        final ShopEntry picking;
+        Open(List<ShopEntry> all, int page, long balance, ShopEntry picking) {
+            this.all = all; this.page = page; this.balance = balance; this.picking = picking;
         }
     }
 
@@ -89,7 +98,7 @@ public class ShopMenu {
             inv.setItem(SLOT_INFO, navItem(Material.PAPER, "Page " + (p + 1) + " of " + pages));
         }
 
-        open.put(player.getUniqueId(), new Open(entries, p, balance));
+        open.put(player.getUniqueId(), new Open(entries, p, balance, null));
         player.openInventory(inv);
     }
 
@@ -123,7 +132,7 @@ public class ShopMenu {
     /** The entry a clicked slot refers to, or null for a nav slot or empty space. */
     public ShopEntry entryAt(Player player, int slot) {
         Open state = open.get(player.getUniqueId());
-        if (state == null || slot < 0) return null;
+        if (state == null || slot < 0 || state.picking != null) return null;
         boolean paged = pageCount(state.all.size()) > 1;
         int perPage = paged ? PAGE_SIZE : MAX_ROWS * ROW;
         if (paged && slot >= PAGE_SIZE) return null;      // navigation row
@@ -136,6 +145,9 @@ public class ShopMenu {
     public Nav navAt(Player player, int slot) {
         Open state = open.get(player.getUniqueId());
         if (state == null) return null;
+        if (state.picking != null) {
+            return slot == QTY_BACK_SLOT ? Nav.BACK : null;
+        }
         int pages = pageCount(state.all.size());
         if (pages <= 1) return null;
         if (slot == SLOT_PREV && state.page > 0) return Nav.PREV;
@@ -147,8 +159,67 @@ public class ShopMenu {
     public void turnPage(Player player, Nav nav) {
         Open state = open.get(player.getUniqueId());
         if (state == null) return;
+        if (nav == Nav.BACK) {
+            show(player, state.all, state.balance, state.page);
+            return;
+        }
         show(player, state.all, state.balance, state.page + (nav == Nav.NEXT ? 1 : -1));
     }
+
+    /** Opens the quantity picker for an item. Main thread only. */
+    public void showQuantities(Player player, ShopEntry entry, long balance) {
+        Open state = open.get(player.getUniqueId());
+        if (state == null) return;
+        Inventory inv = Bukkit.createInventory(null, QTY_ROWS * ROW, Component.text(QTY_TITLE));
+
+        Material mat = Material.matchMaterial(entry.material());
+        if (mat == null) return;
+
+        for (int i = 0; i < QUANTITIES.length; i++) {
+            int qty = QUANTITIES[i];
+            long total = (long) entry.price() * qty;
+            int items = entry.amount() * qty;
+            boolean affordable = balance >= total;
+            ItemStack stack = new ItemStack(mat, Math.max(1, Math.min(mat.getMaxStackSize(), items)));
+            stack.editMeta(meta -> {
+                meta.displayName(Component.text("Buy " + items + " x "
+                    + (entry.displayName() != null ? entry.displayName() : prettify(entry.material())),
+                    NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                List<Component> lore = new ArrayList<>();
+                lore.add(Component.text("Total: " + total + " " + entry.currency(),
+                    affordable ? NamedTextColor.GREEN : NamedTextColor.RED)
+                    .decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text("You have: " + balance + " " + entry.currency(),
+                    NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+                lore.add(Component.text(affordable ? "Click to buy" : "Too expensive",
+                    affordable ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+                meta.lore(lore);
+            });
+            inv.setItem(QTY_FIRST_SLOT + i, stack);
+        }
+        inv.setItem(QTY_BACK_SLOT, navItem(Material.ARROW, "Back to the shop"));
+
+        open.put(player.getUniqueId(), new Open(state.all, state.page, balance, entry));
+        player.openInventory(inv);
+    }
+
+    /** The entry and quantity a picker slot refers to, or null. */
+    public Purchase quantityAt(Player player, int slot) {
+        Open state = open.get(player.getUniqueId());
+        if (state == null || state.picking == null) return null;
+        int i = slot - QTY_FIRST_SLOT;
+        if (i < 0 || i >= QUANTITIES.length) return null;
+        return new Purchase(state.picking, QUANTITIES[i]);
+    }
+
+    /** True while the quantity picker is the open screen. */
+    public boolean isPicking(Player player) {
+        Open state = open.get(player.getUniqueId());
+        return state != null && state.picking != null;
+    }
+
+    public record Purchase(ShopEntry entry, int quantity) {}
 
     /** True when the given inventory title belongs to this menu. */
     public static boolean isShopTitle(Component title) {

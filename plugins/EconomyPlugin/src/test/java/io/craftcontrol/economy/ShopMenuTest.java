@@ -35,16 +35,36 @@ class ShopMenuTest {
 
     @Test
     void buildsThePurchaseBodyTheApiExpects() {
-        String body = ShopCommand.purchaseBody("ADASGAME", "item-1");
+        String body = ShopCommand.purchaseBody("ADASGAME", "item-1", 8);
         assertTrue(body.contains("\"playerId\":\"ADASGAME\""), body);
         assertTrue(body.contains("\"itemId\":\"item-1\""), body);
+        assertTrue(body.contains("\"quantity\":8"), body);
+    }
+
+    @Test
+    void offersTheQuantitiesThePickerAdvertises() {
+        assertArrayEquals(new int[]{1, 8, 16, 32, 64}, ShopMenu.QUANTITIES);
+    }
+
+    @Test
+    void takesTheDeliveredAmountFromTheServerNotTheClick() {
+        // The debit is authoritative: deliver what was charged for, not what the
+        // menu happened to be showing.
+        assertEquals(128, ShopListener.readAmount("{\"amount\":128,\"price\":384}", 1));
+        assertEquals(384L, ShopListener.readPrice("{\"amount\":128,\"price\":384}", 3));
+    }
+
+    @Test
+    void fallsBackToTheRowWhenTheResponseIsUnreadable() {
+        assertEquals(2, ShopListener.readAmount("nonsense", 2));
+        assertEquals(3L, ShopListener.readPrice("{}", 3));
     }
 
     @Test
     void escapesNamesRatherThanBuildingBrokenJson() {
         // Minecraft names cannot contain quotes, but the encoder must not be the
         // reason we find that out.
-        String body = ShopCommand.purchaseBody("we\"ird", "id");
+        String body = ShopCommand.purchaseBody("we\"ird", "id", 1);
         assertFalse(body.contains("we\"ird"), body);
         assertTrue(body.contains("we\\\"ird"), body);
     }

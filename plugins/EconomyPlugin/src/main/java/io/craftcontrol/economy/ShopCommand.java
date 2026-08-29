@@ -139,10 +139,11 @@ public class ShopCommand implements CommandExecutor {
     }
 
     private static final Gson GSON = new Gson();
-    static String purchaseBody(String playerName, String itemId) {
+    static String purchaseBody(String playerName, String itemId, int quantity) {
         JsonObject o = new JsonObject();
         o.addProperty("playerId", playerName);
         o.addProperty("itemId", itemId);
+        o.addProperty("quantity", quantity);
         return GSON.toJson(o);
     }
 }

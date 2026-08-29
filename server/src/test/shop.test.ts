@@ -184,6 +184,74 @@ describe('purchase', () => {
     expect(seen.data).toEqual({ coins: { decrement: 100 } });
   });
 
+  it('multiplies price and amount by the quantity', async () => {
+    let seen: any = null;
+    (prisma.$transaction as any).mockImplementation(async (fn: any) =>
+      fn({
+        player: {
+          updateMany: vi.fn().mockImplementation(async (args: any) => { seen = args; return { count: 1 }; }),
+          findUnique: vi.fn().mockResolvedValue({ coins: 200, crystals: 0 }),
+        },
+        economyAuditLog: { create: vi.fn().mockResolvedValue({}) },
+      })
+    );
+
+    const res = await request(app)
+      .post('/api/shop/purchase')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'ADASGAME', itemId: 'item-1', quantity: 8 });
+
+    // 2 items at 100 each, times 8.
+    expect(res.body).toMatchObject({ amount: 16, price: 800 });
+    expect(seen.where).toEqual({ username: 'ADASGAME', coins: { gte: 800 } });
+    expect(seen.data).toEqual({ coins: { decrement: 800 } });
+  });
+
+  it('defaults to a quantity of one when none is given', async () => {
+    withTx(1);
+
+    const res = await request(app)
+      .post('/api/shop/purchase')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'ADASGAME', itemId: 'item-1' });
+
+    expect(res.body).toMatchObject({ amount: 2, price: 100 });
+  });
+
+  it.each([0, -1, 65, 1.5])('rejects a quantity of %s', async (quantity) => {
+    const res = await request(app)
+      .post('/api/shop/purchase')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'ADASGAME', itemId: 'item-1', quantity });
+
+    expect(res.status).toBe(400);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('prices from the catalogue, so a request cannot name its own price', async () => {
+    withTx(1);
+
+    const res = await request(app)
+      .post('/api/shop/purchase')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'ADASGAME', itemId: 'item-1', quantity: 1, price: 1, amount: 999 });
+
+    expect(res.body).toMatchObject({ amount: 2, price: 100 });
+  });
+
+  it('reports the total, not the unit price, when funds fall short', async () => {
+    withTx(0);
+    (prisma.player.findUnique as any).mockResolvedValue({ username: 'bladrobe', coins: 50, crystals: 0 });
+
+    const res = await request(app)
+      .post('/api/shop/purchase')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'bladrobe', itemId: 'item-1', quantity: 8 });
+
+    expect(res.status).toBe(402);
+    expect(res.body.price).toBe(800);
+  });
+
   it('402s when the player cannot afford it, without charging them', async () => {
     withTx(0);
     (prisma.player.findUnique as any).mockResolvedValue({ username: 'bladrobe', coins: 50, crystals: 0 });
