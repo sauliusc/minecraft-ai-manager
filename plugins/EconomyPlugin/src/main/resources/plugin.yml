@@ -21,10 +21,17 @@ commands:
     usage: /market <list|browse|buy> [args]
     permission: craftcontrol.economy.market
     permission-message: No permission.
+  shop:
+    description: Open the server shop
+    usage: /shop
+    permission: craftcontrol.economy.shop
+    permission-message: No permission.
 permissions:
   craftcontrol.economy.balance:
     default: true
   craftcontrol.economy.pay:
+    default: true
+  craftcontrol.economy.shop:
     default: true
   craftcontrol.economy.market:
     default: true

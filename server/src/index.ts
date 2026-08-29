@@ -28,6 +28,7 @@ import { activityLogRouter } from './routes/activityLog.js';
 import { pendingActionsRouter } from './routes/pendingActions.js';
 import { weekThemeRouter } from './routes/weekTheme.js';
 import { deploymentsRouter } from './routes/deployments.js';
+import { shopRouter } from './routes/shop.js';
 import { startBroadcastScheduler } from './services/broadcastScheduler.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
@@ -95,6 +96,7 @@ app.use('/api/activity-log', activityLogRouter);
 app.use('/api/pending-actions', pendingActionsRouter);
 app.use('/api/ai/week-theme', weekThemeRouter);
 app.use('/api/deployments', deploymentsRouter);
+app.use('/api/shop', shopRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);

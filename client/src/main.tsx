@@ -17,6 +17,7 @@ import { Challenges } from './pages/Challenges.js';
 import { ChallengeDetail } from './pages/ChallengeDetail.js';
 import { ChallengesCalendar } from './pages/ChallengesCalendar.js';
 import { Rewards } from './pages/Rewards.js';
+import { Shop } from './pages/Shop.js';
 import { RewardDetail } from './pages/RewardDetail.js';
 import { Events } from './pages/Events.js';
 import { EventDetail } from './pages/EventDetail.js';
@@ -57,6 +58,7 @@ createRoot(document.getElementById('root')!).render(
                 <Route path="/challenges/calendar" element={<ChallengesCalendar />} />
                 <Route path="/challenges/:id" element={<ChallengeDetail />} />
                 <Route path="/rewards" element={<Rewards />} />
+                <Route path="/shop" element={<Shop />} />
                 <Route path="/rewards/:id" element={<RewardDetail />} />
                 <Route path="/events" element={<Events />} />
                 <Route path="/events/:id" element={<EventDetail />} />
