@@ -114,6 +114,11 @@ public class ShopMenu {
                 .decoration(TextDecoration.ITALIC, false));
             lore.add(Component.text("Amount: " + entry.amount(), NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
+            long sellBack = (long) entry.price() / 2;
+            if (sellBack > 0) {
+                lore.add(Component.text("Sells back for " + sellBack + " " + entry.currency()
+                    + " (/sell)", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
+            }
             lore.add(Component.text(affordable ? "Click to buy" : "You cannot afford this",
                 affordable ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)
                 .decoration(TextDecoration.ITALIC, false));
