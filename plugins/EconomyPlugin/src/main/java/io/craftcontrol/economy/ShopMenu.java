@@ -13,65 +13,147 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * The chest GUI for {@code /shop}.
  *
+ * <p>Paginated: the inventory tops out at six rows, and the catalogue outgrew
+ * that as soon as the building blocks were added (#345). Anything past the last
+ * slot used to be dropped silently, so an admin could add an item, see it in the
+ * dashboard, and have players never find it.
+ *
  * <p>Holds the catalogue that was open when a menu was built, keyed by player,
  * so a click resolves to the item that was actually on screen. Prices are
  * editable from the dashboard at any moment, so the slot mapping cannot be
- * derived from a shared catalogue that may have changed underneath the player.
+ * derived from a catalogue that may have changed underneath the player.
  */
 public class ShopMenu {
 
     public static final String TITLE = "Server Shop";
     private static final int ROW = 9;
+    private static final int MAX_ROWS = 6;
+    /** Five rows of items, leaving the bottom row for navigation. */
+    static final int PAGE_SIZE = (MAX_ROWS - 1) * ROW;
+    private static final int SLOT_PREV = PAGE_SIZE;
+    private static final int SLOT_INFO = PAGE_SIZE + 4;
+    private static final int SLOT_NEXT = PAGE_SIZE + 8;
 
-    private final Map<UUID, List<ShopEntry>> open = new HashMap<>();
+    public enum Nav { PREV, NEXT }
 
-    /** Builds and shows the menu. Must run on the main thread. */
-    public void show(Player player, List<ShopEntry> entries, long balance) {
-        int rows = Math.max(1, Math.min(6, (int) Math.ceil(entries.size() / (double) ROW)));
-        Inventory inv = Bukkit.createInventory(null, rows * ROW, Component.text(TITLE));
+    private static final class Open {
+        final List<ShopEntry> all;
+        final int page;
+        final long balance;
+        Open(List<ShopEntry> all, int page, long balance) {
+            this.all = all; this.page = page; this.balance = balance;
+        }
+    }
 
-        List<ShopEntry> shown = new ArrayList<>();
-        for (ShopEntry e : entries) {
-            if (shown.size() >= rows * ROW) break;
+    private final Map<UUID, Open> open = new HashMap<>();
+
+    /** Number of pages the catalogue needs. Always at least one. */
+    static int pageCount(int items) {
+        if (items <= MAX_ROWS * ROW) return 1;
+        return (int) Math.ceil(items / (double) PAGE_SIZE);
+    }
+
+    /** Builds and shows a page. Must run on the main thread. */
+    public void show(Player player, List<ShopEntry> entries, long balance, int page) {
+        int pages = pageCount(entries.size());
+        int p = Math.max(0, Math.min(page, pages - 1));
+        boolean paged = pages > 1;
+        int perPage = paged ? PAGE_SIZE : MAX_ROWS * ROW;
+
+        int from = p * perPage;
+        int to = Math.min(from + perPage, entries.size());
+        List<ShopEntry> slice = new ArrayList<>(entries.subList(from, to));
+
+        int rows = paged ? MAX_ROWS
+            : Math.max(1, (int) Math.ceil(slice.size() / (double) ROW));
+        String title = paged ? TITLE + " (" + (p + 1) + "/" + pages + ")" : TITLE;
+        Inventory inv = Bukkit.createInventory(null, rows * ROW, Component.text(title));
+
+        for (int i = 0; i < slice.size(); i++) {
+            ShopEntry e = slice.get(i);
             Material mat = Material.matchMaterial(e.material());
-            if (mat == null) continue;   // filtered again in ShopCommand, belt and braces
-            ItemStack stack = new ItemStack(mat, Math.max(1, Math.min(64, e.amount())));
-            final ShopEntry entry = e;
-            final boolean affordable = balance >= e.price();
-            stack.editMeta(meta -> {
-                meta.displayName(Component.text(
-                    entry.displayName() != null ? entry.displayName() : prettify(entry.material()),
-                    NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-                List<Component> lore = new ArrayList<>();
-                lore.add(Component.text("Price: " + entry.price() + " " + entry.currency(),
-                    affordable ? NamedTextColor.GREEN : NamedTextColor.RED)
-                    .decoration(TextDecoration.ITALIC, false));
-                lore.add(Component.text("Amount: " + entry.amount(), NamedTextColor.GRAY)
-                    .decoration(TextDecoration.ITALIC, false));
-                lore.add(Component.text(affordable ? "Click to buy" : "You cannot afford this",
-                    affordable ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)
-                    .decoration(TextDecoration.ITALIC, false));
-                meta.lore(lore);
-            });
-            inv.setItem(shown.size(), stack);
-            shown.add(e);
+            if (mat == null) continue;
+            inv.setItem(i, itemFor(e, mat, balance >= e.price()));
         }
 
-        open.put(player.getUniqueId(), shown);
+        if (paged) {
+            if (p > 0) inv.setItem(SLOT_PREV, navItem(Material.ARROW, "Previous page"));
+            if (p < pages - 1) inv.setItem(SLOT_NEXT, navItem(Material.ARROW, "Next page"));
+            inv.setItem(SLOT_INFO, navItem(Material.PAPER, "Page " + (p + 1) + " of " + pages));
+        }
+
+        open.put(player.getUniqueId(), new Open(entries, p, balance));
         player.openInventory(inv);
     }
 
-    /** The entry a clicked slot refers to, or null if the slot is empty. */
+    private static ItemStack itemFor(ShopEntry entry, Material mat, boolean affordable) {
+        ItemStack stack = new ItemStack(mat, Math.max(1, Math.min(64, entry.amount())));
+        stack.editMeta(meta -> {
+            meta.displayName(Component.text(
+                entry.displayName() != null ? entry.displayName() : prettify(entry.material()),
+                NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+            List<Component> lore = new ArrayList<>();
+            lore.add(Component.text("Price: " + entry.price() + " " + entry.currency(),
+                affordable ? NamedTextColor.GREEN : NamedTextColor.RED)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("Amount: " + entry.amount(), NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(affordable ? "Click to buy" : "You cannot afford this",
+                affordable ? NamedTextColor.YELLOW : NamedTextColor.DARK_GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore);
+        });
+        return stack;
+    }
+
+    private static ItemStack navItem(Material mat, String label) {
+        ItemStack stack = new ItemStack(mat);
+        stack.editMeta(meta -> meta.displayName(
+            Component.text(label, NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false)));
+        return stack;
+    }
+
+    /** The entry a clicked slot refers to, or null for a nav slot or empty space. */
     public ShopEntry entryAt(Player player, int slot) {
-        List<ShopEntry> entries = open.get(player.getUniqueId());
-        if (entries == null || slot < 0 || slot >= entries.size()) return null;
-        return entries.get(slot);
+        Open state = open.get(player.getUniqueId());
+        if (state == null || slot < 0) return null;
+        boolean paged = pageCount(state.all.size()) > 1;
+        int perPage = paged ? PAGE_SIZE : MAX_ROWS * ROW;
+        if (paged && slot >= PAGE_SIZE) return null;      // navigation row
+        int index = state.page * perPage + slot;
+        if (slot >= perPage || index >= state.all.size()) return null;
+        return state.all.get(index);
+    }
+
+    /** The navigation action for a clicked slot, or null if it is not one. */
+    public Nav navAt(Player player, int slot) {
+        Open state = open.get(player.getUniqueId());
+        if (state == null) return null;
+        int pages = pageCount(state.all.size());
+        if (pages <= 1) return null;
+        if (slot == SLOT_PREV && state.page > 0) return Nav.PREV;
+        if (slot == SLOT_NEXT && state.page < pages - 1) return Nav.NEXT;
+        return null;
+    }
+
+    /** Re-renders the menu one page in the given direction. Main thread only. */
+    public void turnPage(Player player, Nav nav) {
+        Open state = open.get(player.getUniqueId());
+        if (state == null) return;
+        show(player, state.all, state.balance, state.page + (nav == Nav.NEXT ? 1 : -1));
+    }
+
+    /** True when the given inventory title belongs to this menu. */
+    public static boolean isShopTitle(Component title) {
+        return title instanceof net.kyori.adventure.text.TextComponent text
+            && text.content().startsWith(TITLE);
     }
 
     public boolean isOpen(Player player) { return open.containsKey(player.getUniqueId()); }
@@ -81,7 +163,7 @@ public class ShopMenu {
     /** DIAMOND_SWORD -> Diamond Sword, for items with no display name set. */
     static String prettify(String material) {
         StringBuilder out = new StringBuilder();
-        for (String part : material.toLowerCase(java.util.Locale.ROOT).split("_")) {
+        for (String part : material.toLowerCase(Locale.ROOT).split("_")) {
             if (part.isEmpty()) continue;
             if (out.length() > 0) out.append(' ');
             out.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));

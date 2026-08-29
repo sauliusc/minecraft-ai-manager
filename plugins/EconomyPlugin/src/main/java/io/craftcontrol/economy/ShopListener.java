@@ -45,13 +45,19 @@ public class ShopListener implements Listener {
     public void onClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (!menu.isOpen(player)) return;
-        if (!event.getView().title().equals(Component.text(ShopMenu.TITLE))) return;
+        if (!ShopMenu.isShopTitle(event.getView().title())) return;
 
         // The menu is a display, not storage: nothing may be taken out of it or
         // shift-clicked in from the player's own inventory.
         event.setCancelled(true);
         if (event.getClickedInventory() == null
             || !event.getClickedInventory().equals(event.getView().getTopInventory())) return;
+
+        ShopMenu.Nav nav = menu.navAt(player, event.getSlot());
+        if (nav != null) {
+            menu.turnPage(player, nav);
+            return;
+        }
 
         ShopEntry entry = menu.entryAt(player, event.getSlot());
         if (entry == null) return;
@@ -63,8 +69,7 @@ public class ShopListener implements Listener {
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (menu.isOpen(player)
-            && event.getView().title().equals(Component.text(ShopMenu.TITLE))) {
+        if (menu.isOpen(player) && ShopMenu.isShopTitle(event.getView().title())) {
             event.setCancelled(true);
         }
     }

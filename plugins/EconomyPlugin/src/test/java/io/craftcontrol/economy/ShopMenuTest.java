@@ -1,5 +1,6 @@
 package io.craftcontrol.economy;
 
+import net.kyori.adventure.text.Component;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -46,5 +47,35 @@ class ShopMenuTest {
         String body = ShopCommand.purchaseBody("we\"ird", "id");
         assertFalse(body.contains("we\"ird"), body);
         assertTrue(body.contains("we\\\"ird"), body);
+    }
+
+    @Test
+    void oneScreenfulNeedsNoPaging() {
+        // 54 fits exactly; the 55th is what used to vanish silently (#345).
+        assertEquals(1, ShopMenu.pageCount(1));
+        assertEquals(1, ShopMenu.pageCount(54));
+        assertEquals(2, ShopMenu.pageCount(55));
+    }
+
+    @Test
+    void pagesAtFortyFiveOnceNavigationIsNeeded() {
+        // The bottom row becomes navigation, so a paged screen holds 45.
+        assertEquals(45, ShopMenu.PAGE_SIZE);
+        assertEquals(2, ShopMenu.pageCount(77));   // the catalogue with stairs
+        assertEquals(2, ShopMenu.pageCount(90));
+        assertEquals(3, ShopMenu.pageCount(91));
+    }
+
+    @Test
+    void neverReportsZeroPagesForAnEmptyCatalogue() {
+        assertEquals(1, ShopMenu.pageCount(0));
+    }
+
+    @Test
+    void recognisesItsOwnTitleIncludingThePageSuffix() {
+        assertTrue(ShopMenu.isShopTitle(Component.text("Server Shop")));
+        assertTrue(ShopMenu.isShopTitle(Component.text("Server Shop (2/3)")));
+        assertFalse(ShopMenu.isShopTitle(Component.text("Chest")));
+        assertFalse(ShopMenu.isShopTitle(Component.text("Ender Chest")));
     }
 }
