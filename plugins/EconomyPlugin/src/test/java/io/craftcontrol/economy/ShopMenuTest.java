@@ -98,4 +98,12 @@ class ShopMenuTest {
         assertFalse(ShopMenu.isShopTitle(Component.text("Chest")));
         assertFalse(ShopMenu.isShopTitle(Component.text("Ender Chest")));
     }
+
+    @Test
+    void buildsTheSellBodyTheApiExpects() {
+        String body = SellCommand.body("ADASGAME", "COBBLESTONE", 64);
+        assertTrue(body.contains("\"playerId\":\"ADASGAME\""), body);
+        assertTrue(body.contains("\"material\":\"COBBLESTONE\""), body);
+        assertTrue(body.contains("\"count\":64"), body);
+    }
 }

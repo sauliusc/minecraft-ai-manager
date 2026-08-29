@@ -18,6 +18,7 @@ public class EconomyPlugin extends JavaPlugin {
         ShopMenu shopMenu = new ShopMenu();
         getCommand("shop").setExecutor(new ShopCommand(this, economy, shopMenu));
         getServer().getPluginManager().registerEvents(new ShopListener(this, economy, shopMenu), this);
+        getCommand("sell").setExecutor(new SellCommand(this, economy));
         getLogger().info("EconomyPlugin enabled.");
     }
 

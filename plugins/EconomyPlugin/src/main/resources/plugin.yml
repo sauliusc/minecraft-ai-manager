@@ -26,12 +26,19 @@ commands:
     usage: /shop
     permission: craftcontrol.economy.shop
     permission-message: No permission.
+  sell:
+    description: Sell the item you are holding to the shop for half its price
+    usage: /sell [all]
+    permission: craftcontrol.economy.sell
+    permission-message: No permission.
 permissions:
   craftcontrol.economy.balance:
     default: true
   craftcontrol.economy.pay:
     default: true
   craftcontrol.economy.shop:
+    default: true
+  craftcontrol.economy.sell:
     default: true
   craftcontrol.economy.market:
     default: true

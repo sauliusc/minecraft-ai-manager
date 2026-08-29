@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
+import { sellValue } from '../routes/shop.js';
 import { signAccess } from '../lib/jwt.js';
 
 vi.mock('../lib/prisma.js', () => ({
@@ -12,7 +13,7 @@ vi.mock('../lib/prisma.js', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
-    player: { findUnique: vi.fn(), updateMany: vi.fn() },
+    player: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() },
     economyAuditLog: { create: vi.fn() },
     activityLog: { create: vi.fn().mockResolvedValue({}) },
     $transaction: vi.fn(),
@@ -296,5 +297,107 @@ describe('purchase', () => {
 
     expect(res.status).toBe(403);
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('sellValue', () => {
+  it('is half the buy price, floored', () => {
+    expect(sellValue(100, 1, 1)).toBe(50);
+    expect(sellValue(100, 1, 4)).toBe(200);
+    expect(sellValue(3, 1, 64)).toBe(96);      // the live 3-coin blocks
+  });
+
+  it('never pays more than half, so buying and selling cannot mint coins', () => {
+    // The whole safety property: a round trip must always lose money.
+    for (let price = 1; price <= 200; price++) {
+      for (const count of [1, 7, 8, 64, 100]) {
+        for (const amount of [1, 2, 8, 16]) {
+          const buy = (price * count) / amount;
+          expect(sellValue(price, amount, count)).toBeLessThan(buy);
+        }
+      }
+    }
+  });
+
+  it('floors a 3-coin block to 1, not 2', () => {
+    // 1.5 rounded up would make a single block break even at scale.
+    expect(sellValue(3, 1, 1)).toBe(1);
+  });
+
+  it('returns 0 for anything too cheap to halve', () => {
+    expect(sellValue(1, 1, 1)).toBe(0);
+  });
+});
+
+describe('sell', () => {
+  const sellBody = { playerId: 'ADASGAME', material: 'DIAMOND', count: 10 };
+
+  beforeEach(() => {
+    (prisma.shopItem as any).findFirst = vi.fn().mockResolvedValue(diamond);
+    (prisma.player.findUnique as any).mockResolvedValue({ username: 'ADASGAME', coins: 150, crystals: 0 });
+    (prisma.$transaction as any).mockResolvedValue([{ coins: 650, crystals: 0 }, {}]);
+  });
+
+  it('credits half price and reports the new balance', async () => {
+    const res = await request(app)
+      .post('/api/shop/sell')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send(sellBody);
+
+    expect(res.status).toBe(200);
+    // 10 items of a 2-for-100 item: 100 * 10 / 2 / 2 = 250
+    expect(res.body).toMatchObject({ material: 'DIAMOND', count: 10, credited: 250, balance: 650 });
+  });
+
+  it('only buys back what the shop actually sells', async () => {
+    (prisma.shopItem as any).findFirst = vi.fn().mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/api/shop/sell')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ ...sellBody, material: 'BEDROCK' });
+
+    expect(res.status).toBe(404);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('refuses rather than paying nothing when half price floors to zero', async () => {
+    (prisma.shopItem as any).findFirst = vi.fn().mockResolvedValue({ ...diamond, price: 1, amount: 1 });
+
+    const res = await request(app)
+      .post('/api/shop/sell')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ ...sellBody, count: 1 });
+
+    expect(res.status).toBe(422);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('404s for an unknown player', async () => {
+    (prisma.player.findUnique as any).mockResolvedValue(null);
+
+    const res = await request(app)
+      .post('/api/shop/sell')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send(sellBody);
+
+    expect(res.status).toBe(404);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('cannot be called without a service token', async () => {
+    const res = await request(app).post('/api/shop/sell').send(sellBody);
+
+    expect(res.status).toBe(403);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([0, -5, 5000])('rejects a count of %s', async (count) => {
+    const res = await request(app)
+      .post('/api/shop/sell')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ ...sellBody, count });
+
+    expect(res.status).toBe(400);
   });
 });
