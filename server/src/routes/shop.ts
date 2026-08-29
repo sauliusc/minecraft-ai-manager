@@ -107,9 +107,13 @@ shopRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource: 'sho
   } catch (err) { next(err); }
 });
 
+/** Multiples the in-game picker offers; anything in range is accepted. */
+const MAX_QUANTITY = 64;
+
 const purchaseSchema = z.object({
   playerId: z.string().min(1),
   itemId: z.string().min(1),
+  quantity: z.number().int().min(1).max(MAX_QUANTITY).default(1),
 });
 
 /**
@@ -124,7 +128,7 @@ const purchaseSchema = z.object({
  */
 shopRouter.post('/purchase', serviceTokenMiddleware, validateBody(purchaseSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { playerId, itemId } = req.body as z.infer<typeof purchaseSchema>;
+    const { playerId, itemId, quantity } = req.body as z.infer<typeof purchaseSchema>;
 
     const item = await prisma.shopItem.findUnique({ where: { id: itemId } });
     if (!item || !item.enabled) {
@@ -133,11 +137,15 @@ shopRouter.post('/purchase', serviceTokenMiddleware, validateBody(purchaseSchema
     }
 
     const currency = item.currency === 'crystals' ? 'crystals' : 'coins';
+    // Both totals come from the catalogue row, never from the request: the
+    // caller supplies only how many, so it cannot name its own price.
+    const totalPrice = item.price * quantity;
+    const totalAmount = item.amount * quantity;
 
     const result = await prisma.$transaction(async (tx) => {
       const debited = await tx.player.updateMany({
-        where: { username: playerId, [currency]: { gte: item.price } },
-        data: { [currency]: { decrement: item.price } },
+        where: { username: playerId, [currency]: { gte: totalPrice } },
+        data: { [currency]: { decrement: totalPrice } },
       });
       if (debited.count === 0) return null;
 
@@ -145,9 +153,9 @@ shopRouter.post('/purchase', serviceTokenMiddleware, validateBody(purchaseSchema
         data: {
           adminId: 'shop',
           targetId: playerId,
-          delta: -item.price,
+          delta: -totalPrice,
           currency,
-          reason: `shop_purchase:${item.material}x${item.amount}`,
+          reason: `shop_purchase:${item.material}x${totalAmount}`,
         },
       });
       return tx.player.findUnique({ where: { username: playerId }, select: { coins: true, crystals: true } });
@@ -165,7 +173,7 @@ shopRouter.post('/purchase', serviceTokenMiddleware, validateBody(purchaseSchema
         error: 'INSUFFICIENT_FUNDS',
         message: `Not enough ${currency}`,
         statusCode: 402,
-        price: item.price,
+        price: totalPrice,
         balance: (player as any)[currency],
       });
       return;
@@ -173,8 +181,8 @@ shopRouter.post('/purchase', serviceTokenMiddleware, validateBody(purchaseSchema
 
     res.json({
       material: item.material,
-      amount: item.amount,
-      price: item.price,
+      amount: totalAmount,
+      price: totalPrice,
       currency,
       balance: (result as any)[currency],
     });
