@@ -76,7 +76,7 @@ public class ShopCommand implements CommandExecutor {
                 }
                 long balance = economy.getBalance(player.getName())[0];
                 // Inventory operations are main-thread only.
-                Bukkit.getScheduler().runTask(plugin, () -> menu.show(player, entries, balance));
+                Bukkit.getScheduler().runTask(plugin, () -> menu.show(player, entries, balance, 0));
             }
 
             @Override
