@@ -588,3 +588,22 @@ model WeekTheme {
 
   @@map("week_themes")
 }
+
+/// Server shop catalogue. Fixed prices, unlimited stock — the coin sink that
+/// the player-to-player MarketListing could never be, since that needs a player
+/// to list something first and nobody ever has (#343).
+model ShopItem {
+  id          String   @id @default(cuid())
+  material    String
+  displayName String?
+  amount      Int      @default(1)
+  price       Int
+  currency    String   @default("coins")
+  category    String   @default("General")
+  enabled     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([enabled, sortOrder])
+}

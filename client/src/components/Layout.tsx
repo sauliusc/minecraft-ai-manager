@@ -41,6 +41,9 @@ export function Layout() {
           <Link to="/rewards" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
             Rewards
           </Link>
+          <Link to="/shop" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
+            Shop
+          </Link>
           <Link to="/events" className="flex items-center px-3 py-2 rounded hover:bg-gray-700 text-sm">
             Events
           </Link>
