@@ -1,0 +1,16 @@
+name: StatsPlugin
+version: 1.0.0
+main: io.craftcontrol.stats.StatsPlugin
+api-version: '26.1'
+depend:
+  - BridgePlugin
+description: In-game player statistics panel for CraftControl
+commands:
+  stats:
+    description: Show your statistics, or another player's
+    usage: /stats [player]
+    permission: craftcontrol.stats
+    permission-message: No permission.
+permissions:
+  craftcontrol.stats:
+    default: true

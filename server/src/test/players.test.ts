@@ -5,6 +5,10 @@ import { signAccess } from '../lib/jwt.js';
 
 vi.mock('../lib/prisma.js', () => ({
   prisma: {
+    challengeProgress: { count: vi.fn() },
+    playerReward: { count: vi.fn() },
+    economyAuditLog: { aggregate: vi.fn() },
+    clanMember: { findFirst: vi.fn() },
     player: {
       upsert: vi.fn(),
       count: vi.fn(),
@@ -128,5 +132,93 @@ describe('Engagement tier calculation', () => {
       .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
       .send({ username: 'TestPlayer' });
     expect(res.body.tier).toBe(expectedTier);
+  });
+});
+
+describe('GET /api/players/:username/stats', () => {
+  const SERVICE = 'test-bridge-secret';
+
+  beforeEach(() => {
+    process.env.BRIDGE_SECRET = SERVICE;
+    (prisma.challengeProgress.count as any).mockResolvedValue(3);
+    (prisma.playerReward.count as any).mockResolvedValue(7);
+    (prisma.economyAuditLog.aggregate as any).mockResolvedValue({ _sum: { delta: -240 } });
+    (prisma.clanMember.findFirst as any).mockResolvedValue(null);
+  });
+
+  it('returns the CraftControl half of the stats panel', async () => {
+    (prisma.player.findUnique as any).mockResolvedValue({
+      username: 'ADASGAME', coins: 150, crystals: 0, joinCount: 56,
+      currentStreak: 2, longestStreak: 9, firstJoinAt: new Date('2026-08-19T06:33:24Z'),
+    });
+
+    const res = await request(app)
+      .get('/api/players/ADASGAME/stats')
+      .set('Authorization', `Bearer ${SERVICE}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      username: 'ADASGAME', coins: 150, joinCount: 56,
+      currentStreak: 2, longestStreak: 9,
+      challengesCompleted: 3, rewardsEarned: 7,
+    });
+  });
+
+  it('reports shop spending as a positive number', async () => {
+    // Purchases are stored as negative deltas; "spent 240" reads better than -240.
+    (prisma.player.findUnique as any).mockResolvedValue({
+      username: 'ADASGAME', coins: 150, crystals: 0, joinCount: 1,
+      currentStreak: 1, longestStreak: 1, firstJoinAt: new Date(),
+    });
+
+    const res = await request(app)
+      .get('/api/players/ADASGAME/stats')
+      .set('Authorization', `Bearer ${SERVICE}`);
+
+    expect(res.body.coinsSpentInShop).toBe(240);
+  });
+
+  it('reports zero rather than null when nothing has been spent', async () => {
+    (prisma.economyAuditLog.aggregate as any).mockResolvedValue({ _sum: { delta: null } });
+    (prisma.player.findUnique as any).mockResolvedValue({
+      username: 'new', coins: 50, crystals: 0, joinCount: 1,
+      currentStreak: 1, longestStreak: 1, firstJoinAt: new Date(),
+    });
+
+    const res = await request(app)
+      .get('/api/players/new/stats')
+      .set('Authorization', `Bearer ${SERVICE}`);
+
+    expect(res.body.coinsSpentInShop).toBe(0);
+  });
+
+  it('includes the clan when the player is in one', async () => {
+    (prisma.player.findUnique as any).mockResolvedValue({
+      username: 'ADASGAME', coins: 150, crystals: 0, joinCount: 1,
+      currentStreak: 1, longestStreak: 1, firstJoinAt: new Date(),
+    });
+    (prisma.clanMember.findFirst as any).mockResolvedValue({
+      clan: { name: 'Builders', tag: 'BLD', level: 2 },
+    });
+
+    const res = await request(app)
+      .get('/api/players/ADASGAME/stats')
+      .set('Authorization', `Bearer ${SERVICE}`);
+
+    expect(res.body.clan).toEqual({ name: 'Builders', tag: 'BLD', level: 2 });
+  });
+
+  it('404s for a player who has never joined', async () => {
+    (prisma.player.findUnique as any).mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/players/ghost/stats')
+      .set('Authorization', `Bearer ${SERVICE}`);
+
+    expect(res.status).toBe(404);
+  });
+
+  it('is not readable without a service token', async () => {
+    expect((await request(app).get('/api/players/ADASGAME/stats')).status).toBe(403);
   });
 });
