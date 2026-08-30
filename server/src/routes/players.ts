@@ -101,6 +101,52 @@ playersRouter.get('/', authMiddleware, async (req: Request, res: Response, next:
   }
 });
 
+/**
+ * GET /api/players/:username/stats — service token; the numbers /stats shows
+ * that Minecraft does not track itself.
+ *
+ * Vanilla statistics (play time, kills, blocks mined) are read by the plugin
+ * from the server directly, so this covers only the CraftControl side.
+ */
+playersRouter.get('/:username/stats', serviceTokenMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const username = req.params.username as string;
+    const player = await prisma.player.findUnique({ where: { username } });
+    if (!player) {
+      res.status(404).json({ error: 'NOT_FOUND', message: 'Player not found', statusCode: 404 });
+      return;
+    }
+
+    const [challengesCompleted, rewardsEarned, shopSpend, clan] = await Promise.all([
+      prisma.challengeProgress.count({ where: { playerId: username, completed: true } }),
+      prisma.playerReward.count({ where: { playerId: username } }),
+      prisma.economyAuditLog.aggregate({
+        where: { targetId: username, reason: { startsWith: 'shop_purchase' } },
+        _sum: { delta: true },
+      }),
+      prisma.clanMember.findFirst({
+        where: { playerId: username },
+        include: { clan: { select: { name: true, tag: true, level: true } } },
+      }),
+    ]);
+
+    res.json({
+      username: player.username,
+      coins: player.coins,
+      crystals: player.crystals,
+      joinCount: player.joinCount,
+      currentStreak: player.currentStreak,
+      longestStreak: player.longestStreak,
+      firstJoinAt: player.firstJoinAt,
+      challengesCompleted,
+      rewardsEarned,
+      // Stored as negative deltas; report what was spent as a positive number.
+      coinsSpentInShop: Math.abs(shopSpend._sum.delta ?? 0),
+      clan: clan?.clan ? { name: clan.clan.name, tag: clan.clan.tag, level: clan.clan.level } : null,
+    });
+  } catch (err) { next(err); }
+});
+
 // GET /api/players/:username — JWT auth, with challenge progress + reward history
 playersRouter.get('/:username', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
   try {

@@ -24,6 +24,7 @@
         <module>VotePlugin</module>
         <module>ModerationPlugin</module>
         <module>NpcPlugin</module>
+        <module>StatsPlugin</module>
     </modules>
 
     <properties>
