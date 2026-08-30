@@ -1,4 +1,4 @@
-package io.craftcontrol.stats;
+package io.craftcontrol.bridge;
 
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;

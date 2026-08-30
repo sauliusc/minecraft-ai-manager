@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import app from '../index.js';
 import { signAccess } from '../lib/jwt.js';
@@ -220,5 +220,70 @@ describe('GET /api/players/:username/stats', () => {
 
   it('is not readable without a service token', async () => {
     expect((await request(app).get('/api/players/ADASGAME/stats')).status).toBe(403);
+  });
+});
+
+describe('GET /api/players/:username/minecraft-stats', () => {
+  const adminJwt = signAccess({ sub: 'a', email: 'a@t.com', role: 'SUPER_ADMIN', name: '', autoConfirm: true });
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    process.env.MINECRAFT_BRIDGE_URL = 'http://minecraft:25580';
+    process.env.BRIDGE_SECRET = 'test-bridge-secret';
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('passes the game server statistics through', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ username: 'ADASGAME', playTicks: 1_270_000, blocksMined: 4127 }),
+    }) as any;
+
+    const res = await request(app)
+      .get('/api/players/ADASGAME/minecraft-stats')
+      .set('Authorization', `Bearer ${adminJwt}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ available: true, stats: { blocksMined: 4127 } });
+  });
+
+  it('reports unavailable rather than failing when the server is down', async () => {
+    // The rest of the player page must still render.
+    global.fetch = vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) as any;
+
+    const res = await request(app)
+      .get('/api/players/ADASGAME/minecraft-stats')
+      .set('Authorization', `Bearer ${adminJwt}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ available: false, stats: null });
+  });
+
+  it('reports unavailable when the server is too busy to answer', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 503 }) as any;
+
+    const res = await request(app)
+      .get('/api/players/ADASGAME/minecraft-stats')
+      .set('Authorization', `Bearer ${adminJwt}`);
+
+    expect(res.body).toEqual({ available: false, stats: null });
+  });
+
+  it('url-encodes the player name it asks for', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+    global.fetch = fetchMock as any;
+
+    await request(app)
+      .get('/api/players/odd%20name/minecraft-stats')
+      .set('Authorization', `Bearer ${adminJwt}`);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('player=odd%20name');
+  });
+
+  it('requires a logged-in user', async () => {
+    expect((await request(app).get('/api/players/ADASGAME/minecraft-stats')).status).toBe(401);
   });
 });

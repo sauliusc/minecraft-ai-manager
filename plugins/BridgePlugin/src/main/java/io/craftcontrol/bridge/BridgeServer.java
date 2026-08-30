@@ -49,7 +49,80 @@ public class BridgeServer extends NanoHTTPD {
             return handleGrantReward(session);
         }
 
+        if (Method.GET.equals(method) && "/bridge/stats".equals(uri)) {
+            return handleStats(session);
+        }
+
         return newFixedLengthResponse(Response.Status.NOT_FOUND, JSON_MIME, "{\"error\":\"NOT_FOUND\"}");
+    }
+
+    /**
+     * Vanilla statistics for one player, for the dashboard.
+     *
+     * <p>Statistics have to be read on the main thread — for an online player
+     * they come off the live entity — so this hops over and waits, rather than
+     * the fire-and-forget the reward grant can get away with. The wait is
+     * bounded: a stalled server should give the dashboard a 503 quickly instead
+     * of holding the connection open (the main thread does stall here, see
+     * minecraft-ai-manager#316).
+     */
+    private Response handleStats(IHTTPSession session) {
+        String name = session.getParms().get("player");
+        if (name == null || name.isBlank()) {
+            return newFixedLengthResponse(Response.Status.BAD_REQUEST, JSON_MIME,
+                "{\"error\":\"BAD_REQUEST\",\"message\":\"player is required\"}");
+        }
+
+        try {
+            JsonObject json = plugin.getServer().getScheduler()
+                .callSyncMethod(plugin, () -> readStats(name))
+                .get(3, java.util.concurrent.TimeUnit.SECONDS);
+            if (json == null) {
+                return newFixedLengthResponse(Response.Status.NOT_FOUND, JSON_MIME,
+                    "{\"error\":\"NOT_FOUND\",\"message\":\"player has not played here\"}");
+            }
+            return newFixedLengthResponse(Response.Status.OK, JSON_MIME, json.toString());
+        } catch (java.util.concurrent.TimeoutException e) {
+            plugin.getLogger().warning("Stats lookup for " + name + " timed out waiting for the server thread");
+            return newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE, JSON_MIME,
+                "{\"error\":\"BUSY\",\"message\":\"server is busy\"}");
+        } catch (Exception e) {
+            plugin.getLogger().warning("Stats lookup for " + name + " failed: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, JSON_MIME,
+                "{\"error\":\"ERROR\"}");
+        }
+    }
+
+    /** Runs on the main thread. Returns null when the player is unknown here. */
+    private JsonObject readStats(String name) {
+        org.bukkit.OfflinePlayer subject = Bukkit.getOfflinePlayerIfCached(name);
+        if (subject == null || (!subject.hasPlayedBefore() && !subject.isOnline())) return null;
+
+        VanillaStats stats = new VanillaStats(subject);
+        VanillaStats.Totals totals = stats.totals();
+
+        JsonObject o = new JsonObject();
+        o.addProperty("username", subject.getName() != null ? subject.getName() : name);
+        o.addProperty("online", subject.isOnline());
+        // Raw units on purpose: ticks and centimetres, converted for display by
+        // whoever is showing them.
+        o.addProperty("playTicks", stats.playTicks());
+        o.addProperty("travelledCm", stats.travelledCm());
+        o.addProperty("blocksMined", totals.mined());
+        o.addProperty("itemsCrafted", totals.crafted());
+        o.addProperty("diamondOreMined", totals.diamondOre());
+        o.addProperty("mobKills", stats.mobKills());
+        o.addProperty("playerKills", stats.playerKills());
+        o.addProperty("deaths", stats.deaths());
+        o.addProperty("timeSinceDeathTicks", stats.timeSinceDeath());
+        o.addProperty("damageDealtTenths", stats.damageDealt());
+        o.addProperty("damageTakenTenths", stats.damageTaken());
+        o.addProperty("jumps", stats.jumps());
+        o.addProperty("fishCaught", stats.fishCaught());
+        o.addProperty("animalsBred", stats.animalsBred());
+        o.addProperty("villagerTrades", stats.villagerTrades());
+        o.addProperty("itemsEnchanted", stats.itemsEnchanted());
+        return o;
     }
 
     private Response handleGrantReward(IHTTPSession session) {
