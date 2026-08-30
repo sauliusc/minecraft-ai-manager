@@ -50,9 +50,17 @@ public class VanillaStats {
 
     public VanillaStats(OfflinePlayer player) {
         this.player = player;
-        this.file = player != null && player.isOnline()
-            ? null
-            : StatsFile.load(worldFolder(), player == null ? null : player.getUniqueId());
+        boolean offline = player != null && !player.isOnline();
+        this.file = offline ? StatsFile.load(worldFolder(), player.getUniqueId()) : null;
+        if (offline && this.file == null && player.hasPlayedBefore()) {
+            // Zeros are indistinguishable from a player who has genuinely done
+            // nothing, which is how a wrong path shipped once already (#357).
+            // A player who has played but has no readable statistics file is a
+            // configuration problem, so say so rather than reporting zeros.
+            Bukkit.getLogger().warning("[BridgePlugin] No statistics file found for "
+                + player.getName() + " under " + worldFolder()
+                + " — blocks mined and items crafted will read 0.");
+        }
     }
 
     private static File worldFolder() {

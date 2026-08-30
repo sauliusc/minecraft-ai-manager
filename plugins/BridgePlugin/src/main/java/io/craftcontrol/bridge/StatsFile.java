@@ -31,28 +31,46 @@ public class StatsFile {
         this.stats = stats;
     }
 
+    /** How far up from the world folder to look for the stats directory. */
+    private static final int MAX_ASCENT = 4;
+
     /**
-     * Loads the statistics for a player, or null when there is no file — a
-     * player who has never played, or whose stats have not been written yet.
+     * Finds a player's statistics file, or null when there is none.
      *
-     * <p>Paper has moved this directory between versions, so both known
-     * locations are tried rather than assuming one.
+     * <p>The location is searched for rather than assumed. Minecraft's newer
+     * world layout puts region data under
+     * {@code world/dimensions/minecraft/overworld} while player statistics stay
+     * at {@code world/players/stats}, so {@code getWorldFolder()} can point
+     * several levels below the directory being looked for (#357). Walking up
+     * handles both that and the older flat layout.
      */
-    public static StatsFile load(File worldFolder, UUID uuid) {
+    public static File locate(File worldFolder, UUID uuid) {
         if (worldFolder == null || uuid == null) return null;
-        for (String dir : new String[]{"players/stats", "stats"}) {
-            File file = new File(worldFolder, dir + "/" + uuid + ".json");
-            if (!file.isFile()) continue;
-            try {
-                String json = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
-                JsonObject root = JsonParser.parseString(json).getAsJsonObject();
-                JsonObject stats = root.getAsJsonObject("stats");
-                return new StatsFile(stats == null ? new JsonObject() : stats);
-            } catch (IOException | RuntimeException e) {
-                return null;
+        File dir = worldFolder;
+        for (int i = 0; i <= MAX_ASCENT && dir != null; i++, dir = dir.getParentFile()) {
+            for (String sub : new String[]{"players/stats", "stats"}) {
+                File file = new File(dir, sub + "/" + uuid + ".json");
+                if (file.isFile()) return file;
             }
         }
         return null;
+    }
+
+    /**
+     * Loads the statistics for a player, or null when there is no file — a
+     * player who has never played, or whose statistics have not been written yet.
+     */
+    public static StatsFile load(File worldFolder, UUID uuid) {
+        File file = locate(worldFolder, uuid);
+        if (file == null) return null;
+        try {
+            String json = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            JsonObject stats = root.getAsJsonObject("stats");
+            return new StatsFile(stats == null ? new JsonObject() : stats);
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
     }
 
     /** A counter from {@code minecraft:custom}, such as {@code play_time}. */

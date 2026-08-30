@@ -113,4 +113,53 @@ class StatsFileTest {
         assertNotNull(f);
         assertEquals(349, f.custom("mob_kills"));
     }
+
+    @Test
+    void findsStatsWhenTheWorldFolderIsADimensionSubdirectory(@TempDir File dir) throws Exception {
+        // The layout this server actually uses: region data lives under
+        // dimensions/minecraft/overworld while stats stay at the world root, so
+        // getWorldFolder() points several levels below what we are looking for.
+        UUID id = UUID.randomUUID();
+        world(dir, id, SAMPLE);
+        File dimension = new File(dir, "dimensions/minecraft/overworld");
+        assertTrue(dimension.mkdirs());
+
+        StatsFile f = StatsFile.load(dimension, id);
+
+        assertNotNull(f, "should have walked up to the world root");
+        assertEquals(4023, f.categoryTotal("minecraft:mined"));
+        assertEquals(349, f.custom("mob_kills"));
+    }
+
+    @Test
+    void stillFindsStatsWhenGivenTheWorldRootDirectly(@TempDir File dir) throws Exception {
+        UUID id = UUID.randomUUID();
+        StatsFile f = StatsFile.load(world(dir, id, SAMPLE), id);
+
+        assertNotNull(f);
+        assertEquals(4023, f.categoryTotal("minecraft:mined"));
+    }
+
+    @Test
+    void doesNotWalkUpForever(@TempDir File dir) throws Exception {
+        // A missing file must stay missing rather than climbing to the filesystem
+        // root and picking up somebody else's world.
+        File deep = new File(dir, "a/b/c/d/e/f/g");
+        assertTrue(deep.mkdirs());
+        UUID id = UUID.randomUUID();
+        world(dir, id, SAMPLE);
+
+        assertNull(StatsFile.load(deep, id));
+    }
+
+    @Test
+    void locateReportsTheFileItFound(@TempDir File dir) throws Exception {
+        UUID id = UUID.randomUUID();
+        world(dir, id, SAMPLE);
+
+        File found = StatsFile.locate(new File(dir, "dimensions/minecraft/overworld"), id);
+
+        assertNotNull(found);
+        assertTrue(found.getPath().endsWith("players/stats/" + id + ".json"), found.getPath());
+    }
 }
