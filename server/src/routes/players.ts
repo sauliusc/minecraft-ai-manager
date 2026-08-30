@@ -102,6 +102,43 @@ playersRouter.get('/', authMiddleware, async (req: Request, res: Response, next:
 });
 
 /**
+ * Vanilla Minecraft statistics for one player, read live from the game server.
+ *
+ * These live in Minecraft's own player data rather than Postgres, so the only
+ * way to see them is to ask the server. Returns null when it cannot be reached
+ * or is too busy to answer — the dashboard shows the rest of the page either
+ * way rather than failing on it.
+ */
+async function fetchMinecraftStats(username: string): Promise<Record<string, unknown> | null> {
+  try {
+    const url = process.env.MINECRAFT_BRIDGE_URL;
+    const secret = process.env.BRIDGE_SECRET;
+    if (!url || !secret) return null;
+    const res = await fetch(`${url}/bridge/stats?player=${encodeURIComponent(username)}`, {
+      headers: { 'x-bridge-secret': secret },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+// GET /api/players/:username/minecraft-stats — dashboard (JWT)
+playersRouter.get('/:username/minecraft-stats', authMiddleware, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const username = req.params.username as string;
+    const stats = await fetchMinecraftStats(username);
+    if (!stats) {
+      res.json({ available: false, stats: null });
+      return;
+    }
+    res.json({ available: true, stats });
+  } catch (err) { next(err); }
+});
+
+/**
  * GET /api/players/:username/stats — service token; the numbers /stats shows
  * that Minecraft does not track itself.
  *

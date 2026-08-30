@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
+import { MinecraftStats } from '../components/MinecraftStats.js';
 import { useAuthStore } from '../store/auth.js';
 
 const ACTION_BADGE: Record<string, string> = {
@@ -18,7 +19,7 @@ export function PlayerDetail() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === 'SUPER_ADMIN';
-  const [tab, setTab] = useState<'challenges' | 'rewards' | 'moderation'>('challenges');
+  const [tab, setTab] = useState<'stats' | 'challenges' | 'rewards' | 'moderation'>('stats');
 
   // Grant reward modal state
   const [showGrant, setShowGrant] = useState(false);
@@ -153,7 +154,7 @@ export function PlayerDetail() {
       <div className="bg-white rounded-lg shadow">
         <div className="border-b flex items-center justify-between pr-4">
           <div className="flex">
-            {(['challenges', 'rewards', 'moderation'] as const).map((t) => (
+            {(['stats', 'challenges', 'rewards', 'moderation'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -175,6 +176,7 @@ export function PlayerDetail() {
           )}
         </div>
         <div className="p-4">
+          {tab === 'stats' && <MinecraftStats username={player.username} />}
           {tab === 'challenges' && (
             <table className="w-full text-sm">
               <thead className="text-gray-500 uppercase text-xs">

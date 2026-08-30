@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import io.craftcontrol.bridge.ApiClient;
 import io.craftcontrol.bridge.BridgePlugin;
+import io.craftcontrol.bridge.VanillaStats;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import okhttp3.Call;
