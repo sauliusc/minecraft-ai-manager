@@ -59,12 +59,14 @@ public class BridgeServer extends NanoHTTPD {
     /**
      * Vanilla statistics for one player, for the dashboard.
      *
-     * <p>Statistics have to be read on the main thread — for an online player
-     * they come off the live entity — so this hops over and waits, rather than
-     * the fire-and-forget the reward grant can get away with. The wait is
-     * bounded: a stalled server should give the dashboard a 503 quickly instead
-     * of holding the connection open (the main thread does stall here, see
-     * minecraft-ai-manager#316).
+     * <p>An offline player is read straight from their statistics file, off this
+     * thread, because going through the Bukkit API re-parses that file on every
+     * call and froze the server for fifteen seconds (#355).
+     *
+     * <p>An online player still needs the main thread — the counters come off the
+     * live entity — but that is a map lookup, so the hop is cheap. The wait stays
+     * bounded so a stalled server returns 503 promptly rather than holding the
+     * connection (the main thread does stall here, see #316).
      */
     private Response handleStats(IHTTPSession session) {
         String name = session.getParms().get("player");
@@ -74,9 +76,13 @@ public class BridgeServer extends NanoHTTPD {
         }
 
         try {
-            JsonObject json = plugin.getServer().getScheduler()
-                .callSyncMethod(plugin, () -> readStats(name))
-                .get(3, java.util.concurrent.TimeUnit.SECONDS);
+            org.bukkit.OfflinePlayer subject = Bukkit.getOfflinePlayerIfCached(name);
+            boolean online = subject != null && subject.isOnline();
+            JsonObject json = online
+                ? plugin.getServer().getScheduler()
+                    .callSyncMethod(plugin, () -> readStats(name))
+                    .get(3, java.util.concurrent.TimeUnit.SECONDS)
+                : readStats(name);
             if (json == null) {
                 return newFixedLengthResponse(Response.Status.NOT_FOUND, JSON_MIME,
                     "{\"error\":\"NOT_FOUND\",\"message\":\"player has not played here\"}");
