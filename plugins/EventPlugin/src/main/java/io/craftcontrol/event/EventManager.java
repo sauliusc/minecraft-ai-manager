@@ -104,10 +104,21 @@ public class EventManager {
                 ActiveEvent event = new ActiveEvent(id, type, EventState.UPCOMING, startTime, obj);
                 events.put(id, event);
                 long minutesUntil = secondsUntil / 60;
-                Bukkit.getScheduler().runTask(plugin, () ->
-                        Bukkit.getServer().broadcast(
-                                Component.text("[Event] ", NamedTextColor.GOLD)
-                                    .append(Component.text(getEventName(type) + " starts in " + minutesUntil + " minutes!", NamedTextColor.YELLOW))));
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    var msg = Component.text("[Event] ", NamedTextColor.GOLD)
+                        .append(Component.text(getEventName(type) + " starts in " + minutesUntil + " minutes!",
+                            NamedTextColor.YELLOW));
+                    // Tell people where to go while they still have time to walk
+                    // there — the arena can be thousands of blocks away.
+                    if (type == EventType.BOSS_RAID) {
+                        var arena = BossRaidHandler.arenaLocation(plugin);
+                        if (arena != null) {
+                            msg = msg.append(Component.text(" Arena: ", NamedTextColor.YELLOW))
+                                     .append(Component.text(BossRaidHandler.coords(arena), NamedTextColor.AQUA));
+                        }
+                    }
+                    Bukkit.getServer().broadcast(msg);
+                });
             }
         }
     }
