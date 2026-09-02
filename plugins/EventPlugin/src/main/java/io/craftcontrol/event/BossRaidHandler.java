@@ -68,8 +68,13 @@ public class BossRaidHandler {
         damageTrackers.put(event.getId(), new ConcurrentHashMap<>());
         firedPhases.put(event.getId(), new HashSet<>());
 
+        // Players are not teleported in, so "at the arena" is only useful if we
+        // say where the arena is. Without the coordinates the raid is
+        // unattendable and its rewards unwinnable (#335).
         Bukkit.getServer().broadcast(Component.text("[Boss Raid] ", NamedTextColor.RED)
-                .append(Component.text("A powerful boss has appeared at the arena!", NamedTextColor.YELLOW)));
+                .append(Component.text("A powerful boss has appeared at ", NamedTextColor.YELLOW))
+                .append(Component.text(coords(arenaLoc), NamedTextColor.AQUA))
+                .append(Component.text(" — get there and fight!", NamedTextColor.YELLOW)));
 
         JsonObject config = event.getConfig();
         String bossTypeStr = config.has("bossType") ? config.get("bossType").getAsString() : "WITHER";
@@ -79,6 +84,21 @@ public class BossRaidHandler {
         } else {
             spawnWither(world, arenaLoc, playerCount, event);
         }
+    }
+
+    /** Whole-block coordinates, in the order players read them off F3. */
+    static String coords(Location loc) {
+        return loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ();
+    }
+
+    /** Where the arena is, for announcements made before the raid starts. */
+    public static Location arenaLocation(EventPlugin plugin) {
+        World world = Bukkit.getWorld(plugin.getConfig().getString("boss_raid.arena.world", "world"));
+        if (world == null) return null;
+        return new Location(world,
+            plugin.getConfig().getDouble("boss_raid.arena.x", 0.0),
+            plugin.getConfig().getDouble("boss_raid.arena.y", 64.0),
+            plugin.getConfig().getDouble("boss_raid.arena.z", 0.0));
     }
 
     private void spawnWither(World world, Location loc, int playerCount, ActiveEvent event) {
