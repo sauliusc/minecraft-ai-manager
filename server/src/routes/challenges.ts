@@ -5,6 +5,7 @@ import { redis } from '../lib/redis.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
+import { normalizeChallengeConfig, isTrackableChallengeConfig } from '../lib/challengeConfig.js';
 
 export const challengesRouter = Router();
 
@@ -14,6 +15,14 @@ const ACTIVE_CACHE_TTL = 60; // seconds
 // ChallengeType enum values from Prisma schema
 const ChallengeTypeEnum = z.enum(['BLOCK_BREAK', 'KILL_MOB', 'CRAFT_ITEM', 'TRAVEL', 'CUSTOM']);
 const QuestCategoryEnum = z.enum(['DAILY', 'WEEKLY', 'SIDE']);
+
+/**
+ * Config is normalised before validation, so a client sending the older
+ * block/mob/amount names still produces a working challenge, and anything that
+ * still cannot track is rejected rather than stored as a silent dud (#360).
+ */
+const configForType = (type: string, config: Record<string, unknown>) =>
+  normalizeChallengeConfig(type, config ?? {});
 
 const createSchema = z.object({
   title: z.string().min(1),
@@ -26,6 +35,16 @@ const createSchema = z.object({
   activeUntil: z.string().datetime(),
   assignedTo: z.array(z.string()).optional(),
   questCategory: QuestCategoryEnum.optional(),
+}).superRefine((data, ctx) => {
+  const cfg = configForType(data.type, data.config);
+  if (!isTrackableChallengeConfig(data.type, cfg)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['config'],
+      message: `config for ${data.type} needs a positive target_count and `
+        + (data.type === 'KILL_MOB' ? 'a target_entity' : 'a target_material'),
+    });
+  }
 });
 
 const updateSchema = z.object({
@@ -176,7 +195,9 @@ challengesRouter.post('/', authMiddleware, adminActionMiddleware({ resource: 'ch
         description: data.description,
         type: data.type as any,
         difficulty: data.difficulty ?? 1,
-        config: data.config as any,
+        // Stored normalised so the plugin can read it regardless of which key
+        // names the caller used.
+        config: configForType(data.type, data.config) as any,
         rewardId: data.rewardId,
         activeFrom: new Date(data.activeFrom),
         activeUntil: new Date(data.activeUntil),
@@ -237,7 +258,26 @@ challengesRouter.patch('/:id', authMiddleware, adminActionMiddleware({ resource:
     if (data.title !== undefined) update.title = data.title;
     if (data.description !== undefined) update.description = data.description;
     if (data.difficulty !== undefined) update.difficulty = data.difficulty;
-    if (data.config !== undefined) update.config = data.config;
+    if (data.config !== undefined) {
+      // The type is not editable, so it comes from the stored row. Without it a
+      // config edit could quietly reintroduce keys the plugin cannot read.
+      const existing = await prisma.challenge.findUnique({ where: { id }, select: { type: true } });
+      if (!existing) {
+        res.status(404).json({ error: 'NOT_FOUND', message: 'Challenge not found', statusCode: 404 });
+        return;
+      }
+      const cfg = configForType(existing.type, data.config);
+      if (!isTrackableChallengeConfig(existing.type, cfg)) {
+        res.status(400).json({
+          error: 'VALIDATION_ERROR',
+          message: `config for ${existing.type} needs a positive target_count and `
+            + (existing.type === 'KILL_MOB' ? 'a target_entity' : 'a target_material'),
+          statusCode: 400,
+        });
+        return;
+      }
+      update.config = cfg;
+    }
     if (data.rewardId !== undefined) update.rewardId = data.rewardId;
     if (data.activeFrom !== undefined) update.activeFrom = new Date(data.activeFrom);
     if (data.activeUntil !== undefined) update.activeUntil = new Date(data.activeUntil);

@@ -127,12 +127,17 @@ Challenge types available: BLOCK_BREAK, KILL_MOB, CRAFT_ITEM, TRAVEL, CUSTOM
 Quest categories: DAILY, WEEKLY, SIDE
 Difficulty: 1 (easiest) to 5 (hardest)
 
-Config shape per type:
-- BLOCK_BREAK: { "block": "STONE", "amount": 100 }
-- KILL_MOB: { "mob": "ZOMBIE", "amount": 20 }
-- CRAFT_ITEM: { "item": "IRON_SWORD", "amount": 1 }
-- TRAVEL: { "distance": 1000 }
-- CUSTOM: { "metric": "string", "target": 1 }
+Config shape per type — these exact key names are required, the game plugin
+reads no others, and a challenge with the wrong keys can never be completed:
+- BLOCK_BREAK: { "target_material": "STONE", "target_count": 100 }
+- KILL_MOB:    { "target_entity": "ZOMBIE", "target_count": 20 }
+- CRAFT_ITEM:  { "target_material": "IRON_SWORD", "target_count": 1 }
+- TRAVEL:      { "target_distance": 1000, "target_count": 1000 }
+- CUSTOM:      { "metric": "string", "target_count": 1 }
+
+target_material and target_entity must be real Minecraft identifiers in
+SCREAMING_SNAKE_CASE, e.g. BRICKS not BRICK, COBBLESTONE, GOLDEN_APPLE, ZOMBIE,
+CAVE_SPIDER. Never invent one.
 
 Active windows: DAILY challenges last 24h, WEEKLY last 7 days, SIDE last 30 days.
 Set activeFrom to now (ISO string) and activeUntil accordingly.
@@ -365,7 +370,7 @@ Return a single JSON object with exactly this structure:
       "description": "string",
       "type": "BLOCK_BREAK",
       "difficulty": 1,
-      "config": { "block": "STONE", "amount": 100 }
+      "config": { "target_material": "STONE", "target_count": 100 }
     }
   ],
   "weeklyChallenge": {
@@ -373,7 +378,7 @@ Return a single JSON object with exactly this structure:
     "description": "string",
     "type": "KILL_MOB",
     "difficulty": 5,
-    "config": { "mob": "ZOMBIE", "amount": 50 }
+    "config": { "target_entity": "ZOMBIE", "target_count": 50 }
   },
   "npc": {
     "name": "string",
@@ -398,6 +403,15 @@ Rules:
 - each challenge type is one of: BLOCK_BREAK, KILL_MOB, CRAFT_ITEM, TRAVEL, CUSTOM
 - npc.type is one of: GUIDE, QUEST_GIVER, MERCHANT
 - npc.dialogueLines: exactly 5 strings
+- challenge config keys are exactly target_material / target_entity /
+  target_count / target_distance. The plugin reads no other names, so any
+  other key produces a challenge that can never be completed.
+- target_material and target_entity must be real Minecraft identifiers in
+  SCREAMING_SNAKE_CASE (BRICKS, COBBLESTONE, GOLDEN_APPLE, ZOMBIE). Never
+  invent one.
+- reward config by type: ITEM { "material": "DIAMOND", "amount": 1 },
+  XP { "amount": 500 }, CURRENCY { "coins": 150 }. XP reads "amount" and
+  CURRENCY reads "coins" or "crystals" — no other key is read.
 - rewards: exactly 4 objects; type is one of: ITEM, XP, COMMAND, CURRENCY, MYSTERY_BOX
 - reward rarity is one of: COMMON, RARE, EPIC, LEGENDARY
 - All content must be thematically consistent with: "${theme}"`;
