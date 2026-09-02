@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { generateWeekTheme, WeekThemePayload } from '../services/ai.js';
 import { deliverBroadcast } from '../services/broadcast.js';
+import { normalizeChallengeConfig, normalizeRewardConfig } from '../lib/challengeConfig.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -172,7 +173,9 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
             description: dc.description,
             type: dc.type as never,
             difficulty: dc.difficulty,
-            config: dc.config as never,
+            // Normalised on the way in: drafts generated before #360 carry keys
+            // the plugin never reads, which made the challenge uncompletable.
+            config: normalizeChallengeConfig(dc.type, dc.config ?? {}) as never,
             questCategory: 'DAILY',
             activeFrom,
             activeUntil,
@@ -190,7 +193,7 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
           description: wc.description,
           type: wc.type as never,
           difficulty: wc.difficulty,
-          config: wc.config as never,
+          config: normalizeChallengeConfig(wc.type, wc.config ?? {}) as never,
           questCategory: 'WEEKLY',
           activeFrom: weekTheme.startDate,
           activeUntil: weekTheme.endDate,
@@ -235,7 +238,7 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
             name: r.name,
             type: r.type as never,
             rarity: r.rarity as never,
-            config: r.config as never,
+            config: normalizeRewardConfig(r.type, r.config ?? {}) as never,
           },
         });
         rewardIds.push(reward.id);
@@ -248,7 +251,7 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
             name: r.name,
             type: r.type as never,
             rarity: r.rarity as never,
-            config: r.config as never,
+            config: normalizeRewardConfig(r.type, r.config ?? {}) as never,
             lootTable: lootTable as never,
           },
         });
