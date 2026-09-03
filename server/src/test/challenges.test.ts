@@ -374,9 +374,12 @@ describe('POST /api/challenges/:id/progress', () => {
 });
 
 describe('POST /api/challenges/:id/complete', () => {
-  it('marks challenge as completed with service token', async () => {
+  it('marks challenge as completed once the target is reached', async () => {
     vi.mocked(prisma.challenge.findUnique).mockResolvedValueOnce(mockChallenge as any);
-    vi.mocked(prisma.challengeProgress.findUnique).mockResolvedValueOnce(null);
+    // 50 of 50 — the target from mockChallenge.config.
+    vi.mocked(prisma.challengeProgress.findUnique).mockResolvedValueOnce({
+      ...mockProgress, current: 50, completed: false,
+    } as any);
     vi.mocked(prisma.challengeProgress.upsert).mockResolvedValueOnce({
       ...mockProgress,
       completed: true,
@@ -388,6 +391,37 @@ describe('POST /api/challenges/:id/complete', () => {
       .send({ playerId: 'player-1' });
     expect(res.status).toBe(200);
     expect(res.body.completed).toBe(true);
+  });
+
+  it('refuses to complete a challenge that is not finished', async () => {
+    // The live bug: a 40-creeper challenge completed on the second creeper,
+    // because this endpoint never compared current against target_count (#364).
+    vi.mocked(prisma.challenge.findUnique).mockResolvedValueOnce(mockChallenge as any);
+    vi.mocked(prisma.challengeProgress.findUnique).mockResolvedValueOnce({
+      ...mockProgress, current: 2, completed: false,
+    } as any);
+
+    const res = await request(app)
+      .post('/api/challenges/chal-1/complete')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'NOT_FINISHED', current: 2, target: 50 });
+    expect(prisma.challengeProgress.upsert).not.toHaveBeenCalled();
+  });
+
+  it('refuses when the player has no progress at all', async () => {
+    vi.mocked(prisma.challenge.findUnique).mockResolvedValueOnce(mockChallenge as any);
+    vi.mocked(prisma.challengeProgress.findUnique).mockResolvedValueOnce(null);
+
+    const res = await request(app)
+      .post('/api/challenges/chal-1/complete')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-1' });
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ current: 0, target: 50 });
   });
 
   it('is idempotent — returns 200 with existing when already completed', async () => {
@@ -418,5 +452,37 @@ describe('POST /api/challenges/:id/complete', () => {
       .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
       .send({ playerId: 'player-1' });
     expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /api/challenges/:id/progress — field names', () => {
+  it('accepts the legacy "increment" the plugin was sending', async () => {
+    // Every challenge sync 400'd on this, while QuestPlugin's "amount" worked,
+    // so the logs showed a confusing mix of 200s and 400s (#363).
+    vi.mocked(prisma.challenge.findUnique).mockResolvedValueOnce(mockChallenge as any);
+    vi.mocked(prisma.challengeProgress.findUnique).mockResolvedValueOnce(null);
+    vi.mocked(prisma.challengeProgress.upsert).mockResolvedValueOnce({
+      ...mockProgress, current: 5,
+    } as any);
+
+    const res = await request(app)
+      .post('/api/challenges/chal-1/progress')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-1', increment: 5 });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(prisma.challengeProgress.upsert).mock.calls[0][0])
+      .toMatchObject({ create: expect.objectContaining({ current: 5 }) });
+  });
+
+  it('still rejects a request with neither field', async () => {
+    vi.mocked(prisma.challenge.findUnique).mockResolvedValueOnce(mockChallenge as any);
+
+    const res = await request(app)
+      .post('/api/challenges/chal-1/progress')
+      .set('Authorization', `Bearer ${SERVICE_TOKEN}`)
+      .send({ playerId: 'player-1' });
+
+    expect(res.status).toBe(400);
   });
 });

@@ -29,7 +29,7 @@ public class ChallengeSyncTask extends BukkitRunnable {
         List<ChallengeRepository.ProgressEntry> entries = repo.drainBuffer();
         for (ChallengeRepository.ProgressEntry entry : entries) {
             String json = String.format(
-                    "{\"playerId\":\"%s\",\"increment\":%d}",
+                    "{\"playerId\":\"%s\",\"amount\":%d}",
                     entry.playerId(), entry.total());
             api.post("/challenges/" + entry.challengeId() + "/progress", json, new Callback() {
                 @Override

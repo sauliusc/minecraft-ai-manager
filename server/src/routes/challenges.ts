@@ -59,10 +59,20 @@ const updateSchema = z.object({
   questCategory: QuestCategoryEnum.optional(),
 });
 
+/**
+ * `amount` is the field; `increment` is accepted because ChallengePlugin sent
+ * that name and every sync 400'd (#363). The plugin JAR and the API deploy
+ * independently, so a mismatched pair should degrade rather than reject.
+ */
 const progressSchema = z.object({
   playerId: z.string().min(1),
-  amount: z.number().int().positive(),
-});
+  amount: z.number().int().positive().optional(),
+  increment: z.number().int().positive().optional(),
+}).transform((v) => ({ playerId: v.playerId, amount: v.amount ?? v.increment }))
+  .refine((v) => typeof v.amount === 'number' && v.amount > 0, {
+    message: 'amount (or increment) must be a positive integer',
+    path: ['amount'],
+  });
 
 const completeSchema = z.object({
   playerId: z.string().min(1),
@@ -324,7 +334,7 @@ challengesRouter.delete('/:id', authMiddleware, adminActionMiddleware({ resource
 challengesRouter.post('/:id/progress', serviceTokenMiddleware, validateBody(progressSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = req.params.id as string;
-    const { playerId, amount } = req.body as z.infer<typeof progressSchema>;
+    const { playerId, amount } = req.body as { playerId: string; amount: number };
 
     const challenge = await prisma.challenge.findUnique({ where: { id } });
     if (!challenge) {
@@ -384,6 +394,25 @@ challengesRouter.post('/:id/complete', serviceTokenMiddleware, validateBody(comp
 
     if (existing?.completed) {
       res.json(existing);
+      return;
+    }
+
+    // The target is checked here, not taken on trust. The plugin used to fire
+    // this on every increment expecting the server to be authoritative, while
+    // the server marked it done unconditionally — so a 40-creeper challenge
+    // completed on the second creeper (#364). Progress is the only path that
+    // legitimately completes a challenge; this endpoint refuses to short-cut it.
+    const cfg = challenge.config as Record<string, unknown>;
+    const targetCount = typeof cfg.target_count === 'number' ? cfg.target_count : null;
+    const current = existing?.current ?? 0;
+    if (targetCount !== null && current < targetCount) {
+      res.status(409).json({
+        error: 'NOT_FINISHED',
+        message: 'Challenge is not finished yet',
+        statusCode: 409,
+        current,
+        target: targetCount,
+      });
       return;
     }
 
