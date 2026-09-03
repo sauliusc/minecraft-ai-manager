@@ -150,18 +150,27 @@ public class ChallengeTracker implements Listener {
         checkCompletion(ch, playerId);
     }
 
+    /**
+     * Asks the server whether this challenge is now finished.
+     *
+     * <p>This used to fire on every increment and treat any 200 as a
+     * completion, while the server marked it done without checking the target —
+     * so a 40-creeper challenge completed on the second creeper (#364). The
+     * server now compares progress against target_count and answers 409 while
+     * the player is still short, so only a genuine finish celebrates.
+     */
     private void checkCompletion(ActiveChallenge ch, String playerId) {
-        // This is a best-effort local check; authoritative check is server-side
-        // We just fire the complete endpoint; server handles idempotency
         if (BridgePlugin.getInstance() == null) return;
         ApiClient api = BridgePlugin.getInstance().getApiClient();
         if (api == null) return;
+        // Already celebrated locally: nothing to ask.
+        if (!repo.isCompletionPending(ch.id(), playerId)) return;
 
         String json = String.format("{\"playerId\":\"%s\"}", playerId);
         api.post("/challenges/" + ch.id() + "/complete", json, new Callback() {
             @Override
             public void onResponse(Call call, Response response) {
-                if (response.code() == 200) {
+                if (response.code() == 200 && repo.markCompleted(ch.id(), playerId)) {
                     log.info("Challenge " + ch.id() + " completed by " + playerId);
                     if (plugin == null) { response.close(); return; }
                     plugin.getServer().getScheduler().runTask(plugin, () -> {

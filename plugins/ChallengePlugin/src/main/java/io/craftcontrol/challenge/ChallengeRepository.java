@@ -73,6 +73,24 @@ public class ChallengeRepository implements AutoCloseable {
         return entries;
     }
 
+    /**
+     * False once this challenge has been celebrated for this player, so the
+     * completion request is not re-sent on every subsequent kill or block.
+     */
+    public synchronized boolean isCompletionPending(String challengeId, String playerId) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT 1 FROM completed WHERE challenge_id = ? AND player_id = ?")) {
+            ps.setString(1, challengeId);
+            ps.setString(2, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return !rs.next();
+            }
+        } catch (SQLException e) {
+            log.warning("Failed to read completion state: " + e.getMessage());
+            return true;   // ask the server rather than silently skipping
+        }
+    }
+
     public synchronized boolean markCompleted(String challengeId, String playerId) {
         try (PreparedStatement ps = conn.prepareStatement(
                 "INSERT OR IGNORE INTO completed (challenge_id, player_id) VALUES (?,?)")) {
