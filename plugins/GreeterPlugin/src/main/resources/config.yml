@@ -5,11 +5,17 @@ greeting:
   broadcast_first_join: true
   broadcast_message: "{player} joined for the first time!"
 
-welcome_zone:
-  world: "world"
-  x: 0.5
-  y: 64.0
-  z: 0.5
+# Where arriving players are placed. Commented out by default so a fresh
+# install uses the world spawn, which is somewhere a player can actually stand.
+#
+# y=64 is underground on most terrain — it was the old default here, and it put
+# every arriving player inside solid stone (#366). Set x/z and leave y out to
+# land on the surface at those coordinates; the teleport is skipped entirely if
+# the destination turns out to be inside a block.
+#welcome_zone:
+#  world: "world"
+#  x: 0.5
+#  z: 0.5
 
 resource_pack:
   enabled: false
