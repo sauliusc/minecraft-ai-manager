@@ -124,24 +124,27 @@ router.get('/:id', async (req: Request, res: Response): Promise<void> => {
 });
 
 // POST /api/ai/week-theme/:id/activate  (SUPER_ADMIN, Prisma transaction)
-router.post('/:id/activate', async (req: Request, res: Response): Promise<void> => {
-  if (!isSuperAdmin(req)) {
-    res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
-    return;
-  }
+export type ActivateResult =
+  | { ok: true; theme: unknown }
+  | { ok: false; status: number; error: string; message: string };
 
-  const weekTheme = await prisma.weekTheme.findUnique({
-    where: { id: String(req.params.id) },
-  });
+/**
+ * Publishes a drafted week theme: creates its event, challenges, NPC and
+ * rewards, then announces it.
+ *
+ * Extracted from the route so the scheduler can publish one too (#333) without
+ * either copy drifting from the other.
+ */
+export async function activateWeekTheme(id: string, activatedBy: string): Promise<ActivateResult> {
+  const weekTheme = await prisma.weekTheme.findUnique({ where: { id } });
 
   if (!weekTheme) {
-    res.status(404).json({ error: 'NOT_FOUND', message: 'Week theme not found' });
-    return;
+    return { ok: false, status: 404, error: 'NOT_FOUND', message: 'Week theme not found' };
   }
 
   if (weekTheme.status !== 'DRAFT') {
-    res.status(409).json({ error: 'CONFLICT', message: `Cannot activate a theme with status ${weekTheme.status}` });
-    return;
+    return { ok: false, status: 409, error: 'CONFLICT',
+      message: `Cannot activate a theme with status ${weekTheme.status}` };
   }
 
   const payload = weekTheme.aiPayload as unknown as WeekThemePayload;
@@ -268,7 +271,7 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
           challengeIds: [...dailyChallengeIds, weeklyChallenge.id],
           rewardIds,
           activatedAt: new Date(),
-          activatedBy: getUserEmail(req),
+          activatedBy,
         },
       });
 
@@ -286,14 +289,27 @@ router.post('/:id/activate', async (req: Request, res: Response): Promise<void> 
       // TODO: Replace fire-and-forget with a proper job queue when RCON reliability is needed
     }
 
-    res.json({ data: updatedTheme });
+    return { ok: true, theme: updatedTheme };
   } catch (err) {
     if (err instanceof WeekThemeValidationError) {
-      res.status(422).json({ error: 'UNPROCESSABLE', message: err.message, statusCode: 422 });
-      return;
+      return { ok: false, status: 422, error: 'UNPROCESSABLE', message: err.message };
     }
-    res.status(500).json({ error: 'ACTIVATE_ERROR', message: String(err) });
+    return { ok: false, status: 500, error: 'ACTIVATE_ERROR', message: String(err) };
   }
+}
+
+// POST /api/ai/week-theme/:id/activate  (SUPER_ADMIN)
+router.post('/:id/activate', async (req: Request, res: Response): Promise<void> => {
+  if (!isSuperAdmin(req)) {
+    res.status(403).json({ error: 'FORBIDDEN', message: 'Requires SUPER_ADMIN' });
+    return;
+  }
+  const result = await activateWeekTheme(String(req.params.id), getUserEmail(req));
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error, message: result.message, statusCode: result.status });
+    return;
+  }
+  res.json({ data: result.theme });
 });
 
 // DELETE /api/ai/week-theme/:id  (SUPER_ADMIN — set status=CANCELLED)
