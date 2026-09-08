@@ -30,6 +30,8 @@ import { weekThemeRouter } from './routes/weekTheme.js';
 import { deploymentsRouter } from './routes/deployments.js';
 import { shopRouter } from './routes/shop.js';
 import { startBroadcastScheduler } from './services/broadcastScheduler.js';
+import { startChatLogRetention } from './services/chatLogRetention.js';
+import { startWeekThemeScheduler } from './services/weekThemeScheduler.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -106,6 +108,9 @@ if (process.env.NODE_ENV !== 'test') {
     console.log(`CraftControl API listening on port ${port}`);
   });
   startBroadcastScheduler();
+  // Never wired up until now, so chat log retention had never actually run.
+  startChatLogRetention();
+  startWeekThemeScheduler();
 }
 
 export { app };
