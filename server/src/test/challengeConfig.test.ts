@@ -4,6 +4,7 @@ import {
   isTrackableChallengeConfig,
   normalizeRewardConfig,
   clampChallengeTargets,
+  validateChallengeTarget,
 } from '../lib/challengeConfig.js';
 
 describe('normalizeChallengeConfig', () => {
@@ -151,5 +152,49 @@ describe('clampChallengeTargets', () => {
   it('does not invent a target where there was none', () => {
     expect(clampChallengeTargets('KILL_MOB', { target_entity: 'ZOMBIE' }, 'daily').target_count)
       .toBeUndefined();
+  });
+});
+
+describe('validateChallengeTarget', () => {
+  it('catches an invented identifier, which can never match anything', () => {
+    // The tracker compares by name, so this challenge would sit at zero for its
+    // whole life and be indistinguishable from a broken one.
+    expect(validateChallengeTarget('KILL_MOB', { target_entity: 'SKIBIDI_TOILET', target_count: 5 }))
+      .toMatchObject({ key: 'target_entity', value: 'SKIBIDI_TOILET', reason: 'UNKNOWN' });
+    expect(validateChallengeTarget('BLOCK_BREAK', { target_material: 'RIZZ_ORE', target_count: 5 }))
+      .toMatchObject({ reason: 'UNKNOWN' });
+  });
+
+  it('accepts the real identifiers that shipped last week', () => {
+    expect(validateChallengeTarget('KILL_MOB', { target_entity: 'CREEPER' })).toBeNull();
+    expect(validateChallengeTarget('BLOCK_BREAK', { target_material: 'COBBLESTONE' })).toBeNull();
+    expect(validateChallengeTarget('CRAFT_ITEM', { target_material: 'TORCH' })).toBeNull();
+  });
+
+  it('rejects targets that exist but these players cannot get to', () => {
+    // Uncompletable in practice is the same outcome as uncompletable in theory.
+    expect(validateChallengeTarget('KILL_MOB', { target_entity: 'BLAZE' }))
+      .toMatchObject({ reason: 'UNREACHABLE' });
+    expect(validateChallengeTarget('BLOCK_BREAK', { target_material: 'ANCIENT_DEBRIS' }))
+      .toMatchObject({ reason: 'UNREACHABLE' });
+    expect(validateChallengeTarget('BLOCK_BREAK', { target_material: 'END_STONE' }))
+      .toMatchObject({ reason: 'UNREACHABLE' });
+  });
+
+  it('does not confuse a block with a craftable item', () => {
+    // Breaking a CRAFTING_TABLE is fine; "crafting" DIRT is not a recipe.
+    expect(validateChallengeTarget('BLOCK_BREAK', { target_material: 'DIRT' })).toBeNull();
+    expect(validateChallengeTarget('CRAFT_ITEM', { target_material: 'DIRT' }))
+      .toMatchObject({ reason: 'UNKNOWN' });
+  });
+
+  it('ignores types that carry no identifier', () => {
+    expect(validateChallengeTarget('TRAVEL', { target_distance: 500 })).toBeNull();
+    expect(validateChallengeTarget('CUSTOM', { anything: 'goes' })).toBeNull();
+  });
+
+  it('treats a missing target as somebody else’s problem', () => {
+    // isTrackableChallengeConfig already covers absence; this checks the value.
+    expect(validateChallengeTarget('KILL_MOB', { target_count: 5 })).toBeNull();
   });
 });

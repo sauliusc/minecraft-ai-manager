@@ -16,6 +16,8 @@
  * config becomes a working challenge rather than a silent dud.
  */
 
+import { BLOCK_IDS, ENTITY_IDS, ITEM_IDS } from './minecraftIds.js';
+
 export type ChallengeType = 'BLOCK_BREAK' | 'KILL_MOB' | 'CRAFT_ITEM' | 'TRAVEL' | 'CUSTOM';
 
 type Cfg = Record<string, unknown>;
@@ -176,4 +178,75 @@ export function clampChallengeTargets(type: string, config: Cfg, scope: 'daily' 
   // or capping the distance changes nothing (#360).
   if (typeof out.target_distance === 'number' && out.target_distance > cap) out.target_distance = cap;
   return out;
+}
+
+/**
+ * Mobs and blocks that exist but are out of reach for this server's players.
+ *
+ * These are children in short evening sessions who have not been to the Nether,
+ * so a challenge to kill a BLAZE or mine ANCIENT_DEBRIS is as uncompletable in
+ * practice as one naming a block that does not exist (#373).
+ */
+const UNREACHABLE_ENTITIES = new Set([
+  'BLAZE', 'WITHER_SKELETON', 'GHAST', 'MAGMA_CUBE', 'HOGLIN', 'ZOGLIN', 'PIGLIN',
+  'PIGLIN_BRUTE', 'STRIDER', 'ZOMBIFIED_PIGLIN', 'ENDERMITE', 'SHULKER', 'ENDER_DRAGON',
+  'WITHER', 'WARDEN', 'ELDER_GUARDIAN', 'GUARDIAN', 'EVOKER', 'VINDICATOR', 'RAVAGER',
+  'ILLUSIONER', 'VEX', 'PHANTOM', 'BREEZE', 'BOGGED', 'BEE',
+]);
+
+/** Substrings marking a material as Nether/End-only, or otherwise far too rare. */
+const UNREACHABLE_MATERIAL_PATTERNS = [
+  'NETHER', 'BLACKSTONE', 'BASALT', 'SOUL_', 'CRIMSON', 'WARPED', 'SHROOMLIGHT',
+  'ANCIENT_DEBRIS', 'NETHERITE', 'END_', 'PURPUR', 'CHORUS', 'SHULKER',
+  'ELYTRA', 'DRAGON', 'BEACON', 'CONDUIT', 'PRISMARINE', 'SPONGE', 'DEEPSLATE_EMERALD',
+  'BUDDING_AMETHYST', 'REINFORCED_DEEPSLATE', 'SCULK', 'TRIAL_', 'VAULT', 'HEAVY_CORE',
+];
+
+function unreachableMaterial(id: string): boolean {
+  return UNREACHABLE_MATERIAL_PATTERNS.some((p) => id.includes(p));
+}
+
+export type TargetProblem = { key: string; value: string; reason: 'UNKNOWN' | 'UNREACHABLE' };
+
+/**
+ * Checks that a challenge names something the game has and the players can get to.
+ *
+ * ChallengeTracker matches with a plain string compare, so an invented
+ * identifier never fires and the challenge is stuck at zero for its whole life.
+ * From a player's side that is indistinguishable from a bug, which is why this
+ * is worth blocking rather than warning about.
+ *
+ * Returns null when the challenge is fine.
+ */
+export function validateChallengeTarget(type: string, config: Cfg): TargetProblem | null {
+  const check = (key: string, known: ReadonlySet<string>): TargetProblem | null => {
+    const value = config[key];
+    if (typeof value !== 'string' || value === '') return null;   // absence is a separate concern
+    if (!known.has(value)) return { key, value, reason: 'UNKNOWN' };
+    if (key === 'target_entity' && UNREACHABLE_ENTITIES.has(value)) {
+      return { key, value, reason: 'UNREACHABLE' };
+    }
+    if (key === 'target_material' && unreachableMaterial(value)) {
+      return { key, value, reason: 'UNREACHABLE' };
+    }
+    return null;
+  };
+
+  switch (type) {
+    case 'BLOCK_BREAK':
+      return check('target_material', BLOCK_IDS);
+    case 'CRAFT_ITEM':
+      return check('target_material', ITEM_IDS);
+    case 'KILL_MOB':
+      return check('target_entity', ENTITY_IDS);
+    default:
+      return null;   // TRAVEL has no identifier; CUSTOM defines its own meaning
+  }
+}
+
+/** Human-readable explanation, used in both the generator retry and activation. */
+export function describeTargetProblem(title: string, p: TargetProblem): string {
+  return p.reason === 'UNKNOWN'
+    ? `"${title}": ${p.key} "${p.value}" is not a Minecraft identifier, so it can never be matched`
+    : `"${title}": ${p.key} "${p.value}" is out of reach for these players`;
 }
