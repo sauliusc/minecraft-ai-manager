@@ -3,6 +3,7 @@ import {
   normalizeChallengeConfig,
   isTrackableChallengeConfig,
   normalizeRewardConfig,
+  clampChallengeTargets,
 } from '../lib/challengeConfig.js';
 
 describe('normalizeChallengeConfig', () => {
@@ -110,5 +111,45 @@ describe('normalizeRewardConfig', () => {
   it('defaults an item reward to one when no amount is given', () => {
     expect(normalizeRewardConfig('ITEM', { material: 'DIAMOND' }))
       .toMatchObject({ material: 'DIAMOND', amount: 1 });
+  });
+});
+
+describe('clampChallengeTargets', () => {
+  it('brings the impossible daily targets that shipped back into reach', () => {
+    // Real configs from "Welcome Back to Horror School", none ever completed.
+    expect(clampChallengeTargets('KILL_MOB', { target_entity: 'CREEPER', target_count: 40 }, 'daily'))
+      .toMatchObject({ target_count: 12 });
+    expect(clampChallengeTargets('CRAFT_ITEM', { target_material: 'TORCH', target_count: 64 }, 'daily'))
+      .toMatchObject({ target_count: 16 });
+  });
+
+  it('only ever lowers a target', () => {
+    // Too easy is a small disappointment; impossible is indistinguishable from
+    // broken, which is what players actually saw.
+    const cfg = { target_entity: 'ZOMBIE', target_count: 5 };
+    expect(clampChallengeTargets('KILL_MOB', cfg, 'daily')).toMatchObject({ target_count: 5 });
+  });
+
+  it('allows a weekly challenge more than a daily one', () => {
+    const cfg = { target_entity: 'ZOMBIE', target_count: 30 };
+    expect(clampChallengeTargets('KILL_MOB', cfg, 'weekly')).toMatchObject({ target_count: 30 });
+    expect(clampChallengeTargets('KILL_MOB', cfg, 'daily')).toMatchObject({ target_count: 12 });
+  });
+
+  it('caps both TRAVEL keys together', () => {
+    // target_count is what completes it, so capping only the distance would
+    // leave the real target untouched.
+    expect(clampChallengeTargets('TRAVEL', { target_distance: 5000, target_count: 5000 }, 'daily'))
+      .toMatchObject({ target_distance: 800, target_count: 800 });
+  });
+
+  it('leaves CUSTOM alone, since its target means whatever fires it says', () => {
+    const cfg = { puzzles_completed: 900, target_count: 900 };
+    expect(clampChallengeTargets('CUSTOM', cfg, 'daily')).toMatchObject({ target_count: 900 });
+  });
+
+  it('does not invent a target where there was none', () => {
+    expect(clampChallengeTargets('KILL_MOB', { target_entity: 'ZOMBIE' }, 'daily').target_count)
+      .toBeUndefined();
   });
 });

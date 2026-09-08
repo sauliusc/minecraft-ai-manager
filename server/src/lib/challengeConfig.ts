@@ -141,3 +141,39 @@ export function normalizeRewardConfig(type: string, config: Cfg): Cfg {
   }
   return out;
 }
+
+/**
+ * Upper bounds on how much a challenge may ask for, by type.
+ *
+ * The generator produced a daily challenge to kill 40 creepers, when the median
+ * player on this server has killed 60 mobs of any kind in the server's entire
+ * history (#371). Not one challenge that week was completed. The prompt now
+ * states a budget, but a prompt is a request — this is the part that holds even
+ * when the model ignores it, or when a config arrives from anywhere else.
+ *
+ * Daily challenges expire after 24 hours and must fit in one short evening
+ * session; weekly ones have the full seven days.
+ */
+export const TARGET_CAPS: Record<'daily' | 'weekly', Record<string, number>> = {
+  daily: { KILL_MOB: 12, BLOCK_BREAK: 40, CRAFT_ITEM: 16, TRAVEL: 800 },
+  weekly: { KILL_MOB: 35, BLOCK_BREAK: 150, CRAFT_ITEM: 50, TRAVEL: 3000 },
+};
+
+/**
+ * Caps a challenge's target so it stays reachable.
+ *
+ * Only ever lowers a target: a challenge that is too easy is a small
+ * disappointment, one that is impossible is invisible — players cannot tell it
+ * from a broken challenge, which is exactly what the last week looked like.
+ */
+export function clampChallengeTargets(type: string, config: Cfg, scope: 'daily' | 'weekly'): Cfg {
+  const cap = TARGET_CAPS[scope][type];
+  if (!cap) return config;   // CUSTOM carries its own meaning; leave it alone
+
+  const out: Cfg = { ...config };
+  if (typeof out.target_count === 'number' && out.target_count > cap) out.target_count = cap;
+  // TRAVEL completes on target_count, so both keys have to come down together
+  // or capping the distance changes nothing (#360).
+  if (typeof out.target_distance === 'number' && out.target_distance > cap) out.target_distance = cap;
+  return out;
+}
