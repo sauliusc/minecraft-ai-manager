@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { generateWeekTheme, WeekThemePayload } from '../services/ai.js';
 import { deliverBroadcast } from '../services/broadcast.js';
-import { normalizeChallengeConfig, normalizeRewardConfig } from '../lib/challengeConfig.js';
+import { normalizeChallengeConfig, normalizeRewardConfig, clampChallengeTargets } from '../lib/challengeConfig.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -178,7 +178,8 @@ export async function activateWeekTheme(id: string, activatedBy: string): Promis
             difficulty: dc.difficulty,
             // Normalised on the way in: drafts generated before #360 carry keys
             // the plugin never reads, which made the challenge uncompletable.
-            config: normalizeChallengeConfig(dc.type, dc.config ?? {}) as never,
+            config: clampChallengeTargets(
+              dc.type, normalizeChallengeConfig(dc.type, dc.config ?? {}), 'daily') as never,
             questCategory: 'DAILY',
             activeFrom,
             activeUntil,
@@ -196,7 +197,8 @@ export async function activateWeekTheme(id: string, activatedBy: string): Promis
           description: wc.description,
           type: wc.type as never,
           difficulty: wc.difficulty,
-          config: normalizeChallengeConfig(wc.type, wc.config ?? {}) as never,
+          config: clampChallengeTargets(
+            wc.type, normalizeChallengeConfig(wc.type, wc.config ?? {}), 'weekly') as never,
           questCategory: 'WEEKLY',
           activeFrom: weekTheme.startDate,
           activeUntil: weekTheme.endDate,

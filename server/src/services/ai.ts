@@ -370,7 +370,7 @@ Return a single JSON object with exactly this structure:
       "description": "string",
       "type": "BLOCK_BREAK",
       "difficulty": 1,
-      "config": { "target_material": "STONE", "target_count": 100 }
+      "config": { "target_material": "STONE", "target_count": 25 }
     }
   ],
   "weeklyChallenge": {
@@ -378,7 +378,7 @@ Return a single JSON object with exactly this structure:
     "description": "string",
     "type": "KILL_MOB",
     "difficulty": 5,
-    "config": { "target_entity": "ZOMBIE", "target_count": 50 }
+    "config": { "target_entity": "ZOMBIE", "target_count": 25 }
   },
   "npc": {
     "name": "string",
@@ -414,7 +414,33 @@ Rules:
   CURRENCY reads "coins" or "crystals" — no other key is read.
 - rewards: exactly 4 objects; type is one of: ITEM, XP, COMMAND, CURRENCY, MYSTERY_BOX
 - reward rarity is one of: COMMON, RARE, EPIC, LEGENDARY
-- All content must be thematically consistent with: "${theme}"`;
+- All content must be thematically consistent with: "${theme}"
+
+Difficulty budget — these targets are a hard requirement, not a suggestion.
+The players are children playing short evening sessions, roughly 30-60 minutes
+at a time. A daily challenge expires after 24 hours and must be completable in
+ONE session. A weekly challenge has the full 7 days.
+
+Daily challenge target_count by type:
+- KILL_MOB: 5 to 12
+- BLOCK_BREAK: 15 to 40
+- CRAFT_ITEM: 5 to 16
+- TRAVEL: target_distance 300 to 800 (metres)
+
+Weekly challenge target_count by type:
+- KILL_MOB: 20 to 35
+- BLOCK_BREAK: 60 to 150
+- CRAFT_ITEM: 20 to 50
+- TRAVEL: target_distance 1500 to 3000 (metres)
+
+Use the low end of each range for difficulty 1-2 and the high end for
+difficulty 4-5. Never exceed the top of a range. For reference, a typical
+player on this server kills fewer than 15 mobs in a session, so a target of 40
+is impossible rather than ambitious.
+
+Prefer common, easily found targets. A challenge to kill 10 ZOMBIEs or mine 25
+COBBLESTONE works; one needing WITHER_SKELETON, ANCIENT_DEBRIS, ELYTRA or
+anything in the Nether or End is out of reach and must not be used.`;
 
   const MAX_ATTEMPTS = 3;
   let lastError: Error | null = null;
