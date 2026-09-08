@@ -1,9 +1,13 @@
 boss_raid:
-  arena:
-    world: world
-    x: 0.0
-    y: 64.0
-    z: 0.0
+  # The arena is deliberately not set by default. A Wither breaks terrain, so a
+  # guessed location craters whatever is there — the old default was 0, 64, 0,
+  # which is world spawn (#335). Set this to open ground well away from spawn
+  # and from anything players have built; the raid refuses to start until you do.
+  #arena:
+  #  world: world
+  #  x: 2000.0
+  #  y: 90.0
+  #  z: 2000.0
   rewards:
     first_place_id: boss_raid_first
     second_place_id: boss_raid_second

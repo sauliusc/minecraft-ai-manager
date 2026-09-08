@@ -50,18 +50,17 @@ public class BossRaidHandler {
     }
 
     public void startRaid(ActiveEvent event) {
-        String worldName = plugin.getConfig().getString("boss_raid.arena.world", "world");
-        double x = plugin.getConfig().getDouble("boss_raid.arena.x", 0.0);
-        double y = plugin.getConfig().getDouble("boss_raid.arena.y", 64.0);
-        double z = plugin.getConfig().getDouble("boss_raid.arena.z", 0.0);
-
-        World world = Bukkit.getWorld(worldName);
-        if (world == null) {
-            log.warning("Boss raid arena world '" + worldName + "' not found.");
+        // No numeric default is safe here. The old one was 0, 64, 0 — world
+        // spawn — so an unconfigured install dropped a Wither on the spawn point
+        // and cratered it, and y=64 is underground on most terrain besides
+        // (#335). Refusing is better than guessing somewhere destructive.
+        Location arenaLoc = arenaLocation(plugin);
+        if (arenaLoc == null) {
+            log.warning("Boss raid arena is not configured — set boss_raid.arena.x/y/z in config.yml "
+                + "to somewhere away from spawn. Not spawning a boss at a guessed location.");
             return;
         }
-
-        Location arenaLoc = new Location(world, x, y, z);
+        World world = arenaLoc.getWorld();
         int playerCount = Math.max(1, Bukkit.getOnlinePlayers().size());
 
         activeEventId = event.getId();
@@ -91,14 +90,26 @@ public class BossRaidHandler {
         return loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ();
     }
 
-    /** Where the arena is, for announcements made before the raid starts. */
+    /**
+     * Where the arena is, or null when it has not been configured.
+     *
+     * <p>Used by the pre-raid announcement as well, so the coordinates players
+     * are told and the place the boss appears cannot drift apart.
+     */
     public static Location arenaLocation(EventPlugin plugin) {
-        World world = Bukkit.getWorld(plugin.getConfig().getString("boss_raid.arena.world", "world"));
-        if (world == null) return null;
-        return new Location(world,
-            plugin.getConfig().getDouble("boss_raid.arena.x", 0.0),
-            plugin.getConfig().getDouble("boss_raid.arena.y", 64.0),
-            plugin.getConfig().getDouble("boss_raid.arena.z", 0.0));
+        var cfg = plugin.getConfig();
+        if (!cfg.isSet("boss_raid.arena.x") || !cfg.isSet("boss_raid.arena.y")
+            || !cfg.isSet("boss_raid.arena.z")) {
+            return null;
+        }
+        World world = Bukkit.getWorld(cfg.getString("boss_raid.arena.world", "world"));
+        if (world == null) {
+            plugin.getLogger().warning("Boss raid arena world '"
+                + cfg.getString("boss_raid.arena.world", "world") + "' not found.");
+            return null;
+        }
+        return new Location(world, cfg.getDouble("boss_raid.arena.x"),
+            cfg.getDouble("boss_raid.arena.y"), cfg.getDouble("boss_raid.arena.z"));
     }
 
     private void spawnWither(World world, Location loc, int playerCount, ActiveEvent event) {
