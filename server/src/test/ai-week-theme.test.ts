@@ -44,13 +44,13 @@ const VALID_WEEK_THEME_PAYLOAD = {
     config: { bossName: 'Elder Dragon', difficulty: 'HARD' },
   },
   dailyChallenges: [
-    { dayOffset: 0, title: 'Dragon Slayer I', description: 'Slay 5 dragons', type: 'KILL_MOB', difficulty: 2, config: { mob: 'ENDER_DRAGON', amount: 5 } },
+    { dayOffset: 0, title: 'Dragon Slayer I', description: 'Slay 5 dragons', type: 'KILL_MOB', difficulty: 2, config: { mob: 'ZOMBIE', amount: 5 } },
     { dayOffset: 1, title: 'Dragon Scales', description: 'Mine 50 obsidian', type: 'BLOCK_BREAK', difficulty: 1, config: { block: 'OBSIDIAN', amount: 50 } },
-    { dayOffset: 2, title: 'Fire Forger', description: 'Craft fire resistance potions', type: 'CRAFT_ITEM', difficulty: 2, config: { item: 'FIRE_RESISTANCE_POTION', amount: 5 } },
+    { dayOffset: 2, title: 'Fire Forger', description: 'Craft fire resistance potions', type: 'CRAFT_ITEM', difficulty: 2, config: { item: 'TORCH', amount: 5 } },
     { dayOffset: 3, title: 'Dragon Hunter', description: 'Travel to the End', type: 'TRAVEL', difficulty: 3, config: { distance: 2000 } },
     { dayOffset: 4, title: 'Scale Collector', description: 'Collect dragon drops', type: 'CUSTOM', difficulty: 2, config: { metric: 'dragon_drops', target: 10 } },
     { dayOffset: 5, title: 'Dragon Rider', description: 'Tame a dragon mount', type: 'CUSTOM', difficulty: 3, config: { metric: 'dragon_tame', target: 1 } },
-    { dayOffset: 6, title: 'Dragon Master', description: 'Defeat the Dragon Boss', type: 'KILL_MOB', difficulty: 4, config: { mob: 'BOSS_DRAGON', amount: 1 } },
+    { dayOffset: 6, title: 'Dragon Master', description: 'Defeat the Dragon Boss', type: 'KILL_MOB', difficulty: 4, config: { mob: 'SKELETON', amount: 1 } },
   ],
   weeklyChallenge: {
     title: 'Dragon Invasion Champion',
@@ -254,5 +254,53 @@ describe('generateWeekTheme', () => {
     const userPrompt: string = callArgs.messages[0].content;
     expect(userPrompt).toContain('Old Challenge 1');
     expect(userPrompt).toContain('Old Challenge 2');
+  });
+});
+
+describe('generateWeekTheme target validation', () => {
+  function payloadWith(challenge: Record<string, unknown>) {
+    return {
+      ...VALID_WEEK_THEME_PAYLOAD,
+      dailyChallenges: VALID_WEEK_THEME_PAYLOAD.dailyChallenges.map((c, i) =>
+        (i === 0 ? { ...c, ...challenge } : c)),
+    };
+  }
+
+  function mockLLM(payload: unknown) {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify(payload) }],
+    });
+    vi.mocked(Anthropic).mockImplementation(() => ({ messages: { create } }) as any);
+    return create;
+  }
+
+  it('retries when the model invents an identifier, then gives up loudly', async () => {
+    // Silently accepting this is how a challenge ends up stuck at zero all week
+    // while looking, from a player's side, exactly like a broken one.
+    const create = mockLLM(payloadWith({ type: 'KILL_MOB', config: { mob: 'SKIBIDI_TOILET', amount: 5 } }));
+
+    await expect(generateWeekTheme('Brainrot', new Date('2026-09-09T16:00:00Z'), [], { retryDelayMs: 0 }))
+      .rejects.toThrow(/SKIBIDI_TOILET/);
+    expect(create).toHaveBeenCalledTimes(3);
+  });
+
+  it('accepts the retry when the model corrects itself', async () => {
+    const bad = payloadWith({ type: 'KILL_MOB', config: { mob: 'SKIBIDI_TOILET', amount: 5 } });
+    const good = payloadWith({ type: 'KILL_MOB', config: { mob: 'CREEPER', amount: 5 } });
+    const create = vi.fn()
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: JSON.stringify(bad) }] })
+      .mockResolvedValueOnce({ content: [{ type: 'text', text: JSON.stringify(good) }] });
+    vi.mocked(Anthropic).mockImplementation(() => ({ messages: { create } }) as any);
+
+    const result = await generateWeekTheme('Brainrot', new Date('2026-09-09T16:00:00Z'), [], { retryDelayMs: 0 });
+    expect(result.dailyChallenges[0].config).toMatchObject({ mob: 'CREEPER' });
+    expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a target that exists but is behind a portal these players have not used', async () => {
+    mockLLM(payloadWith({ type: 'KILL_MOB', config: { mob: 'BLAZE', amount: 5 } }));
+
+    await expect(generateWeekTheme('Brainrot', new Date('2026-09-09T16:00:00Z'), [], { retryDelayMs: 0 }))
+      .rejects.toThrow(/out of reach/);
   });
 });

@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { prisma } from '../lib/prisma.js';
+import { normalizeChallengeConfig, validateChallengeTarget, describeTargetProblem } from '../lib/challengeConfig.js';
 
 // ── Config helpers ─────────────────────────────────────────────────────────────
 
@@ -446,6 +447,11 @@ anything in the Nether or End is out of reach and must not be used.`;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    // Cleared each time: the structural checks below only assign on failure, so
+    // a leftover error from the previous attempt would reject a good response
+    // and make the retries pointless.
+    lastError = null;
+
     let raw: string;
     try {
       raw = await callLLM(cfg, { model, maxTokens: 8000, system: systemPrompt, user: userPrompt });
@@ -476,6 +482,22 @@ anything in the Nether or End is out of reach and must not be used.`;
     } else if (dlLen !== 5) {
       lastError = new Error(`Expected 5 NPC dialogue lines, got ${dlLen} (attempt ${attempt}/${MAX_ATTEMPTS})`);
     }
+    // A target the game does not have never matches anything, so the challenge
+    // would sit at zero for its whole life and look broken rather than hard.
+    // Retrying gives the model a chance to name something real (#373).
+    if (!lastError) {
+      const problems: string[] = [];
+      for (const c of [...parsed.dailyChallenges, parsed.weeklyChallenge]) {
+        const problem = validateChallengeTarget(c.type, normalizeChallengeConfig(c.type, c.config ?? {}));
+        if (problem) problems.push(describeTargetProblem(c.title, problem));
+      }
+      if (problems.length > 0) {
+        lastError = new Error(
+          `Challenge targets cannot be completed (attempt ${attempt}/${MAX_ATTEMPTS}):\n- ${problems.join('\n- ')}`
+        );
+      }
+    }
+
     if (lastError) {
       if (attempt < MAX_ATTEMPTS) {
         if (retryDelayMs > 0) await new Promise((r) => setTimeout(r, attempt * retryDelayMs));

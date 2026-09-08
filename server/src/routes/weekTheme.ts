@@ -3,7 +3,8 @@ import { prisma } from '../lib/prisma.js';
 import { authMiddleware } from '../middleware/auth.middleware.js';
 import { generateWeekTheme, WeekThemePayload } from '../services/ai.js';
 import { deliverBroadcast } from '../services/broadcast.js';
-import { normalizeChallengeConfig, normalizeRewardConfig, clampChallengeTargets } from '../lib/challengeConfig.js';
+import { normalizeChallengeConfig, normalizeRewardConfig, clampChallengeTargets,
+  validateChallengeTarget, describeTargetProblem } from '../lib/challengeConfig.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -148,6 +149,22 @@ export async function activateWeekTheme(id: string, activatedBy: string): Promis
   }
 
   const payload = weekTheme.aiPayload as unknown as WeekThemePayload;
+
+  // Refuse to publish a challenge nobody can finish. The tracker matches the
+  // target against the live event by name, so an identifier the game does not
+  // have — or one behind a portal these players have never been through — sits
+  // at zero forever and reads as broken rather than hard (#373). Checked before
+  // the transaction so a bad payload creates nothing at all.
+  const targetProblems: string[] = [];
+  for (const c of [...payload.dailyChallenges, payload.weeklyChallenge]) {
+    const problem = validateChallengeTarget(c.type, normalizeChallengeConfig(c.type, c.config ?? {}));
+    if (problem) targetProblems.push(describeTargetProblem(c.title, problem));
+  }
+  if (targetProblems.length > 0) {
+    return { ok: false, status: 422, error: 'UNPROCESSABLE',
+      message: `Cannot activate: ${targetProblems.length} challenge(s) can never be completed. `
+        + targetProblems.join('; ') };
+  }
 
   try {
     const updatedTheme = await prisma.$transaction(async (tx) => {
