@@ -133,14 +133,77 @@ public class PlayerJoinListener implements Listener {
         updatePlayerRecord(player);
     }
 
+    /**
+     * Moves an arriving player to the welcome zone, but never into a block.
+     *
+     * <p>This used to teleport straight to the configured coordinates, which
+     * defaulted to y=64. On this server y=64 at the origin is solid stone, so
+     * every arriving player was placed inside rock and suffocated within about
+     * thirteen seconds — four of them before it was spotted (#366).
+     *
+     * <p>An unreachable or unsafe destination now leaves the player where
+     * Minecraft put them, which is somewhere they can at least stand, and says
+     * so in the log. Being greeted in the wrong place beats being killed by the
+     * greeting.
+     */
     private void teleportToWelcomeZone(Player player, FileConfiguration cfg) {
         String worldName = cfg.getString("welcome_zone.world", "world");
         World world = plugin.getServer().getWorld(worldName);
-        if (world == null) return;
-        double x = cfg.getDouble("welcome_zone.x", 0.5);
-        double y = cfg.getDouble("welcome_zone.y", 64.0);
-        double z = cfg.getDouble("welcome_zone.z", 0.5);
-        player.teleport(new Location(world, x, y, z));
+        if (world == null) {
+            plugin.getLogger().warning("welcome_zone.world '" + worldName
+                + "' does not exist — leaving " + player.getName() + " where they spawned.");
+            return;
+        }
+
+        Location configured = null;
+        if (cfg.isSet("welcome_zone.x") && cfg.isSet("welcome_zone.z")) {
+            // y is optional: without it, drop onto whatever the surface is at x/z
+            // rather than assuming a height that may be underground.
+            double x = cfg.getDouble("welcome_zone.x");
+            double z = cfg.getDouble("welcome_zone.z");
+            double y = cfg.isSet("welcome_zone.y")
+                ? cfg.getDouble("welcome_zone.y")
+                : world.getHighestBlockYAt((int) Math.floor(x), (int) Math.floor(z)) + 1;
+            configured = new Location(world, x, y, z);
+        }
+
+        Location target = firstSafe(configured, world.getSpawnLocation());
+        if (target == null) {
+            plugin.getLogger().warning("Neither welcome_zone nor world spawn is safe to stand in — "
+                + "leaving " + player.getName() + " where they spawned. Check welcome_zone in config.yml.");
+            return;
+        }
+        if (configured != null && !target.equals(configured)) {
+            plugin.getLogger().warning("welcome_zone at " + describe(configured)
+                + " is inside a block; used world spawn instead. Fix welcome_zone in config.yml.");
+        }
+        player.teleport(target);
+    }
+
+    /** The first of these a player could actually stand in, or null. */
+    private static Location firstSafe(Location... candidates) {
+        for (Location loc : candidates) {
+            if (loc != null && isStandable(loc)) return loc;
+        }
+        return null;
+    }
+
+    /**
+     * True when a player placed here would not be inside a block.
+     *
+     * <p>Checks the two blocks a player occupies. Deliberately does not require
+     * ground underneath: falling is survivable and recoverable, being embedded
+     * in stone is neither.
+     */
+    static boolean isStandable(Location loc) {
+        World world = loc.getWorld();
+        if (world == null) return false;
+        return world.getBlockAt(loc).isPassable()
+            && world.getBlockAt(loc.clone().add(0, 1, 0)).isPassable();
+    }
+
+    private static String describe(Location loc) {
+        return loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ();
     }
 
     private void giveStarterKit(Player player, FileConfiguration cfg) {
