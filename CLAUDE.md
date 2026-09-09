@@ -16,6 +16,38 @@ Never merge without green CI. Never close an issue without a merged PR.
 
 This session runs on CT102 itself, with the live `deploymentV2` compose stack. Never run `docker compose up`, `pull`, or `restart` directly against it — always go through `make deploy` / `make restart` (see `deploymentV2/README.md`). `deploy.sh` always pulls fresh images before starting containers and now pins the resolved tag back into `.env`; a raw `docker compose up` skips the pull and can silently reuse a stale image cached locally under the same tag (e.g. `:latest`). This caused a real regression on 2026-08-18 — reverted the Minecraft server to a build that predated the villager-push-hang fix, which looked like the server "crashing" after a player connected. See `minecraft-ai-manager#278`.
 
+## Never leave work uncommitted in /opt/craftcontrol
+
+The `deploy-v2` workflow runs on the CT102 self-hosted runner **in this same
+working copy**, and its deploy job runs:
+
+```
+git -C /opt/craftcontrol fetch origin main
+git -C /opt/craftcontrol reset --hard origin/main
+```
+
+That **silently discards every uncommitted change to a tracked file**. Untracked
+files survive (which is why `deploymentV2/.env` is still there), so the damage is
+selective and easy to misread.
+
+Consequences worth internalising:
+
+- **Merging a PR destroys in-progress work on an unrelated branch.** The deploy
+  fires on the merge commit, resets this tree, and whatever was being edited is
+  gone.
+- **The failure is silent and looks like your own mistake.** Afterwards
+  `git status` shows a clean tree, so the natural conclusion is that the edit was
+  never made. This was misdiagnosed as an editing error three times before the
+  pattern was spotted (#378).
+
+Until #378 is fixed: **commit before merging anything**, and after any merge,
+re-verify edits to tracked files with `git status` before continuing. Prefer
+committing early on a branch over holding a large working set.
+
+The proper fix is to give the runner its own checkout so the deploy and the
+development tree cannot interact. It needs a change to `.github/workflows/deploy-v2.yml`,
+which requires a token with `workflow` scope (#338).
+
 ## CI validation rules — lessons learned
 
 Green check marks on a PR are not enough on their own. Follow these rules before declaring CI clean:
