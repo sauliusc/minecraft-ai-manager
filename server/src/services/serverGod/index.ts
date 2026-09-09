@@ -15,7 +15,7 @@ import {
 } from './activityDigest.js';
 import {
   PersonaConfig, DEFAULT_SLANG, buildSystemPrompt, buildMentionPrompt,
-  buildProactivePrompt, sanitizeReply,
+  buildProactivePrompt, extractReply,
 } from './prompt.js';
 import { RateLimiter } from './limits.js';
 
@@ -110,8 +110,13 @@ export async function handleMention(username: string, message: string): Promise<
       buildSystemPrompt(persona),
       buildMentionPrompt(username, message, digestForPrompt(latestDeltas))
     );
-    const reply = sanitizeReply(raw);
-    if (!reply) return { spoke: false, reason: 'EMPTY' };
+    const reply = extractReply(raw);
+    if (!reply) {
+      // The model answered with something that was not a reply — reasoning notes,
+      // an apology, an empty string. Staying quiet beats broadcasting it.
+      console.warn('[servergod] no reply found in model output, staying quiet');
+      return { spoke: false, reason: 'EMPTY' };
+    }
 
     limiter.recordMention(username);
     await record(reply);
@@ -160,8 +165,11 @@ export async function tick(): Promise<TickResult> {
     const raw = await generateShortReply(
       buildSystemPrompt(persona), buildProactivePrompt(digestForPrompt(deltas))
     );
-    const reply = sanitizeReply(raw);
-    if (!reply) return { spoke: false, reason: 'EMPTY' };
+    const reply = extractReply(raw);
+    if (!reply) {
+      console.warn('[servergod] no reply found in model output, staying quiet');
+      return { spoke: false, reason: 'EMPTY' };
+    }
 
     limiter.recordProactive();
     await record(reply);

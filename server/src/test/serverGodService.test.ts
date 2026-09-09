@@ -33,7 +33,7 @@ beforeEach(() => {
   process.env.MINECRAFT_BRIDGE_URL = 'http://mc:25580';
   process.env.BRIDGE_SECRET = 'secret';
   vi.mocked(getAiConfig).mockResolvedValue({});
-  vi.mocked(generateShortReply).mockResolvedValue('adas vel numire, zero rizz fr');
+  vi.mocked(generateShortReply).mockResolvedValue('<say>adas vel numire, zero rizz fr</say>');
   vi.mocked(prisma.chatLog.create).mockResolvedValue({} as never);
 });
 
@@ -107,7 +107,7 @@ describe('tick', () => {
     expect(deliverBroadcast).not.toHaveBeenCalled();
 
     // The next notable thing must still get a reaction.
-    vi.mocked(generateShortReply).mockResolvedValue('back again');
+    vi.mocked(generateShortReply).mockResolvedValue('<say>back again</say>');
     bridgeReturns([player({ deaths: 2 })]);
     expect(await tick()).toMatchObject({ spoke: true });
   });
@@ -141,13 +141,38 @@ describe('handleMention', () => {
     vi.mocked(generateShortReply).mockRejectedValue(new Error('overloaded'));
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'FAILED' });
 
-    vi.mocked(generateShortReply).mockResolvedValue('labas');
+    vi.mocked(generateShortReply).mockResolvedValue('<say>labas</say>');
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ spoke: true });
   });
 
   it('treats a blank reply as nothing to say', async () => {
-    vi.mocked(generateShortReply).mockResolvedValue('   ');
+    vi.mocked(generateShortReply).mockResolvedValue('<say>   </say>');
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'EMPTY' });
+  });
+});
+
+describe('untagged model output', () => {
+  it('never reaches players, however plausible it looks', async () => {
+    // This exact text was broadcast to the server: a free auto-routed model
+    // wrote its own notes into the message content. Nothing about it is
+    // malformed, so only the missing tags can catch it.
+    vi.mocked(generateShortReply).mockResolvedValue(
+      'We need to produce a short line, Lithuanian sentences, with English brainrot slang.'
+    );
+    bridgeReturns([player()]);
+    await tick();
+    bridgeReturns([player({ deaths: 1 })]);
+
+    expect(await tick()).toMatchObject({ spoke: false, reason: 'EMPTY' });
+    expect(deliverBroadcast).not.toHaveBeenCalled();
+  });
+
+  it('does not put a player on cooldown for output that was never sent', async () => {
+    vi.mocked(generateShortReply).mockResolvedValue('thinking out loud, no tags here');
+    expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'EMPTY' });
+
+    vi.mocked(generateShortReply).mockResolvedValue('<say>labas</say>');
+    expect(await handleMention('adas', 'ServerGod')).toMatchObject({ spoke: true });
   });
 });
 
