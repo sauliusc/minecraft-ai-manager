@@ -11,6 +11,7 @@ public class BridgePlugin extends JavaPlugin {
     private static BridgePlugin instance;
     private ApiClient apiClient;
     private BridgeServer bridgeServer;
+    private DeathTracker deathTracker;
 
     @Override
     public void onEnable() {
@@ -48,6 +49,19 @@ public class BridgePlugin extends JavaPlugin {
             getLogger().severe("Failed to start bridge server: " + e.getMessage());
         }
 
+        // ServerGod: the mention listener, and the death causes its digest needs.
+        // Both live here because this plugin already owns the API client and the
+        // inbound HTTP server; a fourteenth plugin for two listeners would cost
+        // more than it explains.
+        if (cfg.getBoolean("servergod.enabled", true)) {
+            deathTracker = new DeathTracker();
+            String botName = cfg.getString("servergod.name", "ServerGod");
+            getServer().getPluginManager().registerEvents(deathTracker, this);
+            getServer().getPluginManager().registerEvents(
+                new ServerGodListener(this, deathTracker, botName), this);
+            getLogger().info("ServerGod listening for mentions of \"" + botName + "\"");
+        }
+
         getLogger().info("CraftControl BridgePlugin v" + getDescription().getVersion() + " enabled.");
     }
 
@@ -64,6 +78,10 @@ public class BridgePlugin extends JavaPlugin {
 
     public static BridgePlugin getInstance() {
         return instance;
+    }
+
+    public DeathTracker getDeathTracker() {
+        return deathTracker;
     }
 
     public ApiClient getApiClient() {

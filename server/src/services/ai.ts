@@ -525,6 +525,19 @@ export interface ChatScanResult {
   reasoning: string;
 }
 
+/**
+ * One short line from the configured generator model.
+ *
+ * ServerGod's replies go through here so the model choice stays in one place —
+ * it uses the same generator model as week theme generation, as configured in
+ * the AI section. maxTokens is small because the persona asks for a single line
+ * and a long reply is a bug rather than a bonus.
+ */
+export async function generateShortReply(system: string, user: string): Promise<string> {
+  const cfg = await getAiConfig();
+  return callLLM(cfg, { model: resolveModel(cfg, 'generator'), system, user, maxTokens: 150 });
+}
+
 export async function scanChatMessages(
   messages: { id: string; playerId: string; username: string; message: string; context: string[] }[]
 ): Promise<ChatScanResult[]> {

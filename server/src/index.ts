@@ -27,11 +27,13 @@ import { usersRouter } from './routes/users.js';
 import { activityLogRouter } from './routes/activityLog.js';
 import { pendingActionsRouter } from './routes/pendingActions.js';
 import { weekThemeRouter } from './routes/weekTheme.js';
+import serverGodRouter from './routes/serverGod.js';
 import { deploymentsRouter } from './routes/deployments.js';
 import { shopRouter } from './routes/shop.js';
 import { startBroadcastScheduler } from './services/broadcastScheduler.js';
 import { startChatLogRetention } from './services/chatLogRetention.js';
 import { startWeekThemeScheduler } from './services/weekThemeScheduler.js';
+import { startServerGod } from './services/serverGod/index.js';
 import { errorMiddleware, notFoundMiddleware } from './middleware/error.middleware.js';
 
 const app = express();
@@ -82,6 +84,7 @@ app.use('/api/players', playersRouter);
 app.use('/api/challenges', challengesRouter);
 app.use('/api/rewards', rewardsRouter);
 app.use('/api/bridge', bridgeRouter);
+app.use('/api/servergod', serverGodRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/moderation', moderationRouter);
 app.use('/api/broadcast', broadcastRouter);
@@ -111,6 +114,7 @@ if (process.env.NODE_ENV !== 'test') {
   // Never wired up until now, so chat log retention had never actually run.
   startChatLogRetention();
   startWeekThemeScheduler();
+  startServerGod();
 }
 
 export { app };
