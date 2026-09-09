@@ -1,5 +1,6 @@
 package io.craftcontrol.bridge;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -49,6 +50,10 @@ public class BridgeServer extends NanoHTTPD {
             return handleGrantReward(session);
         }
 
+        if (Method.GET.equals(method) && "/bridge/activity".equals(uri)) {
+            return handleActivity();
+        }
+
         if (Method.GET.equals(method) && "/bridge/stats".equals(uri)) {
             return handleStats(session);
         }
@@ -96,6 +101,47 @@ public class BridgeServer extends NanoHTTPD {
             plugin.getLogger().warning("Stats lookup for " + name + " failed: " + e.getMessage());
             return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, JSON_MIME,
                 "{\"error\":\"ERROR\"}");
+        }
+    }
+
+    /**
+     * Counters for everyone currently online, for ServerGod's activity digest.
+     *
+     * <p>One call rather than one per player: the digest runs every ten minutes
+     * and going through /bridge/stats per player would mean a separate main
+     * thread hop each time, on a server that already stalls under memory
+     * pressure (#316).
+     *
+     * <p>Returns raw counters only. What changed since last time is worked out
+     * by the API, so nothing here remembers anything between calls.
+     */
+    private Response handleActivity() {
+        try {
+            JsonArray arr = plugin.getServer().getScheduler()
+                .callSyncMethod(plugin, () -> {
+                    JsonArray players = new JsonArray();
+                    for (Player online : Bukkit.getOnlinePlayers()) {
+                        JsonObject o = readStats(online.getName());
+                        if (o == null) continue;
+                        DeathTracker tracker = plugin.getDeathTracker();
+                        DeathTracker.Death death = tracker == null
+                            ? null : tracker.recentDeath(online.getUniqueId());
+                        if (death != null) o.addProperty("recentDeath", death.cause());
+                        players.add(o);
+                    }
+                    return players;
+                })
+                .get(5, java.util.concurrent.TimeUnit.SECONDS);
+
+            JsonObject out = new JsonObject();
+            out.add("players", arr);
+            return newFixedLengthResponse(Response.Status.OK, JSON_MIME, out.toString());
+        } catch (java.util.concurrent.TimeoutException e) {
+            plugin.getLogger().warning("Activity lookup timed out waiting for the server thread");
+            return newFixedLengthResponse(Response.Status.SERVICE_UNAVAILABLE, JSON_MIME, "{\"error\":\"BUSY\"}");
+        } catch (Exception e) {
+            plugin.getLogger().warning("Activity lookup failed: " + e.getMessage());
+            return newFixedLengthResponse(Response.Status.INTERNAL_ERROR, JSON_MIME, "{\"error\":\"ERROR\"}");
         }
     }
 

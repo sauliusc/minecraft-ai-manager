@@ -9,3 +9,10 @@ api:
   timeout_ms: 5000
   retry_max: 3
   retry_backoff_ms: 500
+
+# ServerGod — the in-game AI that answers when players say its name.
+# What it may say is decided by the API, not here; this only controls whether
+# the server listens and what name it answers to.
+servergod:
+  enabled: true
+  name: "ServerGod"
