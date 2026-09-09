@@ -3,6 +3,50 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api.js';
 import { useAuthStore } from '../store/auth.js';
 
+/**
+ * The last things ServerGod actually said.
+ *
+ * The safety rules are structural — fenced player text, stripped formatting
+ * codes, a curated word list — and none of them can tell you whether it is
+ * being funny or embarrassing. That needs a person reading it, so the messages
+ * are put where the settings are rather than buried in the moderation log.
+ */
+function ServerGodTranscript() {
+  const { data, isLoading } = useQuery({
+    queryKey: ['servergod-transcript'],
+    queryFn: () => api.get('/moderation/chat-log', { params: { playerId: 'servergod', limit: 10 } })
+      .then((r) => r.data),
+    refetchInterval: 60_000,
+  });
+
+  const messages = (data?.data ?? []) as { id: string; message: string; createdAt: string }[];
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex items-center justify-between">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Recently said</span>
+        {isLoading && <span className="text-xs text-gray-400">Loading…</span>}
+      </div>
+      {messages.length === 0 ? (
+        <p className="px-3 py-3 text-sm text-gray-400">
+          {isLoading ? '' : 'Nothing yet — it speaks when someone says its name, or when something worth mentioning happens in game.'}
+        </p>
+      ) : (
+        <ul className="divide-y divide-gray-100 max-h-56 overflow-y-auto">
+          {messages.map((m) => (
+            <li key={m.id} className="px-3 py-2 text-sm">
+              <p className="text-gray-800">{m.message}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {new Date(m.createdAt).toLocaleString()}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type AiProvider = 'anthropic' | 'openrouter' | 'gemini';
@@ -23,7 +67,22 @@ interface AiCfg {
   enable_engagement?: string;
   enable_rewards?: string;
   enable_moderation?: string;
+  // ServerGod — the in-game chat bot
+  servergod_enabled?: string;
+  servergod_name?: string;
+  servergod_slang?: string;
+  servergod_instructions?: string;
 }
+
+/**
+ * The slang ServerGod uses when the list is left empty.
+ *
+ * Kept in step with DEFAULT_SLANG on the server. Shown as placeholder text so
+ * it is obvious what "empty" actually means — an empty box does not mean the
+ * bot stops using slang, it means it falls back to this.
+ */
+const DEFAULT_SLANG_HINT =
+  'skibidi, rizz, sigma, gyat, ohio, fanum tax, mewing, aura, cooked, goated, no cap, fr fr, bruh, W, L, mid, lowkey, based, NPC, brainrot';
 
 const PROVIDERS: { value: AiProvider; label: string; placeholder: string }[] = [
   { value: 'anthropic',  label: 'Anthropic (Claude)',  placeholder: 'sk-ant-…' },
@@ -329,6 +388,67 @@ function SettingsTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
             <span className="text-sm text-gray-700">{label}</span>
           </label>
         ))}
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="font-semibold text-gray-700">ServerGod</h3>
+        <p className="text-xs text-gray-400">
+          The in-game bot. Answers players who say its name in chat, and comments on what
+          people are doing every so often. Uses the generator model above.
+        </p>
+
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div
+            onClick={() => isSuperAdmin && toggle('servergod_enabled')}
+            className={`relative w-10 h-5 rounded-full transition-colors ${isOn('servergod_enabled') ? 'bg-green-500' : 'bg-gray-300'} ${!isSuperAdmin ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isOn('servergod_enabled') ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </div>
+          <span className="text-sm text-gray-700">Enabled</span>
+        </label>
+
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Name it answers to</label>
+          <input
+            className="w-full border rounded px-3 py-2 text-sm"
+            value={val('servergod_name')}
+            onChange={(e) => set('servergod_name', e.target.value)}
+            placeholder="ServerGod"
+            disabled={!isSuperAdmin}
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Slang it may use</label>
+          <textarea
+            className="w-full border rounded px-3 py-2 text-sm h-20"
+            value={val('servergod_slang')}
+            onChange={(e) => set('servergod_slang', e.target.value)}
+            placeholder={DEFAULT_SLANG_HINT}
+            disabled={!isSuperAdmin}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Comma separated. The bot is told to use only these words, so this is how you keep
+            it away from the parts of the lexicon you would rather it did not pick up.
+            Empty falls back to the list shown above.
+          </p>
+        </div>
+
+        <div>
+          <label className="text-xs text-gray-500 block mb-1">Extra instructions</label>
+          <textarea
+            className="w-full border rounded px-3 py-2 text-sm h-20"
+            value={val('servergod_instructions')}
+            onChange={(e) => set('servergod_instructions', e.target.value)}
+            placeholder="e.g. Hype up the current week theme. Never mention the Nether."
+            disabled={!isSuperAdmin}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Added to its personality. Cannot override its safety rules.
+          </p>
+        </div>
+
+        <ServerGodTranscript />
       </section>
 
       {isSuperAdmin && (
