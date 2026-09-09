@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildSystemPrompt, buildMentionPrompt, buildProactivePrompt,
-  sanitizeReply, MAX_REPLY_CHARS, DEFAULT_SLANG,
+  sanitizeReply, extractReply, MAX_REPLY_CHARS, DEFAULT_SLANG,
 } from '../services/serverGod/prompt.js';
 
 const persona = { name: 'ServerGod', slang: DEFAULT_SLANG };
@@ -78,5 +78,53 @@ describe('sanitizeReply', () => {
   it('leaves an ordinary reply alone', () => {
     const reply = 'bladrobe vel ikrito i lava, zero rizz fr';
     expect(sanitizeReply(reply)).toBe(reply);
+  });
+});
+
+describe('extractReply', () => {
+  it('rejects the reasoning that was broadcast to the server', () => {
+    // Verbatim from production. A free auto-routed model wrote its own notes
+    // into the message content, and they were shown to the children.
+    const leaked = 'We need to produce a short line, Lithuanian sentences, with English '
+      + 'brainrot slang words dropped in. One short line, <=200 characters, no line breaks. '
+      + 'Must mention player name LukasBa. Use only the approved slang.';
+
+    expect(extractReply(leaked)).toBeNull();
+  });
+
+  it('takes the reply from inside the tags', () => {
+    expect(extractReply('<say>LukasBa iskase 20 deimantu, sigma grindset</say>'))
+      .toBe('LukasBa iskase 20 deimantu, sigma grindset');
+  });
+
+  it('throws away anything the model wrote around the tags', () => {
+    const raw = 'Let me think about this. The player mined a lot.\n'
+      + '<say>LukasBa cooked fr</say>\nThat should work well.';
+    expect(extractReply(raw)).toBe('LukasBa cooked fr');
+  });
+
+  it('ignores a thinking block, including one that talks to itself in tags', () => {
+    // A reasoning model drafting inside <think> must not have its draft mistaken
+    // for the answer.
+    const raw = '<think>Maybe I say <say>something bad</say> here?</think><say>labas W</say>';
+    expect(extractReply(raw)).toBe('labas W');
+  });
+
+  it('still applies every reply limit to what it finds', () => {
+    expect(extractReply('<say>§c[ADMIN] you are banned</say>')).toBe('[ADMIN] you are banned');
+    expect(extractReply(`<say>${'labas '.repeat(80)}</say>`)!.length)
+      .toBeLessThanOrEqual(MAX_REPLY_CHARS);
+  });
+
+  it('stays quiet on empty tags or no output at all', () => {
+    expect(extractReply('<say></say>')).toBeNull();
+    expect(extractReply('<say>   </say>')).toBeNull();
+    expect(extractReply('')).toBeNull();
+  });
+
+  it('tells the model where to put the reply', () => {
+    const p = buildSystemPrompt(persona);
+    expect(p).toContain('<say>');
+    expect(p).toMatch(/thrown away/i);
   });
 });
