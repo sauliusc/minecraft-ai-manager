@@ -15,7 +15,7 @@ import {
 } from './activityDigest.js';
 import {
   PersonaConfig, DEFAULT_SLANG, buildSystemPrompt, buildMentionPrompt,
-  buildProactivePrompt, extractReply,
+  buildProactivePrompt, extractReply, scoreReply,
 } from './prompt.js';
 import { RateLimiter } from './limits.js';
 
@@ -103,6 +103,84 @@ async function recentLines(limit = 5): Promise<string[]> {
   }
 }
 
+
+/**
+ * Model preference order for ServerGod, measured rather than assumed.
+ *
+ * Benchmarked against the real persona prompt, four calls each:
+ *
+ *   nex-agi/nex-n2.5-pro:free            4/4, ~3s, best Lithuanian
+ *   inclusionai/ling-3.0-flash-fin:free  4/4, ~1s, weaker grammar
+ *   nvidia/nemotron-3-super-120b:free    3/4, one call 58s, one returned " and "
+ *
+ * Pinned instead of using openrouter/free, which routes to a different random
+ * free model every call — including ones that never produce a usable reply.
+ * Pinning costs nothing: these are free models either way.
+ */
+export const DEFAULT_MODELS = [
+  'nex-agi/nex-n2.5-pro:free',
+  'inclusionai/ling-3.0-flash-fin:free',
+];
+
+export function loadModels(cfg: Record<string, string>): string[] {
+  const configured = (cfg['servergod_models'] ?? '')
+    .split(',').map((m) => m.trim()).filter(Boolean);
+  return configured.length > 0 ? configured : DEFAULT_MODELS;
+}
+
+/**
+ * Produces one usable reply, or null.
+ *
+ * `samples` controls how hard it tries for a *good* line rather than merely a
+ * valid one. Sampling more costs calls, and free models are rate limited, so it
+ * is only worth it where nobody is waiting:
+ *
+ *   mentions   samples=1  a player is watching chat; answer quickly
+ *   proactive  samples=3  fires at most twice an hour, so pick the best of three
+ *
+ * Falls through the model list on failure. In the normal case that is one call:
+ * the cost is only paid when something actually went wrong, unlike generating N
+ * every time and discarding the rest.
+ */
+async function bestReply(
+  system: string, user: string, models: string[],
+  scoreOpts: { player?: string; slang?: string[]; recent?: string[] },
+  samples: number
+): Promise<{ text: string | null; errored: boolean }> {
+  let best: { text: string; score: number } | null = null;
+  // Tracked separately so "every model is unreachable" stays distinguishable
+  // from "the models answered, but with nothing usable". They need different
+  // fixes, and collapsing them hides an outage behind a quality problem.
+  let calls = 0;
+  let errors = 0;
+
+  for (const model of models) {
+    for (let i = 0; i < samples; i++) {
+      let raw: string;
+      calls++;
+      try {
+        raw = await generateShortReply(system, user, model);
+      } catch (err) {
+        errors++;
+        console.warn(`[servergod] ${model} failed: ${err instanceof Error ? err.message : err}`);
+        break;   // this model is unavailable; move to the next one
+      }
+
+      const reply = extractReply(raw);
+      if (!reply) continue;
+
+      const score = scoreReply(reply, scoreOpts);
+      if (score === 0) continue;   // well-formed but not a sentence
+      if (!best || score > best.score) best = { text: reply, score };
+    }
+    // Good enough to stop looking: a further model will not beat this by much,
+    // and every extra call spends a rate limit these free models enforce.
+    if (best && best.score >= 6) return { text: best.text, errored: false };
+  }
+
+  return { text: best?.text ?? null, errored: best === null && calls > 0 && errors === calls };
+}
+
 export type MentionResult =
   | { spoke: true; reply: string }
   | { spoke: false; reason: 'DISABLED' | 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'EMPTY' | 'FAILED' };
@@ -126,15 +204,21 @@ export async function handleMention(username: string, message: string): Promise<
 
   try {
     const persona = loadPersona(cfg);
-    const raw = await generateShortReply(
+    const recent = await recentLines();
+    // One sample: a player is watching chat and a slow answer is a worse answer.
+    const attempt = await bestReply(
       buildSystemPrompt(persona),
-      buildMentionPrompt(username, message, digestForPrompt(latestDeltas), await recentLines())
+      buildMentionPrompt(username, message, digestForPrompt(latestDeltas), recent),
+      loadModels(cfg),
+      { player: username, slang: persona.slang, recent },
+      1
     );
-    const reply = extractReply(raw);
+    if (attempt.errored) return { spoke: false, reason: 'FAILED' };
+    const reply = attempt.text;
     if (!reply) {
-      // The model answered with something that was not a reply — reasoning notes,
-      // an apology, an empty string. Staying quiet beats broadcasting it.
-      console.warn('[servergod] no reply found in model output, staying quiet');
+      // Nothing usable from any model — reasoning notes, an empty string, or a
+      // fragment. Staying quiet beats broadcasting it.
+      console.warn('[servergod] no usable reply from any model, staying quiet');
       return { spoke: false, reason: 'EMPTY' };
     }
 
@@ -182,12 +266,20 @@ export async function tick(): Promise<TickResult> {
 
   try {
     const persona = loadPersona(cfg);
-    const raw = await generateShortReply(
-      buildSystemPrompt(persona), buildProactivePrompt(digestForPrompt(deltas), await recentLines())
+    const recent = await recentLines();
+    // Three samples: this fires at most twice an hour with nobody waiting, so
+    // the extra calls buy quality where they cost nothing anyone notices.
+    const attempt = await bestReply(
+      buildSystemPrompt(persona),
+      buildProactivePrompt(digestForPrompt(deltas), recent),
+      loadModels(cfg),
+      { player: deltas[0]?.player, slang: persona.slang, recent },
+      3
     );
-    const reply = extractReply(raw);
+    if (attempt.errored) return { spoke: false, reason: 'FAILED' };
+    const reply = attempt.text;
     if (!reply) {
-      console.warn('[servergod] no reply found in model output, staying quiet');
+      console.warn('[servergod] no usable reply from any model, staying quiet');
       return { spoke: false, reason: 'EMPTY' };
     }
 

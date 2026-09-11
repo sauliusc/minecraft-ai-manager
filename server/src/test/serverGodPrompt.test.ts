@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildSystemPrompt, buildMentionPrompt, buildProactivePrompt,
-  sanitizeReply, extractReply, MAX_REPLY_CHARS, DEFAULT_SLANG,
+  sanitizeReply, extractReply, scoreReply, MAX_REPLY_CHARS, DEFAULT_SLANG,
 } from '../services/serverGod/prompt.js';
 
 const persona = { name: 'ServerGod', slang: DEFAULT_SLANG };
@@ -162,5 +162,49 @@ describe('repetition and language', () => {
     // The configured model produced "skauda kaip lava juodoji avietė" — words in
     // Lithuanian, meaning nothing. Mangled Lithuanian reads worse than English.
     expect(buildSystemPrompt(persona)).toMatch(/better than broken Lithuanian/i);
+  });
+});
+
+describe('scoreReply', () => {
+  const slang = ['skibidi', 'rizz', 'mid'];
+
+  it('rejects the well-formed nonsense a real model produced', () => {
+    // A benchmarked free model returned "<say> and </say>". It passes the tag
+    // contract and would have been broadcast; it is not a sentence.
+    expect(scoreReply('and')).toBe(0);
+    expect(scoreReply('ok')).toBe(0);
+    expect(scoreReply('labas')).toBe(0);
+  });
+
+  it('prefers a reply that names the player', () => {
+    const named = scoreReply('adas vel numire, tikras Ohio moment fr', { player: 'adas' });
+    const unnamed = scoreReply('kazkas vel numire, tikras Ohio moment fr', { player: 'adas' });
+    expect(named).toBeGreaterThan(unnamed);
+  });
+
+  it('rewards using the approved lexicon', () => {
+    const withSlang = scoreReply('adas tavo rizz yra mid siandien', { slang });
+    const without = scoreReply('adas tavo diena buvo neblogai siandien', { slang });
+    expect(withSlang).toBeGreaterThan(without);
+  });
+
+  it('punishes repeating a line it already used', () => {
+    const recent = ['Meinis died lol, pure Ohio brainrot, zero rizz fr fr'];
+    const repeat = scoreReply('LukasBa died lol, pure Ohio brainrot, zero rizz', { recent });
+    const fresh = scoreReply('LukasBa iskase 40 deimantu, visiskai goated darbas', { recent });
+    expect(fresh).toBeGreaterThan(repeat);
+  });
+
+  it('punishes leftover scaffolding', () => {
+    // Means the model was still talking to itself rather than to the player.
+    expect(scoreReply('<say>adas tavo aura yra mid fr fr</say>')).toBe(0);
+    expect(scoreReply('the player_message says adas is mining stone now')).toBe(0);
+  });
+
+  it('scores a good reply highly enough to stop looking', () => {
+    // The generator stops sampling at 6, so a genuinely good line must clear it.
+    expect(scoreReply('adas vel ikrito i lava, zero rizz, tikras Ohio moment', {
+      player: 'adas', slang: ['rizz', 'ohio'],
+    })).toBeGreaterThanOrEqual(6);
   });
 });

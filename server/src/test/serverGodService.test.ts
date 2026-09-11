@@ -107,7 +107,7 @@ describe('tick', () => {
     expect(deliverBroadcast).not.toHaveBeenCalled();
 
     // The next notable thing must still get a reaction.
-    vi.mocked(generateShortReply).mockResolvedValue('<say>back again</say>');
+    vi.mocked(generateShortReply).mockResolvedValue('<say>adas vel numire, tikras Ohio moment fr</say>');
     bridgeReturns([player({ deaths: 2 })]);
     expect(await tick()).toMatchObject({ spoke: true });
   });
@@ -141,7 +141,7 @@ describe('handleMention', () => {
     vi.mocked(generateShortReply).mockRejectedValue(new Error('overloaded'));
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'FAILED' });
 
-    vi.mocked(generateShortReply).mockResolvedValue('<say>labas</say>');
+    vi.mocked(generateShortReply).mockResolvedValue('<say>labas adas, tavo aura siandien mid fr</say>');
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ spoke: true });
   });
 
@@ -171,7 +171,7 @@ describe('untagged model output', () => {
     vi.mocked(generateShortReply).mockResolvedValue('thinking out loud, no tags here');
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'EMPTY' });
 
-    vi.mocked(generateShortReply).mockResolvedValue('<say>labas</say>');
+    vi.mocked(generateShortReply).mockResolvedValue('<say>labas adas, tavo aura siandien mid fr</say>');
     expect(await handleMention('adas', 'ServerGod')).toMatchObject({ spoke: true });
   });
 });
@@ -187,5 +187,49 @@ describe('loadPersona', () => {
   it('is on unless explicitly disabled', () => {
     expect(isEnabled({})).toBe(true);
     expect(isEnabled({ servergod_enabled: 'false' })).toBe(false);
+  });
+});
+
+describe('model fallback and sampling', () => {
+  it('costs one call when the first model answers', async () => {
+    // The normal case. Generating N every time and discarding the rest would
+    // spend rate limits these free models actually enforce.
+    await handleMention('adas', 'ServerGod');
+    expect(generateShortReply).toHaveBeenCalledTimes(1);
+  });
+
+  it('moves to the next model when the first is unreachable', async () => {
+    vi.mocked(generateShortReply)
+      .mockRejectedValueOnce(new Error('503'))
+      .mockResolvedValueOnce('<say>adas tavo aura siandien yra mid fr</say>');
+
+    expect(await handleMention('adas', 'ServerGod')).toMatchObject({ spoke: true });
+    expect(generateShortReply).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports an outage rather than calling it an empty reply', async () => {
+    // Every model unreachable needs a different fix from every model answering
+    // badly, so the two must not collapse into one reason.
+    vi.mocked(generateShortReply).mockRejectedValue(new Error('503'));
+    expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'FAILED' });
+  });
+
+  it('discards a well-formed fragment and stays quiet', async () => {
+    // "<say> and </say>" came from a real model during benchmarking.
+    vi.mocked(generateShortReply).mockResolvedValue('<say> and </say>');
+    expect(await handleMention('adas', 'ServerGod')).toMatchObject({ reason: 'EMPTY' });
+    expect(deliverBroadcast).not.toHaveBeenCalled();
+  });
+
+  it('samples several times for a proactive message, where nobody is waiting', async () => {
+    bridgeReturns([player()]);
+    await tick();
+    vi.mocked(generateShortReply).mockClear();
+    // Deliberately mediocre: no player name, so it keeps looking for better.
+    vi.mocked(generateShortReply).mockResolvedValue('<say>kazkas ten numire siandien bruh</say>');
+    bridgeReturns([player({ deaths: 1 })]);
+
+    await tick();
+    expect(vi.mocked(generateShortReply).mock.calls.length).toBeGreaterThan(1);
   });
 });

@@ -171,3 +171,66 @@ export function extractReply(raw: string): string | null {
   const inner = sanitizeReply(match[1] ?? '');
   return inner.length > 0 ? inner : null;
 }
+
+/**
+ * How good a candidate reply is, from 0 (unusable) upward.
+ *
+ * Rules rather than a second model. Every criterion here is mechanical — does it
+ * name the player, is it the right length, is it repeating itself — and a free
+ * model asked to judge those would be exactly as unreliable as the free model
+ * that wrote them. Rules are also free, instant and testable.
+ *
+ * Scoring exists because passing the <say> contract is not the same as being a
+ * sentence: one benchmarked model returned "<say> and </say>", which is
+ * well-formed and meaningless, and would have been broadcast.
+ */
+export function scoreReply(
+  reply: string,
+  opts: { player?: string; slang?: string[]; recent?: string[] } = {}
+): number {
+  const text = reply.trim();
+  if (text.length === 0) return 0;
+
+  const words = text.split(/\s+/).filter(Boolean);
+  // Fewer than four words is not a joke, it is a fragment.
+  if (words.length < 4) return 0;
+  if (text.length < 12) return 0;
+
+  let score = 1;
+
+  // Naming the player is what makes it feel addressed at them rather than posted
+  // into the void.
+  if (opts.player && text.toLowerCase().includes(opts.player.toLowerCase())) score += 3;
+
+  // Somewhere between a fragment and a wall of text.
+  if (text.length >= 25 && text.length <= MAX_REPLY_CHARS) score += 2;
+
+  // Using the approved lexicon is the voice the persona asks for.
+  const slang = opts.slang ?? DEFAULT_SLANG;
+  const lower = text.toLowerCase();
+  const used = slang.filter((w) => lower.includes(w.toLowerCase())).length;
+  score += Math.min(used, 2);
+
+  // Repeating a recent line is the failure this cannot see in itself.
+  for (const previous of opts.recent ?? []) {
+    if (overlaps(lower, previous.toLowerCase())) {
+      score -= 3;
+      break;
+    }
+  }
+
+  // Leftover scaffolding means the model was still talking to itself.
+  if (/<\/?say>|player_message|<think/i.test(text)) score -= 5;
+
+  return Math.max(0, score);
+}
+
+/** True when two lines share a run of words long enough to read as the same joke. */
+function overlaps(a: string, b: string): boolean {
+  const aWords = a.split(/\s+/);
+  const RUN = 4;
+  for (let i = 0; i + RUN <= aWords.length; i++) {
+    if (b.includes(aWords.slice(i, i + RUN).join(' '))) return true;
+  }
+  return false;
+}
