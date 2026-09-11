@@ -530,12 +530,25 @@ export interface ChatScanResult {
  *
  * ServerGod's replies go through here so the model choice stays in one place —
  * it uses the same generator model as week theme generation, as configured in
- * the AI section. maxTokens is small because the persona asks for a single line
- * and a long reply is a bug rather than a bonus.
+ * the AI section.
+ *
+ * The token budget is deliberately far larger than the reply needs. Reasoning
+ * models write their thinking into the message content, and that thinking counts
+ * against max_tokens, so a budget sized for the answer is spent before the
+ * answer begins. Measured against the configured model:
+ *
+ *   max_tokens=150  finish_reason=length  content = reasoning, cut off mid-word
+ *   max_tokens=800  finish_reason=stop    content = "<say>Labas, adas! no cap</say>"
+ *
+ * At 150 the reply rate was roughly two in nine. It was also the real cause of
+ * the leak in #381: the truncated reasoning *was* what reached the players.
+ *
+ * Brevity is enforced after the fact — the <say> tags and a 200-character cap —
+ * not by starving the model. Unused tokens cost nothing.
  */
 export async function generateShortReply(system: string, user: string): Promise<string> {
   const cfg = await getAiConfig();
-  return callLLM(cfg, { model: resolveModel(cfg, 'generator'), system, user, maxTokens: 150 });
+  return callLLM(cfg, { model: resolveModel(cfg, 'generator'), system, user, maxTokens: 800 });
 }
 
 export async function scanChatMessages(
