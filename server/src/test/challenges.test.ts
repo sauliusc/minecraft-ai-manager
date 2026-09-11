@@ -22,7 +22,16 @@ vi.mock('../lib/prisma.js', () => ({
     activityLog: {
       create: vi.fn().mockResolvedValue({}),
     },
-    $transaction: vi.fn(),
+    // Completing a challenge now pays out (#383): coins plus, on the weekly, the
+    // theme's reward.
+    economyAuditLog: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({}),
+    },
+    player: {
+      update: vi.fn().mockResolvedValue({}),
+    },
+    $transaction: vi.fn().mockResolvedValue([]),
   },
 }));
 

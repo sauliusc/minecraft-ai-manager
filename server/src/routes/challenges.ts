@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
+import { payOutCompletion } from '../services/challengeRewards.js';
 import { redis } from '../lib/redis.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
@@ -369,7 +370,15 @@ challengesRouter.post('/:id/progress', serviceTokenMiddleware, validateBody(prog
       },
     });
 
-    res.json(progress);
+    // Paying out here as well as in /complete, because progress is the path that
+    // legitimately finishes a challenge — /complete refuses to short-cut it
+    // (#364), so if this did not pay, nothing would. payOutCompletion is
+    // idempotent, so the two paths cannot double-pay.
+    const payout = isCompleted && !existing?.completed
+      ? await payOutCompletion(challenge, playerId)
+      : null;
+
+    res.json(payout ? { ...progress, payout } : progress);
   } catch (err) {
     next(err);
   }
@@ -431,7 +440,9 @@ challengesRouter.post('/:id/complete', serviceTokenMiddleware, validateBody(comp
       },
     });
 
-    res.json(progress);
+    const payout = await payOutCompletion(challenge, playerId);
+
+    res.json({ ...progress, payout });
   } catch (err) {
     next(err);
   }
