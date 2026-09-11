@@ -83,6 +83,26 @@ async function record(reply: string): Promise<void> {
   }
 }
 
+/**
+ * The last few things it said, so the prompt can tell it not to repeat them.
+ *
+ * Read from the same log the dashboard shows. Failure is not worth interrupting
+ * a reply over — the worst case is that it repeats itself once.
+ */
+async function recentLines(limit = 5): Promise<string[]> {
+  try {
+    const rows = await prisma.chatLog.findMany({
+      where: { playerId: 'servergod' },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: { message: true },
+    });
+    return rows.map((r) => r.message);
+  } catch {
+    return [];
+  }
+}
+
 export type MentionResult =
   | { spoke: true; reply: string }
   | { spoke: false; reason: 'DISABLED' | 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'EMPTY' | 'FAILED' };
@@ -108,7 +128,7 @@ export async function handleMention(username: string, message: string): Promise<
     const persona = loadPersona(cfg);
     const raw = await generateShortReply(
       buildSystemPrompt(persona),
-      buildMentionPrompt(username, message, digestForPrompt(latestDeltas))
+      buildMentionPrompt(username, message, digestForPrompt(latestDeltas), await recentLines())
     );
     const reply = extractReply(raw);
     if (!reply) {
@@ -163,7 +183,7 @@ export async function tick(): Promise<TickResult> {
   try {
     const persona = loadPersona(cfg);
     const raw = await generateShortReply(
-      buildSystemPrompt(persona), buildProactivePrompt(digestForPrompt(deltas))
+      buildSystemPrompt(persona), buildProactivePrompt(digestForPrompt(deltas), await recentLines())
     );
     const reply = extractReply(raw);
     if (!reply) {
