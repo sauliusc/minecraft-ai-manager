@@ -546,9 +546,14 @@ export interface ChatScanResult {
  * Brevity is enforced after the fact — the <say> tags and a 200-character cap —
  * not by starving the model. Unused tokens cost nothing.
  */
-export async function generateShortReply(system: string, user: string): Promise<string> {
+export async function generateShortReply(
+  system: string, user: string, modelOverride?: string
+): Promise<string> {
   const cfg = await getAiConfig();
-  return callLLM(cfg, { model: resolveModel(cfg, 'generator'), system, user, maxTokens: 800 });
+  return callLLM(cfg, {
+    model: modelOverride || resolveModel(cfg, 'generator'),
+    system, user, maxTokens: 800,
+  });
 }
 
 export async function scanChatMessages(
