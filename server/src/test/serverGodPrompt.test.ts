@@ -128,3 +128,39 @@ describe('extractReply', () => {
     expect(p).toMatch(/thrown away/i);
   });
 });
+
+describe('slang list', () => {
+  it('excludes the term that should never have been in it', () => {
+    // "gyat" refers to somebody's backside. It was in the default list and
+    // reached a server of 13-year-olds, which is the exact thing curating the
+    // list was supposed to prevent.
+    expect(DEFAULT_SLANG).not.toContain('gyat');
+    expect(buildSystemPrompt(persona)).not.toContain('gyat');
+  });
+
+  it('still gives it plenty to work with', () => {
+    expect(DEFAULT_SLANG.length).toBeGreaterThan(15);
+    expect(DEFAULT_SLANG).toContain('skibidi');
+  });
+});
+
+describe('repetition and language', () => {
+  it('tells the model what it already said', () => {
+    // Left alone it settles on one phrasing: "zero rizz fr" ended three of its
+    // first five messages.
+    const p = buildProactivePrompt('[]', ['Meinis died lol, zero rizz fr fr']);
+    expect(p).toMatch(/do not reuse/i);
+    expect(p).toContain('zero rizz fr fr');
+  });
+
+  it('says nothing about repetition when there is nothing to avoid', () => {
+    expect(buildProactivePrompt('[]')).not.toMatch(/do not reuse/i);
+    expect(buildMentionPrompt('adas', 'hi', '[]')).not.toMatch(/do not reuse/i);
+  });
+
+  it('prefers clean English over broken Lithuanian', () => {
+    // The configured model produced "skauda kaip lava juodoji avietė" — words in
+    // Lithuanian, meaning nothing. Mangled Lithuanian reads worse than English.
+    expect(buildSystemPrompt(persona)).toMatch(/better than broken Lithuanian/i);
+  });
+});
