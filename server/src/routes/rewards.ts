@@ -5,6 +5,7 @@ import { redis } from '../lib/redis.js';
 import { authMiddleware, serviceTokenMiddleware } from '../middleware/auth.middleware.js';
 import { adminActionMiddleware } from '../middleware/adminAction.middleware.js';
 import { validateBody } from '../middleware/validate.middleware.js';
+import { grantReward } from '../services/rewardGrant.js';
 
 export const rewardsRouter = Router();
 
@@ -88,61 +89,6 @@ function requireAdmin(req: Request, res: Response): boolean {
     return false;
   }
   return true;
-}
-
-async function callBridge(path: string, body: object): Promise<boolean> {
-  try {
-    const url = process.env.MINECRAFT_BRIDGE_URL;
-    const secret = process.env.BRIDGE_SECRET;
-    if (!url || !secret) return false;
-    const res = await fetch(`${url}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-bridge-secret': secret },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(3000),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Picks a weighted-random reward from a mystery box loot table.
- *
- * Returns null when the box cannot produce anything deliverable: no loot table,
- * an empty one, or every entry pointing at a reward that has since been deleted
- * (or at another MYSTERY_BOX, which the plugin cannot deliver either). Callers
- * must treat null as an error rather than falling back to granting the box
- * itself — the delivery plugin has no MYSTERY_BOX case and would drop it.
- */
-async function rollLootTable(
-  lootTable: unknown
-): Promise<{ id: string; type: string; rarity: string | null; config: unknown } | null> {
-  if (!Array.isArray(lootTable) || lootTable.length === 0) return null;
-
-  const entries = (lootTable as Array<{ rewardId?: string; weight?: number }>).filter(
-    (e) => typeof e?.rewardId === 'string' && Number(e.weight) > 0
-  ) as Array<{ rewardId: string; weight: number }>;
-  if (entries.length === 0) return null;
-
-  // Only entries that resolve to a deliverable reward are eligible, so a deleted
-  // or nested-box entry costs that roll nothing instead of voiding the grant.
-  const candidates = await prisma.reward.findMany({
-    where: { id: { in: entries.map((e) => e.rewardId) }, type: { not: 'MYSTERY_BOX' as any } },
-  });
-  const byId = new Map(candidates.map((r: any) => [r.id, r]));
-  const eligible = entries.filter((e) => byId.has(e.rewardId));
-  if (eligible.length === 0) return null;
-
-  const totalWeight = eligible.reduce((sum, e) => sum + e.weight, 0);
-  let roll = Math.random() * totalWeight;
-  let wonEntry = eligible[0]!;
-  for (const entry of eligible) {
-    roll -= entry.weight;
-    if (roll <= 0) { wonEntry = entry; break; }
-  }
-  return byId.get(wonEntry.rewardId) as any;
 }
 
 // GET /api/rewards — authMiddleware, paginated with optional type filter
@@ -247,132 +193,27 @@ rewardsRouter.patch('/:grantId/delivered', serviceTokenMiddleware, async (req: R
 // POST /api/rewards/grant — authMiddleware
 rewardsRouter.post('/grant', authMiddleware, validateBody(grantSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { playerId: requestedPlayerId, rewardId, reason } = req.body as z.infer<typeof grantSchema>;
-    const user = (req as any).user;
+    const { playerId, rewardId, reason } = req.body as z.infer<typeof grantSchema>;
+    const user = (req as Request & { user: { sub: string } }).user;
 
-    // Fetch reward first
-    const reward = await prisma.reward.findUnique({ where: { id: rewardId } });
-    if (!reward) {
-      res.status(404).json({ error: 'NOT_FOUND', message: 'Reward not found', statusCode: 404 });
+    // The granting itself lives in a service so challenge completions pay out
+    // through exactly the same path (#383). This maps its outcome onto HTTP.
+    const result = await grantReward({ playerId, rewardId, grantedBy: user.sub, reason });
+
+    if (result.ok) {
+      res.json({ grantId: result.grantId, queued: result.queued });
       return;
     }
 
-    // PlayerReward.playerId is a foreign key onto Player.username, so a name with no
-    // row makes the grant insert throw a raw FK error (500). Resolve it up front, and
-    // case-insensitively: usernames are stored case-preserved but Minecraft treats
-    // them case-insensitively, so "nataszombis" must find "NatasZombis".
-    const player = await prisma.player.findFirst({
-      where: { username: { equals: requestedPlayerId, mode: 'insensitive' } },
-      select: { username: true },
-    });
-    if (!player) {
-      res.status(404).json({
-        error: 'PLAYER_NOT_FOUND',
-        message: `No player named "${requestedPlayerId}" — they must join the server at least once first`,
-        statusCode: 404,
-      });
-      return;
-    }
-    // Use the canonical spelling from here on so every write matches the FK exactly.
-    const playerId = player.username;
-
-    // Redis idempotency lock — 60 s covers bridge timeout + DB write; prevents duplicate grants on retry
-    const lockKey = `bridge:lock:grant:${playerId}:${rewardId}`;
-    const lockResult = await redis.set(lockKey, '1', 'EX', 60, 'NX');
-    if (lockResult === null) {
-      res.status(409).json({ error: 'CONFLICT', message: 'Duplicate grant in progress' });
-      return;
-    }
-
-    // For MYSTERY_BOX: resolve loot table to a concrete reward before bridge call.
-    // MYSTERY_BOX must never reach the bridge — the plugin has no case for it and
-    // would drop the grant silently, so an unresolvable box is a hard error here.
-    let bridgeReward: { rewardType: string; rarity: string | null; config: unknown } = {
-      rewardType: (reward as any).type,
-      rarity: (reward as any).rarity ?? null,
-      config: reward.config,
-    };
-    let innerGrantId: string | null = null;
-
-    if ((reward as any).type === 'MYSTERY_BOX') {
-      const wonReward = await rollLootTable((reward as any).lootTable);
-      if (!wonReward) {
-        await redis.del(lockKey);
-        res.status(422).json({
-          error: 'UNPROCESSABLE',
-          message: 'Mystery box has no usable loot table — it cannot be granted',
-          statusCode: 422,
-        });
-        return;
-      }
-      bridgeReward = {
-        rewardType: (wonReward as any).type,
-        rarity: (wonReward as any).rarity ?? null,
-        config: wonReward.config,
-      };
-      // Also persist the won inner reward for the player's record
-      const innerGrant = await prisma.playerReward.create({
-        data: { playerId, rewardId: wonReward.id, grantedBy: user.sub, grantedAt: new Date() },
-      });
-      innerGrantId = innerGrant.id;
-    }
-
-    // CURRENCY rewards: credit the player's coin/crystal balance in the DB immediately.
-    // The clan cost check (and all balance checks) read from Postgres, so this must happen
-    // server-side before the bridge call — not via the plugin.
-    if (bridgeReward.rewardType === 'CURRENCY') {
-      const cfg = bridgeReward.config as Record<string, number>;
-      const updates: Record<string, unknown> = {};
-      if (cfg.coins) updates.coins = { increment: cfg.coins };
-      if (cfg.crystals) updates.crystals = { increment: cfg.crystals };
-      if (Object.keys(updates).length > 0) {
-        // The player is known to exist by this point, so a failure here is a real
-        // error rather than the "not joined yet" case this used to swallow.
-        await prisma.player.update({ where: { username: playerId }, data: updates });
-      }
-    }
-
-    // Attempt live delivery first; failure means player is offline — record queued for next login
-    const bridgeOk = await callBridge('/bridge/rewards/grant', {
-      playerId,
-      rewardId,
-      ...bridgeReward,
-      ...(reason ? { reason } : {}),
-    });
-
-    // Always persist for audit trail; plugin polls /pending/:playerId on join for offline delivery
-    const grant = await prisma.playerReward.create({
-      data: {
-        playerId,
-        rewardId,
-        grantedBy: user.sub,
-        grantedAt: new Date(),
-        // Live delivery already happened, so stamp it now. The pending path only
-        // returns rows with deliveredAt IS NULL; without this the won inner reward
-        // of a mystery box would be handed out again on the player's next login.
-        ...(bridgeOk ? { deliveredAt: new Date() } : {}),
-      },
-    });
-
-    if (bridgeOk && innerGrantId) {
-      await prisma.playerReward.update({
-        where: { id: innerGrantId },
-        data: { deliveredAt: new Date() },
-      });
-    }
-
-    res.json({ grantId: grant.id, queued: !bridgeOk });
-  } catch (err: any) {
-    // Belt and braces: the player is checked above, but a delete racing the grant
-    // should still read as "unknown player" rather than a bare 500.
-    if (err?.code === 'P2003' || err?.code === 'P2025') {
-      res.status(404).json({
-        error: 'PLAYER_NOT_FOUND',
-        message: 'Player no longer exists',
-        statusCode: 404,
-      });
-      return;
-    }
+    const status = result.error === 'DUPLICATE' ? 409
+      : result.error === 'UNDELIVERABLE_BOX' ? 422
+      : 404;
+    const code = result.error === 'DUPLICATE' ? 'CONFLICT'
+      : result.error === 'UNDELIVERABLE_BOX' ? 'UNPROCESSABLE'
+      : result.error === 'PLAYER_NOT_FOUND' ? 'PLAYER_NOT_FOUND'
+      : 'NOT_FOUND';
+    res.status(status).json({ error: code, message: result.message, statusCode: status });
+  } catch (err) {
     next(err);
   }
 });

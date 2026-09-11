@@ -280,6 +280,22 @@ export async function activateWeekTheme(id: string, activatedBy: string): Promis
         rewardIds.push(reward.id);
       }
 
+      // Give the weekly challenge the theme's best reward. Dailies pay coins,
+      // which every completion gets; this is the one worth playing the week for.
+      // Without this link nothing was ever attached to a challenge and no
+      // completion paid anything at all (#383).
+      const RARITY_ORDER = ['LEGENDARY', 'EPIC', 'RARE', 'COMMON'];
+      const created = await tx.reward.findMany({ where: { id: { in: rewardIds } } });
+      const best = created.sort(
+        (a, b) => RARITY_ORDER.indexOf(String(a.rarity)) - RARITY_ORDER.indexOf(String(b.rarity))
+      )[0];
+      if (best) {
+        await tx.challenge.update({
+          where: { id: weeklyChallenge.id },
+          data: { rewardId: best.id },
+        });
+      }
+
       // 6. Update WeekTheme with all created IDs
       const updated = await tx.weekTheme.update({
         where: { id: weekTheme.id },
