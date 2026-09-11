@@ -4,6 +4,8 @@ vi.mock('../lib/prisma.js', () => ({
   prisma: {
     economyAuditLog: { findFirst: vi.fn(), create: vi.fn() },
     player: { update: vi.fn() },
+    reward: { findFirst: vi.fn(), create: vi.fn() },
+    playerReward: { create: vi.fn() },
     $transaction: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -21,6 +23,8 @@ beforeEach(() => {
   vi.mocked(prisma.economyAuditLog.findFirst).mockResolvedValue(null as never);
   vi.mocked(prisma.$transaction).mockResolvedValue([] as never);
   vi.mocked(grantReward).mockResolvedValue({ ok: true, grantId: 'g1', queued: false });
+  vi.mocked(prisma.reward.findFirst).mockResolvedValue({ id: 'coin35' } as never);
+  vi.mocked(prisma.playerReward.create).mockResolvedValue({} as never);
 });
 
 describe('coinsFor', () => {
@@ -88,5 +92,45 @@ describe('payOutCompletion', () => {
 
   it('ties the audit reason to the challenge', () => {
     expect(payoutReason('abc')).toBe('challenge_complete:abc');
+  });
+});
+
+describe('coin payouts as visible records', () => {
+  it('records the coins as a granted reward', async () => {
+    // The balance changing and an economy log row are both invisible to a player
+    // looking at their rewards.
+    await payOutCompletion(daily, 'LukasBa');
+
+    expect(prisma.playerReward.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ playerId: 'LukasBa', rewardId: 'coin35' }),
+      })
+    );
+  });
+
+  it('marks it delivered, so the plugin cannot pay the coins again', async () => {
+    // The pending queue returns rows with no deliveredAt. An unstamped row would
+    // be handed to the plugin on next login and credited a second time.
+    await payOutCompletion(daily, 'LukasBa');
+    const row = vi.mocked(prisma.playerReward.create).mock.calls[0]![0] as { data: { deliveredAt?: Date } };
+    expect(row.data.deliveredAt).toBeInstanceOf(Date);
+  });
+
+  it('creates the coin reward once, then reuses it', async () => {
+    vi.mocked(prisma.reward.findFirst).mockResolvedValueOnce(null as never);
+    vi.mocked(prisma.reward.create).mockResolvedValueOnce({ id: 'coin35' } as never);
+
+    await payOutCompletion(daily, 'LukasBa');
+    expect(prisma.reward.create).toHaveBeenCalledOnce();
+
+    await payOutCompletion(daily, 'Meinis');
+    expect(prisma.reward.create).toHaveBeenCalledOnce();   // found, not created again
+  });
+
+  it('still pays the coins when the record cannot be written', async () => {
+    // The record is a nicety. The coins are already paid and the challenge is
+    // still complete; neither may depend on this.
+    vi.mocked(prisma.reward.findFirst).mockRejectedValue(new Error('db down'));
+    expect(await payOutCompletion(daily, 'LukasBa')).toMatchObject({ coins: 35 });
   });
 });

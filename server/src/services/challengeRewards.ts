@@ -36,6 +36,37 @@ export function payoutReason(challengeId: string): string {
   return `challenge_complete:${challengeId}`;
 }
 
+/**
+ * The Reward row standing for a coin payout of this size, created on first use.
+ *
+ * Coins are credited straight to the balance, so nothing required a Reward row
+ * and none existed — which meant a player who completed a daily saw an empty
+ * rewards list and no sign anything had happened. The balance changed and the
+ * economy log recorded it, but neither is where a player looks.
+ *
+ * One row per coin amount rather than one per payout: five rows cover every
+ * difficulty, and they read as what they are in the admin reward list.
+ */
+async function coinRewardFor(amount: number): Promise<{ id: string } | null> {
+  const name = `Challenge Reward: ${amount} coins`;
+  try {
+    const existing = await prisma.reward.findFirst({ where: { name } });
+    if (existing) return existing;
+    return await prisma.reward.create({
+      data: {
+        name,
+        type: 'CURRENCY' as never,
+        rarity: 'COMMON' as never,
+        config: { coins: amount } as never,
+      },
+    });
+  } catch {
+    // A record of the payout is a nicety; the coins are already paid, and
+    // failing here must not cost the player their completion.
+    return null;
+  }
+}
+
 export interface Payout {
   coins: number;
   /** Set when the challenge also carried a reward, and it was granted. */
@@ -79,6 +110,27 @@ export async function payOutCompletion(
   ]);
 
   const payout: Payout = { coins };
+
+  // Recorded as a granted reward as well, so the payout is visible where players
+  // and admins look for it. Stamped delivered because the coins are already in
+  // the balance — the pending queue only picks up rows with no deliveredAt, and
+  // handing this to the plugin would credit them a second time.
+  const coinReward = await coinRewardFor(coins);
+  if (coinReward) {
+    try {
+      await prisma.playerReward.create({
+        data: {
+          playerId,
+          rewardId: coinReward.id,
+          grantedBy: 'challenge',
+          grantedAt: new Date(),
+          deliveredAt: new Date(),
+        },
+      });
+    } catch (err) {
+      console.warn(`[challenge] could not record coin payout for ${playerId}: ${err}`);
+    }
+  }
 
   if (challenge.rewardId) {
     const result = await grantReward({
