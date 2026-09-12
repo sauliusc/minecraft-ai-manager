@@ -44,6 +44,34 @@ public class ApiClient {
         http.newCall(request).enqueue(callback);
     }
 
+    /**
+     * A POST that waits longer and is never retried.
+     *
+     * The shared client is tuned for database-backed calls: five seconds, three
+     * retries. A ServerGod reply waits on a language model and takes eight to
+     * twenty seconds, so it timed out every time — and each retry produced a
+     * second reply rather than recovering the first, because a mention is not
+     * idempotent (#393).
+     */
+    public void postSlow(String path, String jsonBody, long timeoutMs, Callback callback) {
+        // Built fresh rather than from the shared client, so the retry
+        // interceptor is left out: retrying asks the model a second question
+        // instead of re-delivering the first answer.
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .readTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .writeTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .callTimeout(timeoutMs, TimeUnit.MILLISECONDS)
+                .build();
+        RequestBody body = RequestBody.create(jsonBody, JSON);
+        Request request = new Request.Builder()
+                .url(baseUrl + path)
+                .header("Authorization", "Bearer " + serviceToken)
+                .post(body)
+                .build();
+        client.newCall(request).enqueue(callback);
+    }
+
     public void get(String path, Callback callback) {
         Request request = new Request.Builder()
                 .url(baseUrl + path)

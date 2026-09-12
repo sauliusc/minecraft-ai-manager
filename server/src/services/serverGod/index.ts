@@ -183,7 +183,7 @@ async function bestReply(
 
 export type MentionResult =
   | { spoke: true; reply: string }
-  | { spoke: false; reason: 'DISABLED' | 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'EMPTY' | 'FAILED' };
+  | { spoke: false; reason: 'DISABLED' | 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'IN_FLIGHT' | 'EMPTY' | 'FAILED' };
 
 /**
  * Answers a player who said the bot's name.
@@ -197,10 +197,13 @@ export async function handleMention(username: string, message: string): Promise<
 
   const check = limiter.checkMention(username);
   if (!check.allowed) {
-    // checkMention only ever returns the two mention reasons; the cast keeps the
-    // caller's union honest rather than widening it to include proactive ones.
-    return { spoke: false, reason: check.reason as 'PLAYER_COOLDOWN' | 'HOURLY_CAP' };
+    // checkMention never returns the proactive reason; the cast keeps the
+    // caller's union honest rather than widening it.
+    return { spoke: false, reason: check.reason as 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'IN_FLIGHT' };
   }
+  // Held for the whole generation, so a duplicate request for the same player —
+  // a retry, or a child saying the name twice — cannot start a second one.
+  limiter.beginMention(username);
 
   try {
     const persona = loadPersona(cfg);
@@ -228,6 +231,9 @@ export async function handleMention(username: string, message: string): Promise<
   } catch (err) {
     console.warn('[servergod] reply failed:', err instanceof Error ? err.message : err);
     return { spoke: false, reason: 'FAILED' };
+  } finally {
+    // Cleared however this ended, or one failure would block the player forever.
+    limiter.finishMention(username);
   }
 }
 

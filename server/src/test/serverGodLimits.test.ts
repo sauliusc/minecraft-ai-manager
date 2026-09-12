@@ -62,3 +62,38 @@ describe('RateLimiter proactive', () => {
     expect(rl.checkMention('adas', T + 1000)).toEqual({ allowed: true });
   });
 });
+
+describe('concurrent mentions', () => {
+  it('refuses a second request while the first is still generating', () => {
+    // The cooldown is only written once a reply exists, so without this both
+    // requests pass the check. That is how one question produced two replies
+    // twelve seconds apart inside a thirty second cooldown (#393).
+    const rl = new RateLimiter();
+    expect(rl.checkMention('adas', T)).toEqual({ allowed: true });
+    rl.beginMention('adas');
+    expect(rl.checkMention('adas', T + 100)).toMatchObject({ reason: 'IN_FLIGHT' });
+  });
+
+  it('does not block a different player', () => {
+    const rl = new RateLimiter();
+    rl.beginMention('adas');
+    expect(rl.checkMention('bladrobe', T)).toEqual({ allowed: true });
+  });
+
+  it('lets the player back in once generation finishes without a reply', () => {
+    // A failed generation must not silence them for half a minute over an
+    // answer they never received.
+    const rl = new RateLimiter();
+    rl.beginMention('adas');
+    rl.finishMention('adas');
+    expect(rl.checkMention('adas', T + 100)).toEqual({ allowed: true });
+  });
+
+  it('still applies the cooldown after a reply was actually sent', () => {
+    const rl = new RateLimiter();
+    rl.beginMention('adas');
+    rl.recordMention('adas', T);
+    rl.finishMention('adas');
+    expect(rl.checkMention('adas', T + 1000)).toMatchObject({ reason: 'PLAYER_COOLDOWN' });
+  });
+});

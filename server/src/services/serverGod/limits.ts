@@ -27,12 +27,25 @@ export const DEFAULT_LIMITS: Limits = {
 
 export type Decision =
   | { allowed: true }
-  | { allowed: false; reason: 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'PROACTIVE_COOLDOWN' };
+  | { allowed: false; reason: 'PLAYER_COOLDOWN' | 'HOURLY_CAP' | 'PROACTIVE_COOLDOWN' | 'IN_FLIGHT' };
 
 const ALLOWED: Decision = { allowed: true };
 
 export class RateLimiter {
   private lastReplyAt = new Map<string, number>();
+  /**
+   * Players with a reply being generated right now.
+   *
+   * The cooldown is only written once a reply exists, so two requests arriving
+   * together both passed the check and both asked the model. That is exactly
+   * what happened when the plugin timed out and retried: one question, two
+   * replies, twelve seconds apart, inside a thirty second cooldown (#393).
+   *
+   * Tracked separately from the cooldown rather than by recording early,
+   * because a generation that fails must not silence the player for half a
+   * minute over an answer they never received.
+   */
+  private inFlight = new Set<string>();
   private mentionTimes: number[] = [];
   // Negative infinity rather than 0: with a zero the first check compares
   // against the epoch, which only happens to pass because real timestamps are
@@ -43,6 +56,8 @@ export class RateLimiter {
 
   /** Whether to answer a mention from this player now. */
   checkMention(username: string, now: number = Date.now()): Decision {
+    if (this.inFlight.has(username)) return { allowed: false, reason: 'IN_FLIGHT' };
+
     const last = this.lastReplyAt.get(username);
     if (last !== undefined && now - last < this.limits.perPlayerCooldownMs) {
       return { allowed: false, reason: 'PLAYER_COOLDOWN' };
@@ -54,6 +69,16 @@ export class RateLimiter {
       return { allowed: false, reason: 'HOURLY_CAP' };
     }
     return ALLOWED;
+  }
+
+  /** Marks a reply as being generated for this player. Must be paired with {@link finishMention}. */
+  beginMention(username: string): void {
+    this.inFlight.add(username);
+  }
+
+  /** Clears the in-flight mark, whether or not a reply was produced. */
+  finishMention(username: string): void {
+    this.inFlight.delete(username);
   }
 
   /** Records a reply actually sent. Only called on success, so a failed call does not burn quota. */
