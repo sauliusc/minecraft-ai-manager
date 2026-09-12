@@ -19,6 +19,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 
 import java.io.IOException;
@@ -44,12 +45,15 @@ public class ShopListener implements Listener {
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (!menu.isOpen(player)) return;
         if (!ShopMenu.isShopTitle(event.getView().title())) return;
 
         // The menu is a display, not storage: nothing may be taken out of it or
-        // shift-clicked in from the player's own inventory.
+        // shift-clicked in from the player's own inventory. Cancel on the title
+        // alone, before any state lookup — if our per-player state is ever missing
+        // the screen must still be read-only rather than a free chest. State below
+        // decides only *what* was clicked, never *whether* to cancel.
         event.setCancelled(true);
+        if (!menu.isOpen(player)) return;
         if (event.getClickedInventory() == null
             || !event.getClickedInventory().equals(event.getView().getTopInventory())) return;
 
@@ -76,15 +80,33 @@ public class ShopListener implements Listener {
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (menu.isOpen(player) && ShopMenu.isShopTitle(event.getView().title())) {
+        // Title alone, for the same reason as onClick: a dragged-out item must not
+        // depend on state that may have been dropped.
+        if (ShopMenu.isShopTitle(event.getView().title())) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler
     public void onClose(InventoryCloseEvent event) {
-        if (event.getPlayer() instanceof Player player) menu.close(player);
+        if (!(event.getPlayer() instanceof Player player)) return;
+        if (!ShopMenu.isShopTitle(event.getView().title())) return;
+
+        // Opening the next screen fires a close for the previous one, so clearing
+        // state here directly would wipe the entry show()/showQuantities() just
+        // wrote and leave every page after the first with no state at all. Defer a
+        // tick: if the player is still on a shop screen they only turned a page.
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (!player.isOnline() || !ShopMenu.isShopTitle(player.getOpenInventory().title())) {
+                menu.close(player);
+            }
+        });
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        inFlight.remove(event.getPlayer().getUniqueId());
+        menu.close(event.getPlayer());
     }
 
     private void buy(Player player, ShopEntry entry, int quantity) {
