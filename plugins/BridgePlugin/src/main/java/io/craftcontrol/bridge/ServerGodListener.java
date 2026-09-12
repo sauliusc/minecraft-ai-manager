@@ -34,6 +34,15 @@ public class ServerGodListener implements Listener {
     private final DeathTracker deaths;
     private final String botName;
 
+    /**
+     * How long to wait for a reply.
+     *
+     * A reply takes eight to twenty seconds: several models are tried, sampled
+     * and scored. Nobody is blocked while it waits — this runs on the async chat
+     * event and the answer simply arrives in chat when it is ready.
+     */
+    private static final long REPLY_TIMEOUT_MS = 30_000L;
+
     public ServerGodListener(BridgePlugin plugin, DeathTracker deaths, String botName) {
         this.plugin = plugin;
         this.deaths = deaths;
@@ -57,7 +66,10 @@ public class ServerGodListener implements Listener {
         // Already off the main thread — this is the async chat event — but the
         // HTTP call still gets its own callback so chat is never held up waiting
         // for a language model.
-        plugin.getApiClient().post("/servergod/mention", body.toString(), new Callback() {
+        // Waits up to half a minute and never retries. The default five second
+        // timeout expired before any reply arrived, and each retry asked the
+        // model a fresh question rather than recovering the answer (#393).
+        plugin.getApiClient().postSlow("/servergod/mention", body.toString(), REPLY_TIMEOUT_MS, new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
                 // Deliberately silent. A server that answers "the AI is down" every
@@ -70,7 +82,11 @@ public class ServerGodListener implements Listener {
                 try (Response r = response) {
                     if (!r.isSuccessful() || r.body() == null) return;
                     JsonObject json = JsonParser.parseString(r.body().string()).getAsJsonObject();
-                    if (!json.has("reply")) return;   // rate limited, or nothing to say
+                    // "reply": null is the ordinary way of saying there is
+                    // nothing to say — rate limited, disabled, or no usable
+                    // output. The key is present, so it has to be checked for
+                    // null as well, or every quiet answer throws (#393).
+                    if (!json.has("reply") || json.get("reply").isJsonNull()) return;
                     String reply = json.get("reply").getAsString();
                     if (!reply.isBlank()) broadcast(reply);
                 } catch (Exception e) {

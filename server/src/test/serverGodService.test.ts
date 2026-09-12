@@ -233,3 +233,30 @@ describe('model fallback and sampling', () => {
     expect(vi.mocked(generateShortReply).mock.calls.length).toBeGreaterThan(1);
   });
 });
+
+describe('duplicate requests', () => {
+  it('answers once when the same player is asked for twice at the same time', async () => {
+    // The plugin used to time out and retry, which asked the model a second
+    // question rather than recovering the first answer.
+    let release: (v: string) => void = () => {};
+    vi.mocked(generateShortReply).mockReturnValue(
+      new Promise<string>((resolve) => { release = resolve; })
+    );
+
+    const first = handleMention('adas', 'ServerGod');
+    const second = await handleMention('adas', 'ServerGod');
+    expect(second).toMatchObject({ spoke: false, reason: 'IN_FLIGHT' });
+
+    release('<say>labas adas, tavo aura siandien mid fr</say>');
+    expect(await first).toMatchObject({ spoke: true });
+    expect(generateShortReply).toHaveBeenCalledTimes(1);
+  });
+
+  it('releases the player after a failure', async () => {
+    vi.mocked(generateShortReply).mockRejectedValue(new Error('503'));
+    await handleMention('adas', 'ServerGod');
+
+    vi.mocked(generateShortReply).mockResolvedValue('<say>labas adas, tavo aura mid fr</say>');
+    expect(await handleMention('adas', 'ServerGod')).toMatchObject({ spoke: true });
+  });
+});
