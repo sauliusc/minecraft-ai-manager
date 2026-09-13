@@ -280,6 +280,33 @@ model ChatLog {
   @@index([flagged])
 }
 
+/// A violation GrimAC decided was worth reporting.
+///
+/// Grim keeps its own history in a local SQLite file the dashboard cannot see,
+/// so flags are pushed here at the thresholds Grim itself considers
+/// alert-worthy. One row per threshold crossing rather than per violation: Grim
+/// flags constantly at low counts during ordinary play, and a list nobody can
+/// read is the same as no list.
+model CheatFlag {
+  id          String   @id @default(cuid())
+  username    String
+  /// Grim's check name, e.g. "Simulation", "Timer", "BadPacketsN".
+  check       String
+  /// Active violations at the moment the threshold was crossed.
+  violations  Int
+  /// Grim's own description of what the check means.
+  description String   @default("")
+  /// Extra per-check detail, e.g. the offset that failed.
+  verbose     String   @default("")
+  reviewed    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([username])
+  @@index([createdAt])
+  @@index([reviewed])
+  @@map("cheat_flags")
+}
+
 model BroadcastMessage {
   id          String          @id @default(cuid())
   content     String

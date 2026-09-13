@@ -62,6 +62,12 @@ public class BridgePlugin extends JavaPlugin {
             getLogger().info("ServerGod listening for mentions of \"" + botName + "\"");
         }
 
+        // Registered so GrimAC can push violations into CraftControl from
+        // punishments.yml — its own history is a SQLite file nothing else reads.
+        if (getCommand("ccflag") != null) {
+            getCommand("ccflag").setExecutor(new CheatFlagCommand(this));
+        }
+
         getLogger().info("CraftControl BridgePlugin v" + getDescription().getVersion() + " enabled.");
     }
 

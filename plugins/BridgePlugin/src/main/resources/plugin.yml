@@ -4,3 +4,8 @@ main: io.craftcontrol.bridge.BridgePlugin
 api-version: '26.1'
 description: HTTP gateway between CraftControl plugins and the web API
 authors: [CraftControl]
+
+commands:
+  ccflag:
+    description: Record a GrimAC violation in CraftControl (run by the anticheat, not by players)
+    usage: /ccflag <player> <check> <violations> [description]

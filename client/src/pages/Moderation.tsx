@@ -67,7 +67,7 @@ function Pagination({ page, pages, onPage }: { page: number; pages: number; onPa
 export function Moderation() {
   const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
-  const [tab, setTab] = useState<'reports' | 'chat' | 'audit'>('reports');
+  const [tab, setTab] = useState<'reports' | 'anticheat' | 'chat' | 'audit'>('reports');
   const [selectedReport, setSelectedReport] = useState<ModerationReport | null>(null);
   const [reportPage, setReportPage] = useState(1);
   const [reportStatus, setReportStatus] = useState('');
@@ -133,13 +133,13 @@ export function Moderation() {
       <h1 className="text-2xl font-bold text-gray-800 mb-4">Moderation</h1>
 
       <div className="flex gap-2 mb-4 border-b">
-        {(['reports', 'chat', 'audit'] as const).map((t) => (
+        {(['reports', 'anticheat', 'chat', 'audit'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-medium capitalize -mb-px ${tab === t ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            {t === 'audit' ? 'Audit Log' : t === 'chat' ? 'Chat Log' : 'Reports'}
+            {t === 'audit' ? 'Audit Log' : t === 'chat' ? 'Chat Log' : t === 'anticheat' ? 'Anticheat' : 'Reports'}
           </button>
         ))}
       </div>
@@ -268,6 +268,8 @@ export function Moderation() {
         </div>
       )}
 
+      {tab === 'anticheat' && <AnticheatFlags active={tab === 'anticheat'} />}
+
       {tab === 'chat' && (
         <div className="space-y-3">
           <div className="flex gap-2">
@@ -358,6 +360,131 @@ export function Moderation() {
           <Pagination page={auditPage} pages={auditData?.meta?.pages ?? 1} onPage={setAuditPage} />
         </div>
       )}
+    </div>
+  );
+}
+
+interface FlaggedCheck {
+  check: string;
+  description: string;
+  count: number;
+  worst: number;
+  verbose: string;
+}
+
+interface FlaggedPlayer {
+  username: string;
+  total: number;
+  lastSeen: string;
+  reviewed: boolean;
+  checks: FlaggedCheck[];
+}
+
+/**
+ * Players GrimAC has flagged, and what for.
+ *
+ * Grouped by player: one person setting off the same check forty times is one
+ * thing to look at, and a flat list buries a second player under the first
+ * one's noise.
+ *
+ * Nothing here is a verdict. Grim flags unusual movement, and lag, a teleport
+ * from one of our own plugins, or a bad connection all look unusual — which is
+ * why the anticheat only alerts and never kicks. This is a list of things worth
+ * a look, not a list of cheaters.
+ */
+function AnticheatFlags({ active }: { active: boolean }) {
+  const qc = useQueryClient();
+  const [days, setDays] = useState(7);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['cheat-flags', days],
+    queryFn: () => api.get('/moderation/cheat-flags', { params: { days } }).then((r) => r.data),
+    enabled: active,
+    refetchInterval: 60_000,
+  });
+
+  const review = useMutation({
+    mutationFn: (username: string) => api.post(`/moderation/cheat-flags/${username}/review`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cheat-flags'] }),
+  });
+
+  const players = (data?.data ?? []) as FlaggedPlayer[];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-gray-500 max-w-2xl">
+          Flags raised by GrimAC. It only alerts — it never kicks or bans — so treat these as
+          things worth a look rather than proof. Lag, a teleport or a poor connection can all
+          look like cheating to an anticheat.
+        </p>
+        <select
+          value={days}
+          onChange={(e) => setDays(Number(e.target.value))}
+          className="border rounded px-2 py-1 text-sm"
+        >
+          <option value={1}>Last 24 hours</option>
+          <option value={7}>Last 7 days</option>
+          <option value={30}>Last 30 days</option>
+        </select>
+      </div>
+
+      {isLoading && <p className="text-sm text-gray-400">Loading…</p>}
+
+      {!isLoading && players.length === 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <p className="text-sm text-gray-500">
+            Nobody has been flagged in this period. That is the expected result on a server of
+            friends — an empty list means the anticheat is running and finding nothing.
+          </p>
+        </div>
+      )}
+
+      {players.map((p) => (
+        <div key={p.username} className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-800">{p.username}</span>
+              {!p.reviewed && (
+                <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded">new</span>
+              )}
+              <span className="text-xs text-gray-400">
+                {p.total} flag{p.total === 1 ? '' : 's'} · last {new Date(p.lastSeen).toLocaleString()}
+              </span>
+            </div>
+            {!p.reviewed && (
+              <button
+                onClick={() => review.mutate(p.username)}
+                disabled={review.isPending}
+                className="text-xs px-2 py-1 border rounded text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Mark reviewed
+              </button>
+            )}
+          </div>
+
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-500">
+                <th className="py-1">Check</th>
+                <th className="py-1">What it means</th>
+                <th className="py-1 text-right">Times</th>
+                <th className="py-1 text-right">Worst</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {p.checks.map((c) => (
+                <tr key={c.check}>
+                  <td className="py-1.5 font-mono text-xs text-gray-800">{c.check}</td>
+                  <td className="py-1.5 text-gray-600">{c.description || '—'}</td>
+                  <td className="py-1.5 text-right text-gray-600">{c.count}</td>
+                  <td className="py-1.5 text-right text-gray-600">{c.worst}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
     </div>
   );
 }
