@@ -8,6 +8,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.command.RemoteConsoleCommandSender;
 
 import java.io.IOException;
 
@@ -21,8 +22,13 @@ import java.io.IOException;
  *
  * <pre>ccflag &lt;player&gt; &lt;check&gt; &lt;violations&gt; [description]</pre>
  *
- * <p>Console only. It is invoked by Grim, never by a player, and accepting it
- * from chat would let anyone fabricate accusations against another player.
+ * <p>Restricted to the console and RCON. Grim dispatches as the console, and
+ * RCON is how an operator or a script reaches it; a player must never be able to
+ * run it, or any child could fabricate accusations against another.
+ *
+ * <p>The allowlist is positive rather than "not a player" on purpose. A command
+ * block is not a player either, and a block is something a player can end up
+ * holding.
  */
 public class CheatFlagCommand implements CommandExecutor {
 
@@ -34,7 +40,9 @@ public class CheatFlagCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof ConsoleCommandSender)) {
+        boolean fromServer = sender instanceof ConsoleCommandSender
+            || sender instanceof RemoteConsoleCommandSender;
+        if (!fromServer) {
             sender.sendMessage("This command can only be run by the server.");
             return true;
         }
