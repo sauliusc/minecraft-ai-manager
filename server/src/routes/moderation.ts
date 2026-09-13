@@ -258,3 +258,115 @@ moderationRouter.get('/chat-log', authMiddleware, async (req, res, next) => {
     res.json({ data, meta: { total, page, pages: Math.ceil(total / limit) } });
   } catch (err) { next(err); }
 });
+
+// ── Anticheat flags ───────────────────────────────────────────────────────────
+
+const cheatFlagSchema = z.object({
+  username: z.string().min(1).max(32),
+  check: z.string().min(1).max(64),
+  violations: z.coerce.number().int().min(0).max(1_000_000),
+  description: z.string().max(500).optional(),
+  verbose: z.string().max(500).optional(),
+});
+
+/**
+ * POST /api/moderation/cheat-flag — GrimAC crossed a reporting threshold.
+ *
+ * Called by BridgePlugin's /ccflag console command, which Grim runs from
+ * punishments.yml. Grim's own history lives in a SQLite file inside the
+ * container that nothing else can read, so this is what makes a flag visible in
+ * CraftControl.
+ */
+moderationRouter.post('/cheat-flag', serviceTokenMiddleware, async (req, res, next) => {
+  try {
+    const parsed = cheatFlagSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'BAD_REQUEST', message: parsed.error.issues[0]?.message });
+      return;
+    }
+    const flag = await prisma.cheatFlag.create({
+      data: {
+        username: parsed.data.username,
+        check: parsed.data.check,
+        violations: parsed.data.violations,
+        description: parsed.data.description ?? '',
+        verbose: parsed.data.verbose ?? '',
+      },
+    });
+    res.status(201).json({ id: flag.id });
+  } catch (err) { next(err); }
+});
+
+/**
+ * GET /api/moderation/cheat-flags — who has been flagged, and for what.
+ *
+ * Grouped by player rather than listed flat. A single player triggering one
+ * check repeatedly is one thing to look at, not forty, and the raw list buries
+ * a second player under the first one's noise.
+ */
+moderationRouter.get('/cheat-flags', authMiddleware, async (req, res, next) => {
+  try {
+    const days = Math.min(30, Math.max(1, Number(req.query.days ?? 7)));
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const flags = await prisma.cheatFlag.findMany({
+      where: { createdAt: { gte: since } },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+
+    const byPlayer = new Map<string, {
+      username: string; total: number; lastSeen: Date; reviewed: boolean;
+      checks: Map<string, { check: string; description: string; count: number; worst: number; verbose: string }>;
+    }>();
+
+    for (const f of flags) {
+      let player = byPlayer.get(f.username);
+      if (!player) {
+        player = { username: f.username, total: 0, lastSeen: f.createdAt, reviewed: true, checks: new Map() };
+        byPlayer.set(f.username, player);
+      }
+      player.total += 1;
+      if (f.createdAt > player.lastSeen) player.lastSeen = f.createdAt;
+      // A player counts as needing attention until every one of their flags has
+      // been looked at.
+      if (!f.reviewed) player.reviewed = false;
+
+      const existing = player.checks.get(f.check);
+      if (existing) {
+        existing.count += 1;
+        existing.worst = Math.max(existing.worst, f.violations);
+        if (!existing.verbose && f.verbose) existing.verbose = f.verbose;
+      } else {
+        player.checks.set(f.check, {
+          check: f.check, description: f.description, count: 1,
+          worst: f.violations, verbose: f.verbose,
+        });
+      }
+    }
+
+    const data = [...byPlayer.values()]
+      .map((p) => ({
+        username: p.username,
+        total: p.total,
+        lastSeen: p.lastSeen,
+        reviewed: p.reviewed,
+        checks: [...p.checks.values()].sort((a, b) => b.worst - a.worst),
+      }))
+      .sort((a, b) => b.lastSeen.getTime() - a.lastSeen.getTime());
+
+    res.json({ data, meta: { days, flags: flags.length } });
+  } catch (err) { next(err); }
+});
+
+/** POST /api/moderation/cheat-flags/:username/review — mark a player's flags as looked at. */
+moderationRouter.post('/cheat-flags/:username/review', authMiddleware, async (req, res, next) => {
+  try {
+    const username = req.params.username as string;
+    const result = await prisma.cheatFlag.updateMany({
+      where: { username, reviewed: false },
+      data: { reviewed: true },
+    });
+    res.json({ reviewed: result.count });
+  } catch (err) { next(err); }
+});
