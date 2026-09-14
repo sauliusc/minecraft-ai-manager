@@ -15,7 +15,7 @@ export
 .PHONY: help setup deploy update stop restart status logs \
         rollback backup restore shell-api shell-db shell-mcp shell-minecraft \
         logs-api logs-web logs-db logs-mcp logs-minecraft \
-        build-plugins deploy-plugins seed-admin nuke prune-images
+        build-plugins deploy-plugins seed-admin nuke prune-images render
 
 ## ─────────────────────────────────────────────────────────────────────────────
 ## GETTING STARTED
@@ -148,6 +148,15 @@ deploy-plugins: build-plugins ## Build plugins + push new minecraft image to GHC
 	$(COMPOSE) pull minecraft
 	$(COMPOSE) up -d minecraft
 	@echo "  ✓ Minecraft container updated with new plugins"
+
+## ─────────────────────────────────────────────────────────────────────────────
+## WORLD
+## ─────────────────────────────────────────────────────────────────────────────
+
+render: ## Isometric picture of part of the world: make render X0=.. X1=.. Y0=.. Y1=.. Z0=.. Z1=..
+	@[ -n "$(X0)" ] || (echo "  usage: make render X0=0 X1=46 Y0=90 Y1=152 Z0=40 Z1=96 [TILE=6] [ROT=0] [OUT=path.png]" && exit 1)
+	@bash $(DEPLOY_DIR)../scripts/render-world.sh $(X0) $(X1) $(Y0) $(Y1) $(Z0) $(Z1) \
+	  $(or $(OUT),$(DEPLOY_DIR)../renders/world.png) $(or $(TILE),6) $(or $(ROT),0)
 
 ## ─────────────────────────────────────────────────────────────────────────────
 ## DANGER ZONE

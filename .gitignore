@@ -50,3 +50,4 @@ settings.local.json
 # running on a given machine, not repo content.
 deploymentV2/.deployed-version
 deploymentV2/.previous-version
+renders/
